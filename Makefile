@@ -1,5 +1,5 @@
 .POSIX:
-ifeq '$(findstring ;,$(PATH))' ';'
+ifeq ($(OS),Windows_NT)
     detected_OS := Windows
 else
     detected_OS := $(shell uname 2>/dev/null || echo Unknown)
