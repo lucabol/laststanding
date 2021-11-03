@@ -16,13 +16,13 @@ else
 	WINCC = ../x86_64-w64-mingw32-cross/bin/x86_64-w64-mingw32-gcc
 endif
 
-CFLAGS = -ffreestanding -static -nostdlib -g -lgcc
+CFLAGS = -ffreestanding -nostdlib -static -Os -lgcc
 OUTDIR = bin
 
-%: %.c lasts.h | $(OUTDIR)
+%: %.c lasts.h | $(OUTDIR) Makefile
 	$(CC) $(CFLAGS) $< -o $(OUTDIR)/$@
 
-%.exe: %.c | $(OUTDIR)
+%.exe: %.c | $(OUTDIR) Makefile
 	$(WINCC) $(CFLAGS) $< -o $(OUTDIR)/$@ -lkernel32
 
 $(OUTDIR):
