@@ -1485,7 +1485,166 @@ dev_t makedev(unsigned int major, unsigned int minor)
 }
 
 #else
+#define WIN32_LEAN_AND_MEAN 1
+#include <windows.h>
+#include <shellapi.h>
+
 // Windows startup code here
-int atexit(void (*function)(void)) {};
 void __main() {}
+
+int main(int argc, char* argv[]);
+
+LPTSTR * parseCommandLine(LPTSTR szCmdLine, int * argc)
+{
+    int arg_count = 0;
+    int char_count = 0;
+    TCHAR break_char = ' ';
+    TCHAR * c;
+    LPTSTR * ret;
+    LPTSTR ret_str;
+
+    //
+    //  Consume all spaces.  After this, we're either at
+    //  the end of string, or we have an arg, and it
+    //  might start with a quote
+    //
+
+    c = szCmdLine;
+    while (*c == ' ') c++;
+    if (*c == '"') {
+        break_char = '"';
+        c++;
+    }
+
+    while (*c != '\0') {
+        if (*c == break_char) {
+            break_char = ' ';
+            c++;
+            while (*c == break_char) c++;
+            if (*c == '"') {
+                break_char = '"';
+                c++;
+            }
+                arg_count++;
+        } else {
+            char_count++;
+
+            //
+            //  If we hit a break char, we count the argument then.
+            //  If we hit end of string, count it here; note we're
+            //  only counting it if we counted a character before it
+            //  (ie., trailing whitespace is not an arg.)
+            //
+
+            c++;
+
+            if (*c == '\0') {
+                arg_count++;
+            }
+        }
+    }
+
+    *argc = arg_count;
+
+    ret = LocalAlloc( LMEM_FIXED, (arg_count * sizeof(LPTSTR)) + (char_count + arg_count) * sizeof(TCHAR));
+
+    ret_str = (LPTSTR)(ret + arg_count);
+
+    arg_count = 0;
+    ret[arg_count] = ret_str;
+
+    //
+    //  Consume all spaces.  After this, we're either at
+    //  the end of string, or we have an arg, and it
+    //  might start with a quote
+    //
+
+    c = szCmdLine;
+    while (*c == ' ') c++;
+    if (*c == '"') {
+        break_char = '"';
+        c++;
+    }
+
+    while (*c != '\0') {
+        if (*c == break_char) {
+            *ret_str = '\0';
+            ret_str++;
+
+            break_char = ' ';
+            c++;
+            while (*c == break_char) c++;
+            if (*c == '"') {
+                break_char = '"';
+                c++;
+            }
+            if (*c != '\0') {
+                arg_count++;
+                ret[arg_count] = ret_str;
+            }
+        } else {
+            *ret_str = *c;
+            ret_str++;
+
+            //
+            //  If we hit a break char, we count the argument then.
+            //  If we hit end of string, count it here; note we're
+            //  only counting it if we counted a character before it
+            //  (ie., trailing whitespace is not an arg.)
+            //
+
+            c++;
+
+            if (*c == '\0') {
+                *ret_str = '\0';
+            }
+        }
+    }
+
+
+    return ret;
+}
+
+int WINAPI
+mainCRTStartup(void)
+{
+   LPTSTR *szArglist;
+   int nArgs;
+   int i;
+
+   szArglist = parseCommandLine(GetCommandLine(), &nArgs);
+   if( NULL == szArglist )
+   {
+      return 0;
+   }
+   else {
+	   i = main(nArgs, szArglist);
+   }
+
+   LocalFree(szArglist);
+
+   return(i);	
+}
+
+static __attribute__((unused))
+int write(int fd, const void *buf, size_t count)
+{
+	DWORD written;
+	WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, strlen(buf), &written, NULL);
+	return written;
+}
 #endif
+
+size_t strlen(const char *str)
+{
+	size_t len;
+
+	for (len = 0; str[len]; len++);
+	return len;
+}
+
+#define strlen(str) ({                          \
+	__builtin_constant_p((str)) ?           \
+		__builtin_strlen((str)) :       \
+		strlen((str));           \
+})
