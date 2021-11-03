@@ -17,9 +17,16 @@ else
 endif
 
 CFLAGS = -ffreestanding -static -nostdlib -g -lgcc
+OUTDIR = bin
 
-%: %.c lasts.h
-	$(CC) $(CFLAGS) $< -o $@
+%: %.c lasts.h | $(OUTDIR)
+	$(CC) $(CFLAGS) $< -o $(OUTDIR)/$@
 
-%.exe: %.c
-	$(WINCC) $(CFLAGS) $< -o $@ -lkernel32
+%.exe: %.c | $(OUTDIR)
+	$(WINCC) $(CFLAGS) $< -o $(OUTDIR)/$@ -lkernel32
+
+$(OUTDIR):
+	mkdir -p $@
+
+clean:
+	rm -rf $(OUTDIR)
