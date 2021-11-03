@@ -9,9 +9,11 @@ else
 endif
 
 ifeq ($(detected_OS),Windows)
-	CC = x86_64-w64-mingw32-cross/bin/x86_64-w64-mingw32-gcc
+	CC = gcc
+	WINCC = gcc
 else
 	CC = gcc
+	WINCC = ../x86_64-w64-mingw32-cross/bin/x86_64-w64-mingw32-gcc
 endif
 
 CFLAGS = -ffreestanding -static -nostdlib -g -lgcc
@@ -20,4 +22,4 @@ CFLAGS = -ffreestanding -static -nostdlib -g -lgcc
 	$(CC) $(CFLAGS) $< -o $@
 
 %.exe: %.c
-	$(CC) $(CFLAGS) $< -o $@ -lkernel32
+	$(WINCC) $(CFLAGS) $< -o $@ -lkernel32
