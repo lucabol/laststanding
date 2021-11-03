@@ -1377,21 +1377,6 @@ char *strrchr(const char *s, int c)
 }
 
 static __attribute__((unused))
-size_t nolibc_strlen(const char *str)
-{
-	size_t len;
-
-	for (len = 0; str[len]; len++);
-	return len;
-}
-
-#define strlen(str) ({                          \
-	__builtin_constant_p((str)) ?           \
-		__builtin_strlen((str)) :       \
-		nolibc_strlen((str));           \
-})
-
-static __attribute__((unused))
 int isdigit(int c)
 {
 	return (unsigned int)(c - '0') <= 9;
