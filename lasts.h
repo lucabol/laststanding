@@ -7,6 +7,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // CONFIG {{{1
 // Override this to change declaration of functions
 #ifndef LASTS_FDEF
@@ -1505,11 +1509,12 @@ dev_t makedev(unsigned int major, unsigned int minor)
 #include <windows.h>
 #include <shellapi.h>
 
-// Windows startup code here
+// MINGW complains I need to define this. It gets called inside main apparently
 void __main() {}
 
 int main(int argc, char* argv[]);
 
+// CommandLineToArgvW is not in kernel32.dll
 LPTSTR * parseCommandLine(LPTSTR szCmdLine, int * argc)
 {
     int arg_count = 0;
@@ -1628,7 +1633,13 @@ mainCRTStartup(void)
     int nArgs;
     int i;
 
-    szArglist = parseCommandLine(GetCommandLine(), &nArgs);
+    LPWSTR u16cmdline = GetCommandLineW();
+    int byteLen = strlen((char*)u16cmdline);
+    int bufSize = byteLen * 3;
+    char buffer[bufSize]; // Can overflow
+    int size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, buffer,bufSize, NULL, NULL);
+    szArglist = parseCommandLine(buffer, &nArgs);
+
     if( NULL == szArglist )
     {
         return 0;
@@ -1647,8 +1658,14 @@ LASTS_FDEF __attribute__((unused))
 int write(int fd, const void *buf, size_t count)
 {
     DWORD written;
+    SetConsoleOutputCP(CP_UTF8);
+SetConsoleCP(CP_UTF8);
     WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, strlen(buf), &written, NULL);
     return written;
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 
