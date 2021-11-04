@@ -1,22 +1,10 @@
 .POSIX:
-ifeq ($(OS),Windows_NT)
-    detected_OS := Windows
-else
-    detected_OS := $(shell uname 2>/dev/null || echo Unknown)
-    detected_OS := $(patsubst CYGWIN%,Cygwin,$(detected_OS))
-    detected_OS := $(patsubst MSYS%,MSYS,$(detected_OS))
-    detected_OS := $(patsubst MINGW%,MSYS,$(detected_OS))
-endif
-
-ifeq ($(detected_OS),Windows)
-	CC = gcc
-	WINCC = gcc
-else
-	CC = gcc
-	WINCC = ../x86_64-w64-mingw32-cross/bin/x86_64-w64-mingw32-gcc
-endif
+CC = gcc
+WINCC = mingw-gcc
 
 CFLAGS = -ffreestanding -nostdlib -static -s -Os -lgcc
+LDFLAGS = -lgcc
+
 OUTDIR = bin
 SRCS = $(wildcard *.c)
 BASEALL = $(patsubst %.c,%,$(SRCS))
@@ -24,10 +12,10 @@ ALL = $(BASEALL) $(addsuffix .exe, $(BASEALL))
 all: $(ALL)
 
 %: %.c lasts.h | $(OUTDIR) Makefile
-	$(CC) $(CFLAGS) $< -o $(OUTDIR)/$@
+	$(CC) $(CFLAGS) $< -o $(OUTDIR)/$@ $(LDFLAGS)
 
 %.exe: %.c | $(OUTDIR) Makefile
-	$(WINCC) $(CFLAGS) $< -o $(OUTDIR)/$@ -lkernel32
+	$(WINCC) $(CFLAGS) $< -o $(OUTDIR)/$@ $(LDFLAGS) -lkernel32
 
 $(OUTDIR):
 	mkdir -p $@

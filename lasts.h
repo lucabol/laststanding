@@ -1626,6 +1626,9 @@ LPTSTR * parseCommandLine(LPTSTR szCmdLine, int * argc)
     return ret;
 }
 
+LASTS_FDEF __attribute__((unused))
+int write(int fd, const void *buf, size_t count);
+
 int WINAPI
 mainCRTStartup(void)
 {
@@ -1634,10 +1637,9 @@ mainCRTStartup(void)
     int i;
 
     LPWSTR u16cmdline = GetCommandLineW();
-    int byteLen = strlen((char*)u16cmdline);
-    int bufSize = byteLen * 3;
-    char buffer[bufSize]; // Can overflow
-    int size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, buffer,bufSize, NULL, NULL);
+    size_t required_size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, NULL, 0, NULL, NULL);
+    char buffer[required_size]; // Can overflow
+    int size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, buffer,required_size, NULL, NULL);
     szArglist = parseCommandLine(buffer, &nArgs);
 
     if( NULL == szArglist )
@@ -1659,7 +1661,7 @@ int write(int fd, const void *buf, size_t count)
 {
     DWORD written;
     SetConsoleOutputCP(CP_UTF8);
-SetConsoleCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
     WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, strlen(buf), &written, NULL);
     return written;
 }
