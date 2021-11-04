@@ -16,8 +16,12 @@ else
 	WINCC = ../x86_64-w64-mingw32-cross/bin/x86_64-w64-mingw32-gcc
 endif
 
-CFLAGS = -ffreestanding -nostdlib -static -Os -lgcc
+CFLAGS = -ffreestanding -nostdlib -static -s -Os -lgcc
 OUTDIR = bin
+SRCS = $(wildcard *.c)
+BASEALL = $(patsubst %.c,%,$(SRCS))
+ALL = $(BASEALL) $(addsuffix .exe, $(BASEALL))
+all: $(ALL)
 
 %: %.c lasts.h | $(OUTDIR) Makefile
 	$(CC) $(CFLAGS) $< -o $(OUTDIR)/$@
@@ -30,3 +34,9 @@ $(OUTDIR):
 
 clean:
 	rm -rf $(OUTDIR)
+
+echoes:
+	echo $(ALL)
+	echo $(SRCS)
+
+.PHONY: clean all
