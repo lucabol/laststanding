@@ -28,7 +28,7 @@ typedef   signed int          pid_t;
 typedef   signed long         off_t;
 
 // Standard C library
-LASTS_FDEF size_t lasts_wcslen(const wchar_t *s);
+inline size_t lasts_wcslen(const wchar_t *s); // Has to be inline for MINGW to compile w/out warns
 LASTS_FDEF size_t lasts_strlen(const char *str);
 LASTS_FDEF char *lasts_strcpy(char *dst, const char *src);
 LASTS_FDEF char *lasts_strchr(const char *s, int c);
@@ -106,7 +106,7 @@ void lasts_exitif(bool condition, int code, char *message) {
     }
 }
 
-LASTS_FDEF __attribute__((unused))
+inline __attribute__((unused))
 size_t lasts_wcslen(const wchar_t *s) {
     size_t len = 0;
     while(s[len] != L'\0') ++len;
@@ -333,7 +333,6 @@ struct pollfd {
  */
 
 #define my_syscall0(num)                                                      \
-        ({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          \
@@ -342,12 +341,9 @@ struct pollfd {
                          : "=a" (_ret)                                                 \
                          : "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         );                                                                    \
-                         _ret;                                                                 \
-                         })
+                         )
 
 #define my_syscall1(num, arg1)                                                \
-        ({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -358,12 +354,9 @@ struct pollfd {
                          : "r"(_arg1),                                                 \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         );                                                                    \
-                         _ret;                                                                 \
-                         })
+                         )
 
 #define my_syscall2(num, arg1, arg2)                                          \
-        ({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -375,12 +368,9 @@ struct pollfd {
                          : "r"(_arg1), "r"(_arg2),                                     \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         );                                                                    \
-                         _ret;                                                                 \
-                         })
+                         )
 
 #define my_syscall3(num, arg1, arg2, arg3)                                    \
-        ({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -393,12 +383,9 @@ struct pollfd {
                          : "r"(_arg1), "r"(_arg2), "r"(_arg3),                         \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         );                                                                    \
-                         _ret;                                                                 \
-                         })
+                         )
 
 #define my_syscall4(num, arg1, arg2, arg3, arg4)                              \
-        ({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -412,12 +399,9 @@ struct pollfd {
                          : "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4),             \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r11", "memory", "cc"                    \
-                         );                                                                    \
-                         _ret;                                                                 \
-                         })
+                         )
 
 #define my_syscall5(num, arg1, arg2, arg3, arg4, arg5)                        \
-        ({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -432,9 +416,7 @@ struct pollfd {
                          : "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4), "r"(_arg5), \
                          "0"(_num)                                                   \
                          : "rcx", "r9", "r11", "memory", "cc"                          \
-                         );                                                                    \
-                         _ret;                                                                 \
-                         })
+                         )
 
 #define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6)                  \
         ({                                                                            \
@@ -456,6 +438,7 @@ struct pollfd {
                          );                                                                    \
                          _ret;                                                                 \
                          })
+#pragma GCC diagnostic pop
 
 /* startup code */
 asm(".section .text\n"
@@ -521,11 +504,6 @@ struct sys_stat_struct {
  * LASTS_FDEF will lead to them being inlined in most cases, but it's still possible
  * to reference them by a pointer if needed.
  */
-LASTS_FDEF __attribute__((unused))
-void *sys_brk(void *addr)
-{
-    return (void *)my_syscall1(__NR_brk, addr);
-}
 
 LASTS_FDEF __attribute__((noreturn,unused))
 void sys_exit(int status)
@@ -535,47 +513,24 @@ void sys_exit(int status)
 }
 
 LASTS_FDEF __attribute__((unused))
-int sys_chdir(const char *path)
-{
-    return my_syscall1(__NR_chdir, path);
-}
-
-LASTS_FDEF __attribute__((unused))
 int sys_close(int fd)
 {
-    return my_syscall1(__NR_close, fd);
+    my_syscall1(__NR_close, fd);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 int sys_dup(int fd)
 {
-    return my_syscall1(__NR_dup, fd);
-}
-
-#ifdef __NR_dup3
-LASTS_FDEF __attribute__((unused))
-int sys_dup3(int old, int new, int flags)
-{
-    return my_syscall3(__NR_dup3, old, new, flags);
-}
-#endif
-
-LASTS_FDEF __attribute__((unused))
-int sys_dup2(int old, int new)
-{
-#ifdef __NR_dup3
-    return my_syscall3(__NR_dup3, old, new, 0);
-#elif defined(__NR_dup2)
-    return my_syscall2(__NR_dup2, old, new);
-#else
-#error Neither __NR_dup3 nor __NR_dup2 defined, cannot implement sys_dup2()
-#endif
+    my_syscall1(__NR_dup, fd);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 int sys_execve(const char *filename, char *const argv[], char *const envp[])
 {
-    return my_syscall3(__NR_execve, filename, argv, envp);
+    my_syscall3(__NR_execve, filename, argv, envp);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
@@ -586,9 +541,11 @@ pid_t sys_fork(void)
      * have a different API, but most archs have the flags on first arg and
      * will not use the rest with no other flag.
      */
-    return my_syscall5(__NR_clone, SIGCHLD, 0, 0, 0, 0);
+    my_syscall5(__NR_clone, SIGCHLD, 0, 0, 0, 0);
+    return _ret;
 #elif defined(__NR_fork)
-    return my_syscall0(__NR_fork);
+    my_syscall0(__NR_fork);
+    return _ret;
 #else
 #error Neither __NR_clone nor __NR_fork defined, cannot implement sys_fork()
 #endif
@@ -597,13 +554,15 @@ pid_t sys_fork(void)
 LASTS_FDEF __attribute__((unused))
 int sys_fsync(int fd)
 {
-    return my_syscall1(__NR_fsync, fd);
+    my_syscall1(__NR_fsync, fd);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 pid_t sys_getpgid(pid_t pid)
 {
-    return my_syscall1(__NR_getpgid, pid);
+    my_syscall1(__NR_getpgid, pid);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
@@ -615,157 +574,76 @@ pid_t sys_getpgrp(void)
 LASTS_FDEF __attribute__((unused))
 pid_t sys_getpid(void)
 {
-    return my_syscall0(__NR_getpid);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_ioctl(int fd, unsigned long req, void *value)
-{
-    return my_syscall3(__NR_ioctl, fd, req, value);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_kill(pid_t pid, int signal)
-{
-    return my_syscall2(__NR_kill, pid, signal);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_link(const char *old, const char *new)
-{
-#ifdef __NR_linkat
-    return my_syscall5(__NR_linkat, AT_FDCWD, old, AT_FDCWD, new, 0);
-#elif defined(__NR_link)
-    return my_syscall2(__NR_link, old, new);
-#else
-#error Neither __NR_linkat nor __NR_link defined, cannot implement sys_link()
-#endif
+    my_syscall0(__NR_getpid);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
-    return my_syscall3(__NR_lseek, fd, offset, whence);
+    my_syscall3(__NR_lseek, fd, offset, whence);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 int sys_mkdir(const char *path, mode_t mode)
 {
 #ifdef __NR_mkdirat
-    return my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
+    my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
+    return _ret;
 #elif defined(__NR_mkdir)
-    return my_syscall2(__NR_mkdir, path, mode);
+    my_syscall2(__NR_mkdir, path, mode);
+    return _ret;
 #else
 #error Neither __NR_mkdirat nor __NR_mkdir defined, cannot implement sys_mkdir()
 #endif
 }
-
+LASTS_FDEF __attribute__((unused))
+int sys_chdir(const char *path)
+{
+    my_syscall1(__NR_chdir, path);
+    return _ret;
+}
 LASTS_FDEF __attribute__((unused))
 int sys_open(const char *path, int flags, mode_t mode)
 {
 #ifdef __NR_openat
-    return my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
+    my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
+    return _ret;
 #elif defined(__NR_open)
-    return my_syscall3(__NR_open, path, flags, mode);
+    my_syscall3(__NR_open, path, flags, mode);
+    return _ret;
 #else
 #error Neither __NR_openat nor __NR_open defined, cannot implement sys_open()
 #endif
 }
 
 LASTS_FDEF __attribute__((unused))
-int sys_pivot_root(const char *new, const char *old)
-{
-    return my_syscall2(__NR_pivot_root, new, old);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_poll(struct pollfd *fds, int nfds, int timeout)
-{
-#if defined(__NR_ppoll)
-    struct timespec t;
-
-    if (timeout >= 0) {
-        t.tv_sec  = timeout / 1000;
-        t.tv_nsec = (timeout % 1000) * 1000000;
-    }
-    return my_syscall4(__NR_ppoll, fds, nfds, (timeout >= 0) ? &t : NULL, NULL);
-#elif defined(__NR_poll)
-    return my_syscall3(__NR_poll, fds, nfds, timeout);
-#else
-#error Neither __NR_ppoll nor __NR_poll defined, cannot implement sys_poll()
-#endif
-}
-
-LASTS_FDEF __attribute__((unused))
 ssize_t sys_read(int fd, void *buf, size_t count)
 {
-    return my_syscall3(__NR_read, fd, buf, count);
+    my_syscall3(__NR_read, fd, buf, count);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 ssize_t sys_reboot(int magic1, int magic2, int cmd, void *arg)
 {
-    return my_syscall4(__NR_reboot, magic1, magic2, cmd, arg);
+    my_syscall4(__NR_reboot, magic1, magic2, cmd, arg);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 int sys_sched_yield(void)
 {
-    return my_syscall0(__NR_sched_yield);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_setpgid(pid_t pid, pid_t pgid)
-{
-    return my_syscall2(__NR_setpgid, pid, pgid);
-}
-
-LASTS_FDEF __attribute__((unused))
-pid_t sys_setsid(void)
-{
-    return my_syscall0(__NR_setsid);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_symlink(const char *old, const char *new)
-{
-#ifdef __NR_symlinkat
-    return my_syscall3(__NR_symlinkat, old, AT_FDCWD, new);
-#elif defined(__NR_symlink)
-    return my_syscall2(__NR_symlink, old, new);
-#else
-#error Neither __NR_symlinkat nor __NR_symlink defined, cannot implement sys_symlink()
-#endif
-}
-
-LASTS_FDEF __attribute__((unused))
-mode_t sys_umask(mode_t mode)
-{
-    return my_syscall1(__NR_umask, mode);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_umount2(const char *path, int flags)
-{
-    return my_syscall2(__NR_umount2, path, flags);
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_unlink(const char *path)
-{
-#ifdef __NR_unlinkat
-    return my_syscall3(__NR_unlinkat, AT_FDCWD, path, 0);
-#elif defined(__NR_unlink)
-    return my_syscall1(__NR_unlink, path);
-#else
-#error Neither __NR_unlinkat nor __NR_unlink defined, cannot implement sys_unlink()
-#endif
+    my_syscall0(__NR_sched_yield);
+    return _ret;
 }
 
 LASTS_FDEF __attribute__((unused))
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-    return my_syscall3(__NR_write, fd, buf, count);
+    my_syscall3(__NR_write, fd, buf, count);
+    return _ret;
 }
 
 // SYSTEM UNIX FUNCTIONS {{{1
