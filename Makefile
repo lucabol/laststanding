@@ -23,6 +23,10 @@ $(OUTDIR):
 clean:
 	rm -rf $(OUTDIR)
 
+check:
+	@bin/base "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
+	@bin/base.exe "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
+
 echoes:
 	echo $(ALL)
 	echo $(SRCS)

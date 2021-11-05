@@ -5,6 +5,5 @@ int main(int argc, char* argv[]) {
           write(1, argv[i], strlen(argv[i]));
           write(1, "\n", 1);
   }
-  if(1 == 1 and 2 == 2) return 3;
-  return 4;
+  return 0;
 }
