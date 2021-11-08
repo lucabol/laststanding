@@ -23,9 +23,13 @@ extern "C" {
 typedef   signed long       ssize_t;
 #endif
 
-typedef unsigned int         mode_t;
+typedef   unsigned int        mode_t;
 typedef   signed int          pid_t;
 typedef   signed long         off_t;
+typedef   ptrdiff_t           LASTS_FD;
+#define   LASTS_STDIN         0
+#define   LASTS_STDOUT        1
+#define   LASTS_STDERR        2
 
 // Standard C library
 inline size_t lasts_wcslen(const wchar_t *s); // Has to be inline for MINGW to compile w/out warns
@@ -45,12 +49,12 @@ void *lasts_memcpy(void *dst, const void *src, size_t len);
 
 // Posix
 LASTS_FDEF void lasts_exit(int status);
-LASTS_FDEF int lasts_open(const char *path, int flags, mode_t mode);
-LASTS_FDEF int lasts_close(int fd);
-LASTS_FDEF ssize_t lasts_read(int fd, void *buf, size_t count);
-LASTS_FDEF ssize_t lasts_write(int fd, const void *buf, size_t count);
-LASTS_FDEF off_t lasts_lseek(int fd, off_t offset, int whence);
-LASTS_FDEF int lasts_dup(int fd);
+LASTS_FDEF LASTS_FD lasts_open(const char *path, int flags, mode_t mode);
+LASTS_FDEF int lasts_close(LASTS_FD fd);
+LASTS_FDEF ssize_t lasts_read(LASTS_FD fd, void *buf, size_t count);
+LASTS_FDEF ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count);
+LASTS_FDEF off_t lasts_lseek(LASTS_FD fd, off_t offset, int whence);
+LASTS_FDEF int lasts_dup(LASTS_FD fd);
 LASTS_FDEF int lasts_execve(const char *filename, char *const argv[], char *const envp[]);
 LASTS_FDEF pid_t lasts_fork(void);
 LASTS_FDEF int lasts_mkdir(const char *path, mode_t mode);
@@ -88,6 +92,10 @@ LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 #  define chdir lasts_chdir
 #  define sched_yield lasts_sched_yield
 #  define exitif lasts_exitif
+
+#define STDIN    LASTS_STDIN
+#define STDOUT   LASTS_STDOUT
+#define STDERR   LASTS_STDERR
 #endif // LASTS_DONT_OVERRIDE
 
 // SYSTEM AGNOSTIC FUNCTIONS {{{1
@@ -101,7 +109,7 @@ LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 LASTS_FDEF __attribute__((unused))
 void lasts_exitif(bool condition, int code, char *message) {
     if(condition) {
-        if(message) lasts_write(1, message, lasts_strlen(message));
+        if(message) lasts_write(LASTS_STDERR, message, lasts_strlen(message));
         lasts_exit(code);
     }
 }
@@ -671,7 +679,7 @@ int lasts_chdir(const char *path)
 }
 
 LASTS_FDEF __attribute__((unused))
-int lasts_close(int fd)
+int lasts_close(LASTS_FD fd)
 {
     int ret = sys_close(fd);
 
@@ -683,7 +691,7 @@ int lasts_close(int fd)
 }
 
 LASTS_FDEF __attribute__((unused))
-int lasts_dup(int fd)
+int lasts_dup(LASTS_FD fd)
 {
     int ret = sys_dup(fd);
 
@@ -720,7 +728,7 @@ pid_t lasts_fork(void)
 }
 
 LASTS_FDEF __attribute__((unused))
-off_t lasts_lseek(int fd, off_t offset, int whence)
+off_t lasts_lseek(LASTS_FD fd, off_t offset, int whence)
 {
     off_t ret = sys_lseek(fd, offset, whence);
 
@@ -744,7 +752,7 @@ int lasts_mkdir(const char *path, mode_t mode)
 }
 
 LASTS_FDEF __attribute__((unused))
-int lasts_open(const char *path, int flags, mode_t mode)
+LASTS_FD lasts_open(const char *path, int flags, mode_t mode)
 {
     int ret = sys_open(path, flags, mode);
 
@@ -756,7 +764,7 @@ int lasts_open(const char *path, int flags, mode_t mode)
 }
 
 LASTS_FDEF __attribute__((unused))
-ssize_t lasts_read(int fd, void *buf, size_t count)
+ssize_t lasts_read(LASTS_FD fd, void *buf, size_t count)
 {
     ssize_t ret = sys_read(fd, buf, count);
 
@@ -780,7 +788,7 @@ int lasts_sched_yield(void)
 }
 
 LASTS_FDEF __attribute__((unused))
-ssize_t lasts_write(int fd, const void *buf, size_t count)
+ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
 {
     ssize_t ret = sys_write(fd, buf, count);
 
@@ -937,6 +945,8 @@ int WINAPI mainCRTStartup(void)
     char buffer[required_size]; 
 
     int size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, buffer,required_size, NULL, NULL);
+    exitif(!size, GetLastError(), "Error converting command line to utf-8. Are you using some ungodly character?");
+
     szArglist = parseCommandLine(buffer, &nArgs);
 
     if( NULL == szArglist )
@@ -961,12 +971,19 @@ void lasts_exit(int status)
 }
 
 LASTS_FDEF __attribute__((unused))
-ssize_t lasts_write(int fd, const void *buf, size_t count)
+ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
 {
     DWORD written;
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-    WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, lasts_strlen(buf), &written, NULL);
+    HANDLE out;
+    if(fd == LASTS_STDOUT) {
+        SetConsoleOutputCP(CP_UTF8);
+        out = GetStdHandle(STD_OUTPUT_HANDLE);
+        exitif(out == INVALID_HANDLE_VALUE, GetLastError(), "Cannot get output handle for the process");
+    } else {
+        out = (LPVOID)fd;
+    }
+    BOOL result = WriteFile(out, buf, count, &written, NULL);
+    exitif(!result, GetLastError(), "Cannot get output handle for the process");
     return written;
 }
 #endif
