@@ -2,7 +2,7 @@
 CC = gcc
 WINCC = mingw-gcc
 
-CFLAGS = -Wall -Wextra -pedantic -ffreestanding -nostdlib -s -Os
+CFLAGS = -Wall -Wextra -pedantic -ffreestanding -nostdlib -static -s -Os -fno-asynchronous-unwind-tables -fno-ident
 LDFLAGS = -lgcc
 
 OUTDIR = bin

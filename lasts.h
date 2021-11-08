@@ -47,19 +47,17 @@ LASTS_FDEF int lasts_memcmp(const void *s1, const void *s2, size_t n);
 __attribute__((weak,unused))
 void *lasts_memcpy(void *dst, const void *src, size_t len);
 
-// Posix
+// System interaction
 LASTS_FDEF void lasts_exit(int status);
-LASTS_FDEF LASTS_FD lasts_open(const char *path, int flags, mode_t mode);
+
+LASTS_FDEF LASTS_FD lasts_open_read(const char* file);
+LASTS_FDEF LASTS_FD lasts_open_write(const char* file);
+LASTS_FDEF LASTS_FD lasts_open_readwrite(const char* file);
+LASTS_FDEF LASTS_FD lasts_open_append(const char* file);
+LASTS_FDEF LASTS_FD lasts_open_trunc(const char* file);
 LASTS_FDEF int lasts_close(LASTS_FD fd);
 LASTS_FDEF ssize_t lasts_read(LASTS_FD fd, void *buf, size_t count);
 LASTS_FDEF ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count);
-LASTS_FDEF off_t lasts_lseek(LASTS_FD fd, off_t offset, int whence);
-LASTS_FDEF int lasts_dup(LASTS_FD fd);
-LASTS_FDEF int lasts_execve(const char *filename, char *const argv[], char *const envp[]);
-LASTS_FDEF pid_t lasts_fork(void);
-LASTS_FDEF int lasts_mkdir(const char *path, mode_t mode);
-LASTS_FDEF int lasts_chdir(const char *path);
-LASTS_FDEF int lasts_sched_yield(void);
 
 // My functions
 LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
@@ -80,7 +78,6 @@ LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 #  define memcpy lasts_memcpy
 
 #  define exit lasts_exit
-#  define open lasts_open
 #  define close lasts_close
 #  define read lasts_read
 #  define write lasts_write
@@ -92,6 +89,11 @@ LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 #  define chdir lasts_chdir
 #  define sched_yield lasts_sched_yield
 #  define exitif lasts_exitif
+#  define open_read lasts_open_read
+#  define open_write lasts_open_write
+#  define open_readwrite lasts_open_readwrite
+#  define open_append lasts_open_append
+#  define open_trunc lasts_open_trunc
 
 #define STDIN    LASTS_STDIN
 #define STDOUT   LASTS_STDOUT
@@ -446,7 +448,6 @@ struct pollfd {
                          );                                                                    \
                          _ret;                                                                 \
                          })
-#pragma GCC diagnostic pop
 
 /* startup code */
 asm(".section .text\n"
@@ -799,6 +800,30 @@ ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
     return ret;
 }
 
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_read(const char* file) {
+    return lasts_open(file, O_RDONLY, 0);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_write(const char* file) {
+    return lasts_open(file, O_WRONLY | O_CREAT, 0644);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_readwrite(const char* file) {
+    return lasts_open(file, O_RDWR | O_CREAT, 0644);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_append(const char* file) {
+    return lasts_open(file, O_WRONLY | O_APPEND | O_CREAT, 0600);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_trunc(const char* file) {
+    return lasts_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+}
 #else
 // WINDOWS PREAMBLE {{{1
 #define WIN32_LEAN_AND_MEAN 1
@@ -938,7 +963,8 @@ int WINAPI mainCRTStartup(void)
     wchar_t *u16cmdline = GetCommandLineW();
 
     // Max bytes needed when converting from utf-16 to utf-8.
-    size_t required_size = wcslen(u16cmdline) * 3;
+    // https://stackoverflow.com/questions/55056322/maximum-utf-8-string-size-given-utf-16-size
+    size_t required_size = wcslen(u16cmdline) * 4;
 
     // Cannot blow the stack because of limited lenght of windows cmd line :
     // https://stackoverflow.com/questions/3205027/maximum-length-of-command-line-string
@@ -970,6 +996,47 @@ void lasts_exit(int status)
     ExitProcess(status);
 }
 
+#define O_RDONLY            GENERIC_READ
+#define O_WRONLY            GENERIC_WRITE
+#define O_RDWR              GENERIC_READ | GENERIC_WRITE
+#define O_CREAT          0x40
+#define O_EXCL           0x80
+#define O_NOCTTY        0x100
+#define O_TRUNC         0x200
+#define O_APPEND        0x400
+#define O_NONBLOCK      0x800
+#define O_DIRECTORY   0x10000
+
+#ifdef NONE
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open(const char *path, int flags, mode_t mode) {
+    size_t utf8Len = strlen(path) + 1; // +1 for terminating null
+    // The worst case scenario is for each byte to be a separate codepoint, which takes 2 bytes in u16.
+    size_t utf16Len = utf8Len * 2;
+    wchar_t buffer[utf16Len];
+
+      int result = MultiByteToWideChar(
+            CP_UTF8,                // convert from UTF-8
+            MB_ERR_INVALID_CHARS,   // error on invalid chars
+            path,                   // source UTF-8 string
+            utf8Len,                // total length of source UTF-8 string,
+                                    // in CHAR's (= bytes), including end-of-string \0
+            buffer,                 // destination buffer
+            utf16Len                // size of destination buffer, in WCHAR's
+            );
+
+    exitif(!result, GetLastError(), "Error converting file name from utf-8 to utf-16.");
+
+    HANDLE fd = CreateFileW(
+            buffer,
+            flags,
+
+}
+
+#endif
+
+#define RET_BOOL_TO_INT(result) if(result) return 0; else return -1
+
 LASTS_FDEF __attribute__((unused))
 ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
 {
@@ -978,13 +1045,89 @@ ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
     if(fd == LASTS_STDOUT) {
         SetConsoleOutputCP(CP_UTF8);
         out = GetStdHandle(STD_OUTPUT_HANDLE);
-        exitif(out == INVALID_HANDLE_VALUE, GetLastError(), "Cannot get output handle for the process");
     } else {
-        out = (LPVOID)fd;
+        out = (HANDLE)fd;
     }
     BOOL result = WriteFile(out, buf, count, &written, NULL);
-    exitif(!result, GetLastError(), "Cannot get output handle for the process");
-    return written;
+    RET_BOOL_TO_INT(result);
+}
+
+LASTS_FDEF __attribute__((unused))
+ssize_t lasts_read(LASTS_FD fd, void *buf, size_t count)
+{
+    DWORD read;
+    HANDLE in;
+    if(fd == LASTS_STDIN) {
+        SetConsoleCP(CP_UTF8);
+        in = GetStdHandle(STD_INPUT_HANDLE);
+    } else {
+        in = (HANDLE)fd;
+    }
+    BOOL result = ReadFile(in, buf, count, &read, NULL);
+    RET_BOOL_TO_INT(result);
+}
+
+
+LASTS_FDEF __attribute__((unused))
+int lasts_close(LASTS_FD fd) {
+    BOOL result = CloseHandle((HANDLE)fd);
+    RET_BOOL_TO_INT(result);
+}
+
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD dispo) {
+
+    size_t utf8Len = strlen(file) + 1; // +1 for terminating null
+    // The worst case scenario is for each byte to be a separate codepoint, which takes 2 bytes in u16.
+    size_t utf16Len = utf8Len * 2;
+    wchar_t buffer[utf16Len];
+
+      int result = MultiByteToWideChar(
+            CP_UTF8,                // convert from UTF-8
+            MB_ERR_INVALID_CHARS,   // error on invalid chars
+            file,                   // source UTF-8 string
+            utf8Len,                // total length of source UTF-8 string,
+                                    // in CHAR's (= bytes), including end-of-string \0
+            buffer,                 // destination buffer
+            utf16Len                // size of destination buffer, in WCHAR's
+            );
+
+    if(!result) return -1;
+
+    HANDLE hFile = CreateFileW(buffer,        // file to open
+                       desired,          // open for reading
+                       shared,       // share for reading
+                       NULL,                  // default security
+                       dispo,         // existing file only
+                       FILE_ATTRIBUTE_NORMAL, // normal file
+                       NULL);                 // no attr. template
+
+    if(hFile == INVALID_HANDLE_VALUE) return -1; else return (LASTS_FD)hFile;
+}
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_read(const char* file) {
+    return lasts_win_open_gen(file, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_write(const char* file) {
+    return lasts_win_open_gen(file, GENERIC_WRITE, 0, CREATE_ALWAYS);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_readwrite(const char* file) {
+    return lasts_win_open_gen(file, GENERIC_READ | GENERIC_WRITE, 0, CREATE_ALWAYS);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_append(const char* file) {
+    return lasts_win_open_gen(file, FILE_APPEND_DATA, FILE_SHARE_READ, OPEN_ALWAYS);
+}
+
+LASTS_FDEF __attribute__((unused))
+LASTS_FD lasts_open_trunc(const char* file) {
+    return lasts_win_open_gen(file, GENERIC_WRITE, 0, TRUNCATE_EXISTING | OPEN_ALWAYS);
 }
 #endif
 
