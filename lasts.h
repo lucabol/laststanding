@@ -975,7 +975,7 @@ int WINAPI mainCRTStartup(void)
 
     // Cannot blow the stack because of limited lenght of windows cmd line :
     // https://stackoverflow.com/questions/3205027/maximum-length-of-command-line-string
-    char buffer[required_size]; 
+    char buffer[required_size];
 
     int size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, buffer,required_size, NULL, NULL);
     exitif(!size, GetLastError(), "Error converting command line to utf-8. Are you using some ungodly character?");
@@ -1022,21 +1022,21 @@ LASTS_FD lasts_open(const char *path, int flags, mode_t mode) {
     size_t utf16Len = utf8Len * 2;
     wchar_t buffer[utf16Len];
 
-      int result = MultiByteToWideChar(
-            CP_UTF8,                // convert from UTF-8
-            MB_ERR_INVALID_CHARS,   // error on invalid chars
-            path,                   // source UTF-8 string
-            utf8Len,                // total length of source UTF-8 string,
-                                    // in CHAR's (= bytes), including end-of-string \0
-            buffer,                 // destination buffer
-            utf16Len                // size of destination buffer, in WCHAR's
-            );
+    int result = MultiByteToWideChar(
+                     CP_UTF8,                // convert from UTF-8
+                     MB_ERR_INVALID_CHARS,   // error on invalid chars
+                     path,                   // source UTF-8 string
+                     utf8Len,                // total length of source UTF-8 string,
+                     // in CHAR's (= bytes), including end-of-string \0
+                     buffer,                 // destination buffer
+                     utf16Len                // size of destination buffer, in WCHAR's
+                 );
 
     exitif(!result, GetLastError(), "Error converting file name from utf-8 to utf-16.");
 
     HANDLE fd = CreateFileW(
-            buffer,
-            flags,
+                    buffer,
+                    flags,
 
 }
 
@@ -1044,8 +1044,8 @@ LASTS_FD lasts_open(const char *path, int flags, mode_t mode) {
 
 #define RET_BOOL_TO_INT(result) if(result) return 0; else return -1
 
-LASTS_FDEF __attribute__((unused))
-ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
+            LASTS_FDEF __attribute__((unused))
+            ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
 {
     DWORD written;
     HANDLE out;
@@ -1090,27 +1090,28 @@ LASTS_FD lasts_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD
     size_t utf16Len = utf8Len * 2;
     wchar_t buffer[utf16Len];
 
-      int result = MultiByteToWideChar(
-            CP_UTF8,                // convert from UTF-8
-            MB_ERR_INVALID_CHARS,   // error on invalid chars
-            file,                   // source UTF-8 string
-            utf8Len,                // total length of source UTF-8 string,
-                                    // in CHAR's (= bytes), including end-of-string \0
-            buffer,                 // destination buffer
-            utf16Len                // size of destination buffer, in WCHAR's
-            );
+    int result = MultiByteToWideChar(
+                     CP_UTF8,                // convert from UTF-8
+                     MB_ERR_INVALID_CHARS,   // error on invalid chars
+                     file,                   // source UTF-8 string
+                     utf8Len,                // total length of source UTF-8 string,
+                     // in CHAR's (= bytes), including end-of-string \0
+                     buffer,                 // destination buffer
+                     utf16Len                // size of destination buffer, in WCHAR's
+                 );
 
     if(!result) return -1;
 
     HANDLE hFile = CreateFileW(buffer,        // file to open
-                       desired,          // open for reading
-                       shared,       // share for reading
-                       NULL,                  // default security
-                       dispo,         // existing file only
-                       FILE_ATTRIBUTE_NORMAL, // normal file
-                       NULL);                 // no attr. template
+                               desired,          // open for reading
+                               shared,       // share for reading
+                               NULL,                  // default security
+                               dispo,         // existing file only
+                               FILE_ATTRIBUTE_NORMAL, // normal file
+                               NULL);                 // no attr. template
 
-    if(hFile == INVALID_HANDLE_VALUE) return -1; else return (LASTS_FD)hFile;
+    if(hFile == INVALID_HANDLE_VALUE) return -1;
+    else return (LASTS_FD)hFile;
 }
 LASTS_FDEF __attribute__((unused))
 LASTS_FD lasts_open_read(const char* file) {
