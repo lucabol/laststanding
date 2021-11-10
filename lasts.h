@@ -62,6 +62,13 @@ LASTS_FDEF ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count);
 // My functions
 LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 
+// Test helpers
+#define TEST_OK 0
+#define TEST_FAIL -1
+#define test_run(f) do { if(f() == -1) write(LASTS_STDOUT, #f " failed\n", strlen(#f) + 8);} while(0)
+#define test_cond(c) do { if(c) { write(LASTS_STDOUT, #c " failed\n", strlen(#c) + 8); return TEST_FAIL;} } while(0)
+#define test_cond0(c) do { if(c != 0) { write(LASTS_STDOUT, #c " failed\n", strlen(#c) + 8); return TEST_FAIL;} } while(0)
+
 #ifndef LASTS_DONT_OVERRIDE
 #  define wcslen lasts_wcslen
 #  define strlen lasts_strlen
