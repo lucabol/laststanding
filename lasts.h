@@ -37,10 +37,14 @@ LASTS_FDEF size_t lasts_strlen(const char *str);
 LASTS_FDEF char *lasts_strcpy(char *dst, const char *src);
 LASTS_FDEF char *lasts_strchr(const char *s, int c);
 LASTS_FDEF char *lasts_strrchr(const char *s, int c);
+LASTS_FDEF char *lasts_strstr(const char *s1, const char *s2);
+LASTS_FDEF int lasts_strncmp(const char *s1, const char *s2, size_t n);
+
 LASTS_FDEF int lasts_isdigit(int c);
 LASTS_FDEF long lasts_atol(const char *s);
 LASTS_FDEF int lasts_atoi(const char *s);
 LASTS_FDEF char *lasts_ltoa(long in, char* buffer, int radix);
+
 LASTS_FDEF void *lasts_memmove(void *dst, const void *src, size_t len);
 LASTS_FDEF void *lasts_memset(void *dst, int b, size_t len);
 LASTS_FDEF int lasts_memcmp(const void *s1, const void *s2, size_t n);
@@ -62,12 +66,6 @@ LASTS_FDEF ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count);
 // My functions
 LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 
-// Test helpers
-#define TEST_OK 0
-#define TEST_FAIL -1
-#define test_run(f) do { if(f() == -1) write(LASTS_STDOUT, #f " failed\n", strlen(#f) + 8);} while(0)
-#define test_cond(c) do { if(!(c)) { write(LASTS_STDOUT, #c " failed\n", strlen(#c) + 8); return TEST_FAIL;} } while(0)
-#define test_cond0(c) do { if((c) != 0) { write(LASTS_STDOUT, #c " failed\n", strlen(#c) + 8); return TEST_FAIL;} } while(0)
 
 #ifndef LASTS_DONT_OVERRIDE
 #  define wcslen lasts_wcslen
@@ -75,6 +73,7 @@ LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 #  define strcpy lasts_strcpy
 #  define strchr lasts_strchr
 #  define strrchr lasts_strrchr
+#  define strstr lasts_strstr
 #  define isdigit lasts_isdigit
 #  define atol lasts_atol
 #  define atoi lasts_atoi
@@ -217,6 +216,35 @@ char *lasts_strrchr(const char *s, int c)
         s++;
     }
     return (char *)ret;
+}
+
+
+LASTS_FDEF  __attribute__((unused))
+int lasts_strncmp(const char *s1, const char *s2, size_t n) {
+    unsigned char u1, u2;
+
+    while (n-- > 0)
+    {
+        u1 = (unsigned char) *s1++;
+        u2 = (unsigned char) *s2++;
+        if (u1 != u2)
+            return u1 - u2;
+        if (u1 == '\0')
+            return 0;
+    }
+    return 0;
+}
+
+LASTS_FDEF  __attribute__((unused))
+char *lasts_strstr(const char *s1, const char *s2) {
+    const size_t len = strlen (s2);
+    while (*s1)
+    {
+        if (!lasts_memcmp (s1, s2, len))
+            return (char *)s1;
+        ++s1;
+    }
+    return (0);
 }
 
 LASTS_FDEF __attribute__((unused))
@@ -1142,4 +1170,3 @@ LASTS_FD lasts_open_trunc(const char* file) {
 #ifdef __cplusplus
 }
 #endif
-

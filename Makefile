@@ -24,8 +24,8 @@ clean:
 	rm -rf $(OUTDIR)
 
 check: all
-	@bin/base "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
-	@bin/base.exe "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
+	@bin/test "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
+	@bin/test.exe "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
 
 echoes:
 	echo $(ALL)
