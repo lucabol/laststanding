@@ -8,17 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Avoids including strsafe.h in mingw which already defines printf functions
-#define _STRSAFE_H_INCLUDED_
-
-// https://github.com/eyalroz/printf#cmake-options-and-preprocessor-definitions
-// by via of 'cat printf.h printf.c > lprintf.h'
-#define PRINTF_ALIAS_STANDARD_FUNCTION_NAMES
-#define PRINTF_VISIBILITY
-#include "lprintf.h"
-
-#define STRSAFE_NO_DEPRECATE // Avoid deprecation errors on strcpy usage
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -876,13 +865,13 @@ LASTS_FD lasts_open_trunc(const char* file) {
 }
 #else
 // WINDOWS PREAMBLE {{{1
+
 #define WIN32_LEAN_AND_MEAN 1
 // See http://utf8everywhere.org/ for the general idea of managing text as utf-8 on windows
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
 #include <shellapi.h>
-#include <strsafe.h>
 
 // MINGW complains I need to define this. It gets called inside main apparently
 void __main() {}

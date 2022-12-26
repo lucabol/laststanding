@@ -1,5 +1,7 @@
 *.exe
 *.o
 *.obj
+tags
+test_*
 bin/*
 
