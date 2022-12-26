@@ -2,34 +2,46 @@
 CC = gcc
 WINCC = mingw-gcc
 
-CFLAGS = -Wall -Wextra -pedantic -ffreestanding -nostdlib -static -s -Os -fno-asynchronous-unwind-tables -fno-ident
+CFLCOM  = -Wall -Wextra -pedantic -static -s -Os -fno-asynchronous-unwind-tables -fno-ident -fno-builtin
+CFLAGSF = $(CFLCOM) -ffreestanding -nostdlib
+CFLAGSB = $(CFLCOM)
 LDFLAGS = -lgcc # Helps with processors that don't have maths, i.e. float ops https://gcc.gnu.org/onlinedocs/gccint/Libgcc.html
 
 OUTDIR = bin
 SRCS = $(wildcard *.c)
-BASEALL = $(patsubst %.c,%,$(SRCS))
-ALL = $(BASEALL) $(addsuffix .exe, $(BASEALL))
+TARGETS1 = $(patsubst %.c,$(OUTDIR)/f%,$(SRCS))
+TARGETS2 = $(patsubst %.c,$(OUTDIR)/b%,$(SRCS))
+TARGETS3 = $(patsubst %.c,$(OUTDIR)/f%.exe,$(SRCS))
+TARGETS4 = $(patsubst %.c,$(OUTDIR)/b%.exe,$(SRCS))
+ALL      = $(TARGETS1) $(TARGETS2) $(TARGETS3) $(TARGETS4)
+
 all: $(ALL)
 
-%: %.c lasts.h | $(OUTDIR) Makefile
-	$(CC) $(CFLAGS) $< -o $(OUTDIR)/$@ $(LDFLAGS)
+$(TARGETS1): $(SRCS)
+	@mkdir -p $(OUTDIR)
+	$(CC) $(CFLAGSF) $< -o $@ $(LDFLAGS) -D LSTANDALONE
+
+$(TARGETS2): $(SRCS)
+	@mkdir -p $(OUTDIR)
+	$(CC) $(CFLAGSB) $< -o $@
 
 # You need kernel32.dll to call kernel functions like ExitProcess, GetCommandLineW etc...
-%.exe: %.c | $(OUTDIR) Makefile
-	$(WINCC) $(CFLAGS) $< -o $(OUTDIR)/$@ $(LDFLAGS) -lkernel32
+$(TARGETS3): $(SRCS)
+	@mkdir -p $(OUTDIR)
+	$(WINCC) $(CFLAGSF) $< -o $@ $(LDFLAGS) -lkernel32 -D LSTANDALONE
 
-$(OUTDIR):
-	mkdir -p $@
+$(TARGETS4): $(SRCS)
+	@mkdir -p $(OUTDIR)
+	$(WINCC) $(CFLAGSB) $< -o $@
 
 clean:
 	rm -rf $(OUTDIR)
 
-check: all
-	@bin/test "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
-	@bin/test.exe "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"
+check: $(ALL)
+	@for f in $^; do echo $$f ; $$f "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ" ; echo ; done
 
 echoes:
-	echo $(ALL)
-	echo $(SRCS)
+	@echo $(SRCS)
+	@echo $(TARGETS)
 
-.PHONY: clean all
+.PHONY: clean all check echoes

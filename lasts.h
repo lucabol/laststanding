@@ -8,6 +8,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Avoids including strsafe.h in mingw which already defines printf functions
+#define _STRSAFE_H_INCLUDED_
+
+// https://github.com/eyalroz/printf#cmake-options-and-preprocessor-definitions
+// by via of 'cat printf.h printf.c > lprintf.h'
+#define PRINTF_ALIAS_STANDARD_FUNCTION_NAMES
+#define PRINTF_VISIBILITY
+#include "lprintf.h"
+
 #define STRSAFE_NO_DEPRECATE // Avoid deprecation errors on strcpy usage
 
 #ifdef __cplusplus
@@ -69,6 +78,9 @@ LASTS_FDEF ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count);
 // My functions
 LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 
+inline void putchar_(char ch) {
+  lasts_write(LASTS_STDOUT, &ch, 1);
+} 
 
 #ifndef LASTS_DONT_OVERRIDE
 #  define wcslen lasts_wcslen
@@ -1075,8 +1087,8 @@ LASTS_FD lasts_open(const char *path, int flags, mode_t mode) {
 
 #define RET_BOOL_TO_INT(result) if(result) return 0; else return -1
 
-            LASTS_FDEF __attribute__((unused))
-            ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
+LASTS_FDEF __attribute__((unused))
+ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
 {
     DWORD written;
     HANDLE out;
