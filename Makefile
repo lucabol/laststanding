@@ -3,7 +3,7 @@ CC = gcc
 WINCC = mingw-gcc
 
 CFLAGS = -Wall -Wextra -pedantic -ffreestanding -nostdlib -static -s -Os -fno-asynchronous-unwind-tables -fno-ident
-LDFLAGS = -lgcc
+LDFLAGS = -lgcc # Helps with processors that don't have maths, i.e. float ops https://gcc.gnu.org/onlinedocs/gccint/Libgcc.html
 
 OUTDIR = bin
 SRCS = $(wildcard *.c)
@@ -14,6 +14,7 @@ all: $(ALL)
 %: %.c lasts.h | $(OUTDIR) Makefile
 	$(CC) $(CFLAGS) $< -o $(OUTDIR)/$@ $(LDFLAGS)
 
+# You need kernel32.dll to call kernel functions like ExitProcess, GetCommandLineW etc...
 %.exe: %.c | $(OUTDIR) Makefile
 	$(WINCC) $(CFLAGS) $< -o $(OUTDIR)/$@ $(LDFLAGS) -lkernel32
 

@@ -1,9 +1,5 @@
-*
 *.exe
 *.o
 *.obj
-!*.c
-!*.h
-!.gitignore
-!.gitattributes
-!Makefile
+bin/*
+

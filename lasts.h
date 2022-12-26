@@ -1,4 +1,5 @@
 // STANDARD C INCLUDE FOR FREESTANDING {{{1
+
 #include <float.h>
 #include <iso646.h>
 #include <limits.h>
@@ -6,6 +7,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#define STRSAFE_NO_DEPRECATE // Avoid deprecation errors on strcpy usage
 
 #ifdef __cplusplus
 extern "C" {
