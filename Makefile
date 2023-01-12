@@ -28,6 +28,7 @@ clean:
 	rm -rf $(OUTDIR)
 
 check: $(ALL)
+	@echo
 	@for f in $^; do echo $$f ; $$f "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ" ; echo ; done
 
 echoes:

@@ -43,7 +43,13 @@ int can_open_and_close_files() {
   return TEST_OK;
 }
 
-test_func tests[] = {can_read_and_print_args, can_read_prog_name, can_open_and_close_files};
+int can_print_unicode() {
+  char msg[] = "Բարեւ աշխարհ!\n";
+  write(LASTS_STDOUT, msg, strlen(msg));
+  return TEST_OK;
+}
+
+test_func tests[] = {can_read_and_print_args, can_read_prog_name, can_open_and_close_files, can_print_unicode};
 
 int main(int argc, char* argv[]) {
     argc_ = argc;
