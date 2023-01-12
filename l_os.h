@@ -67,10 +67,6 @@ LASTS_FDEF ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count);
 // My functions
 LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
 
-inline void putchar_(char ch) {
-  lasts_write(LASTS_STDOUT, &ch, 1);
-} 
-
 #ifndef LASTS_DONT_OVERRIDE
 #  define wcslen lasts_wcslen
 #  define strlen lasts_strlen
