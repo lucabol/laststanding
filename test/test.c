@@ -1,13 +1,18 @@
+#define L_MAINFILE
 #include "l_os.h"
+
+void puts(const char* s) {
+  write(L_STDOUT, s, strlen(s));
+}
 
 void can_read_and_print_args(int argc, char* argv[]) {
     // Print all parameters (i.e., test visually for correct unicode).
     for(int i = 1; i < argc; i++) {
-        write(LASTS_STDOUT, argv[i], strlen(argv[i]));
+        puts(argv[1]);
     }
 } 
 
-#define test_cond(C) if(!(C)) exit(-1)
+#define test_cond(C) if(!(C)) { puts(#C) ; exit(-1); }
 
 void can_read_prog_name(int argc, char* argv[]) {
     test_cond(argc >= 0);
@@ -18,13 +23,24 @@ void can_read_prog_name(int argc, char* argv[]) {
 
 void can_open_and_close_files() {
 
-  LASTS_FD w = open_write("test_file");
-  close(w);
+  char* msg = "Hello world!";
+  int len = strlen(msg);
+
+  L_FD file = open_append("test_file");
+  write(file, msg, len);
+  close(file);
+
+  file = open_read("test_file");
+  char buf[len];
+  int n = read(file, buf, len);
+  if(memcmp(buf, msg, len) != 0) puts("ERROR: not retrieved the same");
+  if(n != len) puts("ERROR: not read enough!");
+  close(file);
 }
 
 void can_print_unicode() {
-  char msg[] = "Բարեւ աշխարհ!\n";
-  write(LASTS_STDOUT, msg, strlen(msg));
+  char msg[] = u8"κόσμε";
+  puts(msg);
 }
 
 int main(int argc, char* argv[]) {

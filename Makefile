@@ -1,38 +1,32 @@
-.POSIX:
-CC = gcc
-WINCC = mingw-gcc
+SRC_DIR := test
+BIN_DIR := bin
 
-CFLCOM  = -Wall -Wextra -pedantic -static -s -Os -fno-asynchronous-unwind-tables -fno-ident -fno-builtin
-CFLAGSF = $(CFLCOM) -ffreestanding -nostdlib
-LDFLAGS = -lgcc # Helps with processors that don't have maths, i.e. float ops https://gcc.gnu.org/onlinedocs/gccint/Libgcc.html
+SRC    := $(wildcard $(SRC_DIR)/*.c)
+TARGET := $(SRC:$(SRC_DIR)/%.c=$(BIN_DIR)/$(CC)-%)
 
-OUTDIR 	 = bin
-SRCS 		 = $(wildcard *.c)
-INCL		 = $(wildcard *.h)
-TARGETS1 = $(patsubst %.c,$(OUTDIR)/%,$(SRCS))
-TARGETS2 = $(patsubst %.c,$(OUTDIR)/%.exe,$(SRCS))
-ALL      = $(TARGETS1) $(TARGETS2)
+OPT:=fast
 
-all: $(ALL)
+override CPPFLAGS += -I.
+override CFLAGS   += -Wall -Wextra -Wpedantic -O$(OPT) -ffreestanding
+override LDFLAGS  += -L../libc/bin -nostdlib
+override LDLIBS   += -lgcc
 
-$(TARGETS1): $(SRCS) $(INCL)
-	@mkdir -p $(OUTDIR)
-	$(CC) $(CFLAGSF) $< -o $@ $(LDFLAGS) -D LSTANDALONE
+.PHONY: all clean check
 
-# You need kernel32.dll to call kernel functions like ExitProcess, GetCommandLineW etc...
-$(TARGETS2): $(SRCS) $(INCL)
-	@mkdir -p $(OUTDIR)
-	$(WINCC) $(CFLAGSF) $< -o $@ $(LDFLAGS) -lkernel32 -D LSTANDALONE
+all: $(TARGET)
+
+$(TARGET): $(SRC) | $(BIN_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
 
 clean:
-	rm -rf $(OUTDIR)
+	@$(RM) -rv $(BIN_DIR)
 
-check: $(ALL)
-	@echo
-	@for f in $^; do echo $$f ; $$f "∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ" ; echo ; done
+echo:
+	@echo "SRC    : $(SRC)"
+	@echo "TARGET : $(TARGET)"
 
-echoes:
-	@echo $(SRCS)
-	@echo $(TARGETS)
-
-.PHONY: clean all check echoes
+check:
+	for x in $(BIN_DIR)/*; do { echo "$$x : "; echo -n "\t"; $$x "t∮Eda næʃənəl „Anführungszeichen“ 1lI|,0OD,8B γνωρίζω αλημέρα κόσμε, コンニチハ"; echo ; } ; done

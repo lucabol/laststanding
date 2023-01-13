@@ -1,0 +1,41 @@
+#!/bin/bash
+
+function check {    # Clean things
+    make check
+}
+
+function cleanbuild {
+  clean
+  build
+  exa -lB bin
+}
+
+function build {    # Build stuff
+  # -whole-program removes the inline functions from the exec, but makes the exe larger on Mingw??
+  # -flto on clang removes the inline functions, generates strange error on gcc and makes Mingw larger 
+  O=3
+  make CC=gcc LDFLAGS=-fwhole-program OPT=$O
+  make CC=clang LDFLAGS=-flto OPT=$O
+  make CC=mingw-gcc LDLIBS=-lkernel32 OPT=$O
+}
+
+function clean {    # Runs something
+  make CC=gcc clean
+  make CC=clang clean
+  make CC=mingw-gcc clean
+}
+
+function help {     # Prints help
+    echo "Usage: $0 <task> <args>"
+    echo "Execute a task with the specified arguments."
+    echo "By adding 'alias run=./Taskfile' you can then call it as 'run <task> <args>"
+    echo
+    echo "Tasks:"
+    grep '^function .* #.* ' Taskfile | # Start with function and has # somewhere
+      cut -d' ' -f 2- |                 # Remove the word 'function'
+      tr -d '{' |                       # Remove '{}'
+      sed 's/^/  /g' |                  # Indent by two spaces
+      column --table --separator '#'    # column it using # as the separator
+}
+
+${@:-help}

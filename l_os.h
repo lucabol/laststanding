@@ -1,5 +1,6 @@
-// STANDARD C INCLUDE FOR FREESTANDING {{{1
+#pragma once
 
+// Includes for freestanding
 #include <float.h>
 #include <iso646.h>
 #include <limits.h>
@@ -12,14 +13,14 @@
 extern "C" {
 #endif
 
-// CONFIG {{{1
-// Override this to change declaration of functions
-#ifndef LASTS_FDEF
-#define LASTS_FDEF static inline
+// Definitions and .start function must be defined in a single translation unit
+#ifdef L_MAINFILE
+#define L_WITHSTART
+#define L_WITHDEFS
 #endif
 
-// DECLARATIONS {{{1
 
+// todo: remove this hack
 #ifndef _WIN32 // This gets defined by mingw
 typedef   signed long       ssize_t;
 #endif
@@ -27,110 +28,95 @@ typedef   signed long       ssize_t;
 typedef   unsigned int        mode_t;
 typedef   signed int          pid_t;
 typedef   signed long         off_t;
-typedef   ptrdiff_t           LASTS_FD;
-#define   LASTS_STDIN         0
-#define   LASTS_STDOUT        1
-#define   LASTS_STDERR        2
+typedef   ptrdiff_t           L_FD;
+#define   L_STDIN         0
+#define   L_STDOUT        1
+#define   L_STDERR        2
 
-// Standard C library
-inline size_t lasts_wcslen(const wchar_t *s); // Has to be inline for MINGW to compile w/out warns
-LASTS_FDEF size_t lasts_strlen(const char *str);
-LASTS_FDEF char *lasts_strcpy(char *dst, const char *src);
-LASTS_FDEF char *lasts_strchr(const char *s, int c);
-LASTS_FDEF char *lasts_strrchr(const char *s, int c);
-LASTS_FDEF char *lasts_strstr(const char *s1, const char *s2);
-LASTS_FDEF int lasts_strncmp(const char *s1, const char *s2, size_t n);
+#ifdef L_WITHDEFS
 
-LASTS_FDEF int lasts_isdigit(int c);
-LASTS_FDEF long lasts_atol(const char *s);
-LASTS_FDEF int lasts_atoi(const char *s);
-LASTS_FDEF char *lasts_ltoa(long in, char* buffer, int radix);
+size_t l_wcslen(const wchar_t *s);
+size_t l_strlen(const char *str);
+char *l_strcpy(char *dst, const char *src);
+char *l_strchr(const char *s, int c);
+char *l_strrchr(const char *s, int c);
+char *l_strstr(const char *s1, const char *s2);
+int l_strncmp(const char *s1, const char *s2, size_t n);
 
-LASTS_FDEF void *lasts_memmove(void *dst, const void *src, size_t len);
-LASTS_FDEF void *lasts_memset(void *dst, int b, size_t len);
-LASTS_FDEF int lasts_memcmp(const void *s1, const void *s2, size_t n);
-__attribute__((weak,unused))
-void *lasts_memcpy(void *dst, const void *src, size_t len);
+int l_isdigit(int c);
+long l_atol(const char *s);
+int l_atoi(const char *s);
+char *l_ltoa(long in, char* buffer, int radix);
+
+void *l_memmove(void *dst, const void *src, size_t len);
+void *l_memset(void *dst, int b, size_t len);
+int l_memcmp(const void *s1, const void *s2, size_t n);
+void *l_memcpy(void *dst, const void *src, size_t len);
 
 // System interaction
-LASTS_FDEF void lasts_exit(int status);
+void l_exit(int status);
+L_FD l_open(const char *path, int flags, mode_t mode);
+L_FD l_open_read(const char* file);
+L_FD l_open_write(const char* file);
+L_FD l_open_readwrite(const char* file);
+L_FD l_open_append(const char* file);
+L_FD l_open_trunc(const char* file);
+int l_close(L_FD fd);
+ssize_t l_read(L_FD fd, void *buf, size_t count);
+ssize_t l_write(L_FD fd, const void *buf, size_t count);
 
-LASTS_FDEF LASTS_FD lasts_open_read(const char* file);
-LASTS_FDEF LASTS_FD lasts_open_write(const char* file);
-LASTS_FDEF LASTS_FD lasts_open_readwrite(const char* file);
-LASTS_FDEF LASTS_FD lasts_open_append(const char* file);
-LASTS_FDEF LASTS_FD lasts_open_trunc(const char* file);
-LASTS_FDEF int lasts_close(LASTS_FD fd);
-LASTS_FDEF ssize_t lasts_read(LASTS_FD fd, void *buf, size_t count);
-LASTS_FDEF ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count);
+void l_exitif(bool condition, int code, char *message);
 
-// My functions
-LASTS_FDEF void lasts_exitif(bool condition, int code, char *message);
+#endif // L_WITHDEFS
 
-#ifndef LASTS_DONT_OVERRIDE
-#  define wcslen lasts_wcslen
-#  define strlen lasts_strlen
-#  define strcpy lasts_strcpy
-#  define strchr lasts_strchr
-#  define strrchr lasts_strrchr
-#  define strstr lasts_strstr
-#  define isdigit lasts_isdigit
-#  define atol lasts_atol
-#  define atoi lasts_atoi
-#  define ltoa lasts_ltoa
-#  define memmove lasts_memmove
-#  define memset lasts_memset
-#  define memcmp lasts_memcmp
-#  define memcpy lasts_memcpy
+#ifndef L_DONTOVERRIDE
 
-#  define exit lasts_exit
-#  define close lasts_close
-#  define read lasts_read
-#  define write lasts_write
-#  define lseek lasts_lseek
-#  define dup lasts_dup
-#  define execve lasts_execve
-#  define fork lasts_fork
-#  define mkdir lasts_mkdir
-#  define chdir lasts_chdir
-#  define sched_yield lasts_sched_yield
-#  define exitif lasts_exitif
-#  define open_read lasts_open_read
-#  define open_write lasts_open_write
-#  define open_readwrite lasts_open_readwrite
-#  define open_append lasts_open_append
-#  define open_trunc lasts_open_trunc
+#  define wcslen l_wcslen
+#  define strlen l_strlen
+#  define strcpy l_strcpy
+#  define strchr l_strchr
+#  define strrchr l_strrchr
+#  define strstr l_strstr
+#  define isdigit l_isdigit
+#  define atol l_atol
+#  define atoi l_atoi
+#  define ltoa l_ltoa
+#  define memmove l_memmove
+#  define memset l_memset
+#  define memcmp l_memcmp
+#  define memcpy l_memcpy
 
-#define STDIN    LASTS_STDIN
-#define STDOUT   LASTS_STDOUT
-#define STDERR   LASTS_STDERR
-#endif // LASTS_DONT_OVERRIDE
+#  define exit l_exit
+#  define close l_close
+#  define read l_read
+#  define write l_write
+#  define lseek l_lseek
+#  define dup l_dup
+#  define execve l_execve
+#  define fork l_fork
+#  define mkdir l_mkdir
+#  define chdir l_chdir
+#  define sched_yield l_sched_yield
+#  define exitif l_exitif
+#  define open_read l_open_read
+#  define open_write l_open_write
+#  define open_readwrite l_open_readwrite
+#  define open_append l_open_append
+#  define open_trunc l_open_trunc
 
-// SYSTEM AGNOSTIC FUNCTIONS {{{1
+#define STDIN    L_STDIN
+#define STDOUT   L_STDOUT
+#define STDERR   L_STDERR
 
-/* some size-optimized reimplementations of a few common str* and mem*
- * functions. They're marked LASTS_FDEF, except memcpy() which is used
- * by libgcc on ARM, so they are marked weak instead in order not to cause an
- * error when building a program made of multiple files (not recommended).
- */
+#endif // L_DONT_OVERRIDE
 
-LASTS_FDEF __attribute__((unused))
-void lasts_exitif(bool condition, int code, char *message) {
-    if(condition) {
-        if(message) lasts_write(LASTS_STDERR, message, lasts_strlen(message));
-        lasts_exit(code);
-    }
-}
-
-inline __attribute__((unused))
-size_t lasts_wcslen(const wchar_t *s) {
+inline size_t l_wcslen(const wchar_t *s) {
     size_t len = 0;
     while(s[len] != L'\0') ++len;
     return len;
 }
 
-LASTS_FDEF __attribute__((unused))
-size_t lasts_strlen(const char *str)
+inline size_t l_strlen(const char *str)
 {
     size_t len;
 
@@ -138,14 +124,7 @@ size_t lasts_strlen(const char *str)
     return len;
 }
 
-#if defined(__has_builtin)
-# if __has_builtin (__builtin_strlen)
-#       define lasts_strelen __builtin_strlen
-# endif
-#endif
-
-LASTS_FDEF __attribute__((unused))
-void *lasts_memmove(void *dst, const void *src, size_t len)
+inline void *l_memmove(void *dst, const void *src, size_t len)
 {
     size_t pos = (dst <= src) ? -1 : (long)len;
     void *ret = dst;
@@ -157,8 +136,7 @@ void *lasts_memmove(void *dst, const void *src, size_t len)
     return ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-void *lasts_memset(void *dst, int b, size_t len)
+inline void *l_memset(void *dst, int b, size_t len)
 {
     char *p = dst;
 
@@ -167,14 +145,7 @@ void *lasts_memset(void *dst, int b, size_t len)
     return dst;
 }
 
-#if defined(__has_builtin)
-# if __has_builtin (__builtin_memset)
-#       define lasts_memset __builtin_memset
-# endif
-#endif
-
-LASTS_FDEF __attribute__((unused))
-int lasts_memcmp(const void *s1, const void *s2, size_t n)
+inline int l_memcmp(const void *s1, const void *s2, size_t n)
 {
     size_t ofs = 0;
     char c1 = 0;
@@ -185,8 +156,7 @@ int lasts_memcmp(const void *s1, const void *s2, size_t n)
     return c1;
 }
 
-LASTS_FDEF __attribute__((unused))
-char *lasts_strcpy(char *dst, const char *src)
+inline char *l_strcpy(char *dst, const char *src)
 {
     char *ret = dst;
 
@@ -194,8 +164,7 @@ char *lasts_strcpy(char *dst, const char *src)
     return ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-char *lasts_strchr(const char *s, int c)
+inline char *l_strchr(const char *s, int c)
 {
     while (*s) {
         if (*s == (char)c)
@@ -205,8 +174,7 @@ char *lasts_strchr(const char *s, int c)
     return NULL;
 }
 
-LASTS_FDEF __attribute__((unused))
-char *lasts_strrchr(const char *s, int c)
+inline char *l_strrchr(const char *s, int c)
 {
     const char *ret = NULL;
 
@@ -218,9 +186,7 @@ char *lasts_strrchr(const char *s, int c)
     return (char *)ret;
 }
 
-
-LASTS_FDEF  __attribute__((unused))
-int lasts_strncmp(const char *s1, const char *s2, size_t n) {
+inline int l_strncmp(const char *s1, const char *s2, size_t n) {
     unsigned char u1, u2;
 
     while (n-- > 0)
@@ -235,26 +201,23 @@ int lasts_strncmp(const char *s1, const char *s2, size_t n) {
     return 0;
 }
 
-LASTS_FDEF  __attribute__((unused))
-char *lasts_strstr(const char *s1, const char *s2) {
+inline char *l_strstr(const char *s1, const char *s2) {
     const size_t len = strlen (s2);
     while (*s1)
     {
-        if (!lasts_memcmp (s1, s2, len))
+        if (!l_memcmp (s1, s2, len))
             return (char *)s1;
         ++s1;
     }
     return (0);
 }
 
-LASTS_FDEF __attribute__((unused))
-int lasts_isdigit(int c)
+inline int l_isdigit(int c)
 {
     return (unsigned int)(c - '0') <= 9;
 }
 
-LASTS_FDEF __attribute__((unused))
-long lasts_atol(const char *s)
+inline long l_atol(const char *s)
 {
     unsigned long ret = 0;
     unsigned long d;
@@ -276,14 +239,12 @@ long lasts_atol(const char *s)
     return neg ? -ret : ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-int lasts_atoi(const char *s)
+inline int l_atoi(const char *s)
 {
-    return lasts_atol(s);
+    return l_atol(s);
 }
 
-LASTS_FDEF __attribute__((unused))
-char *lasts_ltoa(long in, char* buffer, int radix)
+inline char *l_ltoa(long in, char* buffer, int radix)
 {
     char       *pos = buffer + sizeof(buffer) - 1;
     int         neg = in < 0;
@@ -302,13 +263,12 @@ char *lasts_ltoa(long in, char* buffer, int radix)
     return pos + 1;
 }
 
-__attribute__((weak,unused))
-void *lasts_memcpy(void *dst, const void *src, size_t len)
+inline void *l_memcpy(void *dst, const void *src, size_t len)
 {
-    return lasts_memmove(dst, src, len);
+    return l_memmove(dst, src, len);
 }
-// UNIX PREAMBLE {{{1
-#if !defined(_WIN32)
+
+#ifdef __unix__
 
 #include <asm/unistd.h>
 #include <asm/ioctls.h>
@@ -317,19 +277,6 @@ void *lasts_memcpy(void *dst, const void *src, size_t len)
 #include <linux/loop.h>
 #include <linux/time.h>
 
-
-// TODO: don't think I need errno. Leaving there for now disabled.
-#ifndef NOLIBC_IGNORE_ERRNO
-static int errno;
-#define SET_ERRNO(v) do { errno = (v); } while (0)
-#else
-#define SET_ERRNO(v) do { } while (0)
-#endif
-
-/* errno codes all ensure that they will not conflict with a valid pointer
- * because they all correspond to the highest addressable memory page.
- */
-#define MAX_ERRNO 4095
 
 /* for poll() */
 struct pollfd {
@@ -361,6 +308,11 @@ struct pollfd {
 
 /* for SIGCHLD */
 #include <asm/signal.h>
+
+// CLang warns for 'asm'
+#ifdef __clang__
+#pragma GCC diagnostic ignored "-Wlanguage-extension-token"
+#endif
 
 #if defined(__x86_64__)
 /* Syscalls for x86_64 :
@@ -484,6 +436,7 @@ struct pollfd {
                          _ret;                                                                 \
                          })
 
+#ifdef L_WITHSTART
 /* startup code */
 asm(".section .text\n"
     ".global _start\n"
@@ -499,6 +452,7 @@ asm(".section .text\n"
     "syscall\n"                 // really exit
     "hlt\n"                     // ensure it does not return
     "");
+#endif
 
 /* fcntl / open */
 #define O_RDONLY            0
@@ -543,42 +497,36 @@ struct sys_stat_struct {
 #error "Just linux x86_64 and windows are supported. Paste relevant nolibc.h sections for more archs"
 #endif
 
-/* Below are the C functions used to declare the raw syscalls. They try to be
- * architecture-agnostic, and return either a success or -errno. Declaring them
- * LASTS_FDEF will lead to them being inlined in most cases, but it's still possible
- * to reference them by a pointer if needed.
- */
-
-LASTS_FDEF __attribute__((noreturn,unused))
-void sys_exit(int status)
+inline void l_exit(int status)
 {
     my_syscall1(__NR_exit, status & 255);
-    while(1); // shut the "noreturn" warnings.
 }
 
-LASTS_FDEF __attribute__((unused))
-int sys_close(int fd)
+inline int l_chdir(const char *path)
+{
+    my_syscall1(__NR_chdir, path);
+    return _ret;
+}
+
+inline int l_close(L_FD fd)
 {
     my_syscall1(__NR_close, fd);
     return _ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-int sys_dup(int fd)
+inline int l_dup(L_FD fd)
 {
     my_syscall1(__NR_dup, fd);
     return _ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-int sys_execve(const char *filename, char *const argv[], char *const envp[])
+inline int l_execve(const char *filename, char *const argv[], char *const envp[])
 {
     my_syscall3(__NR_execve, filename, argv, envp);
     return _ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-pid_t sys_fork(void)
+inline pid_t l_fork(void)
 {
 #ifdef __NR_clone
     /* note: some archs only have clone() and not fork(). Different archs
@@ -595,42 +543,13 @@ pid_t sys_fork(void)
 #endif
 }
 
-LASTS_FDEF __attribute__((unused))
-int sys_fsync(int fd)
-{
-    my_syscall1(__NR_fsync, fd);
-    return _ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-pid_t sys_getpgid(pid_t pid)
-{
-    my_syscall1(__NR_getpgid, pid);
-    return _ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-pid_t sys_getpgrp(void)
-{
-    return sys_getpgid(0);
-}
-
-LASTS_FDEF __attribute__((unused))
-pid_t sys_getpid(void)
-{
-    my_syscall0(__NR_getpid);
-    return _ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-off_t sys_lseek(int fd, off_t offset, int whence)
+inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
     my_syscall3(__NR_lseek, fd, offset, whence);
     return _ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-int sys_mkdir(const char *path, mode_t mode)
+inline int l_mkdir(const char *path, mode_t mode)
 {
 #ifdef __NR_mkdirat
     my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
@@ -642,14 +561,8 @@ int sys_mkdir(const char *path, mode_t mode)
 #error Neither __NR_mkdirat nor __NR_mkdir defined, cannot implement sys_mkdir()
 #endif
 }
-LASTS_FDEF __attribute__((unused))
-int sys_chdir(const char *path)
-{
-    my_syscall1(__NR_chdir, path);
-    return _ret;
-}
-LASTS_FDEF __attribute__((unused))
-int sys_open(const char *path, int flags, mode_t mode)
+
+inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
 #ifdef __NR_openat
     my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
@@ -662,205 +575,44 @@ int sys_open(const char *path, int flags, mode_t mode)
 #endif
 }
 
-LASTS_FDEF __attribute__((unused))
-ssize_t sys_read(int fd, void *buf, size_t count)
+inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
     my_syscall3(__NR_read, fd, buf, count);
     return _ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-ssize_t sys_reboot(int magic1, int magic2, int cmd, void *arg)
-{
-    my_syscall4(__NR_reboot, magic1, magic2, cmd, arg);
-    return _ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-int sys_sched_yield(void)
+inline int l_sched_yield(void)
 {
     my_syscall0(__NR_sched_yield);
     return _ret;
 }
 
-LASTS_FDEF __attribute__((unused))
-ssize_t sys_write(int fd, const void *buf, size_t count)
+inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     my_syscall3(__NR_write, fd, buf, count);
     return _ret;
 }
 
-// SYSTEM UNIX FUNCTIONS {{{1
-/* Below are the libc-compatible syscalls which return x or -1 and set errno.
- * They rely on the functions above. Similarly they're marked LASTS_FDEF so that it
- * is possible to assign pointers to them if needed.
- */
-
-LASTS_FDEF __attribute__((noreturn,unused))
-void lasts_exit(int status)
-{
-    sys_exit(status);
+inline L_FD l_open_read(const char* file) {
+    return l_open(file, O_RDONLY, 0);
 }
 
-LASTS_FDEF __attribute__((unused))
-int lasts_chdir(const char *path)
-{
-    int ret = sys_chdir(path);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
+inline L_FD l_open_write(const char* file) {
+    return l_open(file, O_WRONLY | O_CREAT, 0644);
 }
 
-LASTS_FDEF __attribute__((unused))
-int lasts_close(LASTS_FD fd)
-{
-    int ret = sys_close(fd);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
+inline L_FD l_open_readwrite(const char* file) {
+    return l_open(file, O_RDWR | O_CREAT, 0644);
 }
 
-LASTS_FDEF __attribute__((unused))
-int lasts_dup(LASTS_FD fd)
-{
-    int ret = sys_dup(fd);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
+inline L_FD l_open_append(const char* file) {
+    return l_open(file, O_WRONLY | O_APPEND | O_CREAT, 0600);
 }
 
-
-LASTS_FDEF __attribute__((unused))
-int lasts_execve(const char *filename, char *const argv[], char *const envp[])
-{
-    int ret = sys_execve(filename, argv, envp);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-pid_t lasts_fork(void)
-{
-    pid_t ret = sys_fork();
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-off_t lasts_lseek(LASTS_FD fd, off_t offset, int whence)
-{
-    off_t ret = sys_lseek(fd, offset, whence);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-int lasts_mkdir(const char *path, mode_t mode)
-{
-    int ret = sys_mkdir(path, mode);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open(const char *path, int flags, mode_t mode)
-{
-    int ret = sys_open(path, flags, mode);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-ssize_t lasts_read(LASTS_FD fd, void *buf, size_t count)
-{
-    ssize_t ret = sys_read(fd, buf, count);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-int lasts_sched_yield(void)
-{
-    int ret = sys_sched_yield();
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
-{
-    ssize_t ret = sys_write(fd, buf, count);
-
-    if (ret < 0) {
-        SET_ERRNO(-ret);
-        ret = -1;
-    }
-    return ret;
-}
-
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_read(const char* file) {
-    return lasts_open(file, O_RDONLY, 0);
-}
-
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_write(const char* file) {
-    return lasts_open(file, O_WRONLY | O_CREAT, 0644);
-}
-
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_readwrite(const char* file) {
-    return lasts_open(file, O_RDWR | O_CREAT, 0644);
-}
-
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_append(const char* file) {
-    return lasts_open(file, O_WRONLY | O_APPEND | O_CREAT, 0600);
-}
-
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_trunc(const char* file) {
-    return lasts_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+inline L_FD l_open_trunc(const char* file) {
+    return l_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
 }
 #else
-// WINDOWS PREAMBLE {{{1
 
 #define WIN32_LEAN_AND_MEAN 1
 // See http://utf8everywhere.org/ for the general idea of managing text as utf-8 on windows
@@ -869,10 +621,15 @@ LASTS_FD lasts_open_trunc(const char* file) {
 #include <windows.h>
 #include <shellapi.h>
 
+#ifdef L_WITHSTART
+
 // MINGW complains I need to define this. It gets called inside main apparently
 void __main() {}
-
 int main(int argc, char* argv[]);
+
+// It also complain about this not being defined if compiled with -fwhole-program
+ __attribute__((externally_visible)) 
+extern int atexit(void (*f)(void)){ (void) f; return 0;}
 
 // Some routines liberally taken from various versions of minicrt, mincrt and tinylib. Look them up.
 
@@ -995,6 +752,10 @@ int WINAPI mainCRTStartup(void)
     int nArgs;
     int i;
 
+    // TODO:Can these fail??
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
     wchar_t *u16cmdline = GetCommandLineW();
 
     // Max bytes needed when converting from utf-16 to utf-8.
@@ -1023,10 +784,9 @@ int WINAPI mainCRTStartup(void)
     return(i);
 }
 
-// SYSTEM WINDOWS FUNCTIONS {{{1
+#endif // L_WITHSTART
 
-LASTS_FDEF __attribute__((noreturn,unused))
-void lasts_exit(int status)
+inline void l_exit(int status)
 {
     ExitProcess(status);
 }
@@ -1043,8 +803,7 @@ void lasts_exit(int status)
 #define O_DIRECTORY   0x10000
 
 #ifdef NONE
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open(const char *path, int flags, mode_t mode) {
+inline L_FD l_open(const char *path, int flags, mode_t mode) {
     size_t utf8Len = strlen(path) + 1; // +1 for terminating null
     // The worst case scenario is for each byte to be a separate codepoint, which takes 2 bytes in u16.
     size_t utf16Len = utf8Len * 2;
@@ -1070,48 +829,42 @@ LASTS_FD lasts_open(const char *path, int flags, mode_t mode) {
 
 #endif
 
-#define RET_BOOL_TO_INT(result) if(result) return 0; else return -1
+#define RETURN_CHECK(toReturn) if(result) return toReturn; else return -1
 
-LASTS_FDEF __attribute__((unused))
-ssize_t lasts_write(LASTS_FD fd, const void *buf, size_t count)
+inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     DWORD written;
     HANDLE out;
-    if(fd == LASTS_STDOUT) {
-        SetConsoleOutputCP(CP_UTF8);
-        out = GetStdHandle(STD_OUTPUT_HANDLE);
+    if(fd == L_STDOUT) {
+      out = GetStdHandle(STD_OUTPUT_HANDLE);
     } else {
         out = (HANDLE)fd;
     }
     BOOL result = WriteFile(out, buf, count, &written, NULL);
-    RET_BOOL_TO_INT(result);
+    RETURN_CHECK(written);
 }
 
-LASTS_FDEF __attribute__((unused))
-ssize_t lasts_read(LASTS_FD fd, void *buf, size_t count)
+inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
-    DWORD read;
+    DWORD readden;
     HANDLE in;
-    if(fd == LASTS_STDIN) {
-        SetConsoleCP(CP_UTF8);
+    if(fd == L_STDIN) {
         in = GetStdHandle(STD_INPUT_HANDLE);
     } else {
         in = (HANDLE)fd;
     }
-    BOOL result = ReadFile(in, buf, count, &read, NULL);
-    RET_BOOL_TO_INT(result);
+    BOOL result = ReadFile(in, buf, count, &readden, NULL);
+    RETURN_CHECK(readden);
 }
 
 
-LASTS_FDEF __attribute__((unused))
-int lasts_close(LASTS_FD fd) {
+inline int l_close(L_FD fd) {
     BOOL result = CloseHandle((HANDLE)fd);
-    RET_BOOL_TO_INT(result);
+    if(result) return 0; else return -1;
 }
 
 
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD dispo) {
+static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD dispo) {
 
     size_t utf8Len = strlen(file) + 1; // +1 for terminating null
     // The worst case scenario is for each byte to be a separate codepoint, which takes 2 bytes in u16.
@@ -1139,34 +892,36 @@ LASTS_FD lasts_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD
                                NULL);                 // no attr. template
 
     if(hFile == INVALID_HANDLE_VALUE) return -1;
-    else return (LASTS_FD)hFile;
+    else return (L_FD)hFile;
 }
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_read(const char* file) {
-    return lasts_win_open_gen(file, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING);
-}
-
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_write(const char* file) {
-    return lasts_win_open_gen(file, GENERIC_WRITE, 0, CREATE_ALWAYS);
+inline L_FD l_open_read(const char* file) {
+    return l_win_open_gen(file, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING);
 }
 
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_readwrite(const char* file) {
-    return lasts_win_open_gen(file, GENERIC_READ | GENERIC_WRITE, 0, CREATE_ALWAYS);
+inline L_FD l_open_write(const char* file) {
+    return l_win_open_gen(file, GENERIC_WRITE, 0, CREATE_ALWAYS);
 }
 
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_append(const char* file) {
-    return lasts_win_open_gen(file, FILE_APPEND_DATA, FILE_SHARE_READ, OPEN_ALWAYS);
+inline L_FD l_open_readwrite(const char* file) {
+    return l_win_open_gen(file, GENERIC_READ | GENERIC_WRITE, 0, CREATE_ALWAYS);
 }
 
-LASTS_FDEF __attribute__((unused))
-LASTS_FD lasts_open_trunc(const char* file) {
-    return lasts_win_open_gen(file, GENERIC_WRITE, 0, TRUNCATE_EXISTING | OPEN_ALWAYS);
+inline L_FD l_open_append(const char* file) {
+    return l_win_open_gen(file, FILE_APPEND_DATA, FILE_SHARE_READ, OPEN_ALWAYS);
+}
+
+inline L_FD l_open_trunc(const char* file) {
+    return l_win_open_gen(file, GENERIC_WRITE, 0, TRUNCATE_EXISTING | OPEN_ALWAYS);
 }
 #endif
 
 #ifdef __cplusplus
 }
 #endif
+
+inline void l_exitif(bool condition, int code, char *message) {
+    if(condition) {
+        if(message) l_write(L_STDERR, message, l_strlen(message));
+        l_exit(code);
+    }
+}
