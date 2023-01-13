@@ -1,10 +1,6 @@
 #define L_MAINFILE
 #include "l_os.h"
 
-void puts(const char* s) {
-  write(L_STDOUT, s, strlen(s));
-}
-
 void can_read_and_print_args(int argc, char* argv[]) {
     // Print all parameters (i.e., test visually for correct unicode).
     for(int i = 1; i < argc; i++) {

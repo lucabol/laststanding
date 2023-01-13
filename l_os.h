@@ -56,17 +56,17 @@ void *l_memcpy(void *dst, const void *src, size_t len);
 // System interaction
 void l_exit(int status);
 L_FD l_open(const char *path, int flags, mode_t mode);
+int l_close(L_FD fd);
+ssize_t l_read(L_FD fd, void *buf, size_t count);
+ssize_t l_write(L_FD fd, const void *buf, size_t count);
+void puts(const char* s);
+void l_exitif(bool condition, int code, char *message);
+
 L_FD l_open_read(const char* file);
 L_FD l_open_write(const char* file);
 L_FD l_open_readwrite(const char* file);
 L_FD l_open_append(const char* file);
 L_FD l_open_trunc(const char* file);
-int l_close(L_FD fd);
-ssize_t l_read(L_FD fd, void *buf, size_t count);
-ssize_t l_write(L_FD fd, const void *buf, size_t count);
-
-void l_exitif(bool condition, int code, char *message);
-
 #endif // L_WITHDEFS
 
 #ifndef L_DONTOVERRIDE
@@ -90,6 +90,7 @@ void l_exitif(bool condition, int code, char *message);
 #  define close l_close
 #  define read l_read
 #  define write l_write
+#  define puts l_puts
 #  define lseek l_lseek
 #  define dup l_dup
 #  define execve l_execve
@@ -97,6 +98,7 @@ void l_exitif(bool condition, int code, char *message);
 #  define mkdir l_mkdir
 #  define chdir l_chdir
 #  define sched_yield l_sched_yield
+
 #  define exitif l_exitif
 #  define open_read l_open_read
 #  define open_write l_open_write
@@ -752,7 +754,7 @@ int WINAPI mainCRTStartup(void)
     int nArgs;
     int i;
 
-    // TODO:Can these fail??
+    // TODO: Can these fail??
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 
@@ -924,4 +926,8 @@ inline void l_exitif(bool condition, int code, char *message) {
         if(message) l_write(L_STDERR, message, l_strlen(message));
         l_exit(code);
     }
+}
+
+inline void puts(const char* s) {
+  l_write(L_STDOUT, s, strlen(s));
 }
