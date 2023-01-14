@@ -1,3 +1,7 @@
+// This tests multiple files including the library with just one of them defined as L_MAINFILE
+#include "l_os.h"
+#include "l_os.h"
+
 #define L_MAINFILE
 #include "l_os.h"
 

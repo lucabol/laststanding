@@ -1,13 +1,28 @@
-#pragma once
-
 // Includes for freestanding
 #include <float.h>
 #include <iso646.h>
 #include <limits.h>
+#include <stdalign.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdnoreturn.h>
+
+// This is not part of the C freestanding definition, but it is available on gcc, mingw & msvc
+// For: mode_t, off_t, ssize_t. If not present on your system, define these types.
+#include <sys/types.h>
+
+#ifndef __unix__
+
+#define WIN32_LEAN_AND_MEAN 1
+// See http://utf8everywhere.org/ for the general idea of managing text as utf-8 on windows
+#define UNICODE
+#define _UNICODE
+#include <windows.h>
+#include <shellapi.h>
+
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,19 +34,15 @@ extern "C" {
 #define L_WITHDEFS
 #endif
 
-
-// todo: remove this hack
-#ifndef _WIN32 // This gets defined by mingw
-typedef   signed long       ssize_t;
-#endif
-
-typedef   unsigned int        mode_t;
-typedef   signed int          pid_t;
-typedef   signed long         off_t;
-typedef   ptrdiff_t           L_FD;
+typedef   ptrdiff_t       L_FD;
 #define   L_STDIN         0
 #define   L_STDOUT        1
 #define   L_STDERR        2
+
+// CLang warns for 'asm'
+#ifdef __clang__
+#pragma GCC diagnostic ignored "-Wlanguage-extension-token"
+#endif
 
 #ifdef L_WITHDEFS
 
@@ -54,7 +65,7 @@ int l_memcmp(const void *s1, const void *s2, size_t n);
 void *l_memcpy(void *dst, const void *src, size_t len);
 
 // System interaction
-void l_exit(int status);
+noreturn void l_exit(int status);
 L_FD l_open(const char *path, int flags, mode_t mode);
 int l_close(L_FD fd);
 ssize_t l_read(L_FD fd, void *buf, size_t count);
@@ -67,7 +78,196 @@ L_FD l_open_write(const char* file);
 L_FD l_open_readwrite(const char* file);
 L_FD l_open_append(const char* file);
 L_FD l_open_trunc(const char* file);
+
 #endif // L_WITHDEFS
+
+#ifdef L_WITHSTART
+
+#ifdef __unix__
+
+/* startup code */
+asm(".section .text\n"
+    ".global _start\n"
+    "_start:\n"
+    "pop %rdi\n"                // argc   (first arg, %rdi)
+    "mov %rsp, %rsi\n"          // argv[] (second arg, %rsi)
+    "lea 8(%rsi,%rdi,8),%rdx\n" // then a NULL then envp (third arg, %rdx)
+    "and $-16, %rsp\n"          // x86 ABI : esp must be 16-byte aligned when
+    "sub $8, %rsp\n"            // entering the callee
+    "call main\n"               // main() returns the status code, we'll exit with it.
+    "movzb %al, %rdi\n"         // retrieve exit code from 8 lower bits
+    "mov $60, %rax\n"           // NR_exit == 60
+    "syscall\n"                 // really exit
+    "hlt\n"                     // ensure it does not return
+    "");
+
+#else // windows
+
+// MINGW complains I need to define this. It gets called inside main apparently
+void __main() {}
+int main(int argc, char* argv[]);
+
+// It also complain about this not being defined if compiled with -fwhole-program
+ __attribute__((externally_visible)) 
+extern int atexit(void (*f)(void)){ (void) f; return 0;}
+
+// Some routines liberally taken from various versions of minicrt, mincrt and tinylib. Look them up.
+
+// CommandLineToArgvW is not in kernel32.dll
+// Under Windows we take utf16 at the boundaries, but represents string internally as utf-8 (aka char).
+static char** parseCommandLine(char* szCmdLine, int * argc)
+{
+    int arg_count = 0;
+    int char_count = 0;
+    char break_char = ' ';
+    char *c;
+    char **ret;
+    char *ret_str;
+
+    //
+    //  Consume all spaces.  After this, we're either at
+    //  the end of string, or we have an arg, and it
+    //  might start with a quote
+    //
+
+    c = szCmdLine;
+    while (*c == ' ') c++;
+    if (*c == '"') {
+        break_char = '"';
+        c++;
+    }
+
+    while (*c != '\0') {
+        if (*c == break_char) {
+            break_char = ' ';
+            c++;
+            while (*c == break_char) c++;
+            if (*c == '"') {
+                break_char = '"';
+                c++;
+            }
+            arg_count++;
+        } else {
+            char_count++;
+
+            //
+            //  If we hit a break char, we count the argument then.
+            //  If we hit end of string, count it here; note we're
+            //  only counting it if we counted a character before it
+            //  (ie., trailing whitespace is not an arg.)
+            //
+
+            c++;
+
+            if (*c == '\0') {
+                arg_count++;
+            }
+        }
+    }
+
+    *argc = arg_count;
+
+    ret = LocalAlloc( LMEM_FIXED, (arg_count * sizeof(char*)) + (char_count + arg_count) * sizeof(char));
+
+    ret_str = (char*)(ret + arg_count);
+
+    arg_count = 0;
+    ret[arg_count] = ret_str;
+
+    //
+    //  Consume all spaces.  After this, we're either at
+    //  the end of string, or we have an arg, and it
+    //  might start with a quote
+    //
+
+    c = szCmdLine;
+    while (*c == ' ') c++;
+    if (*c == '"') {
+        break_char = '"';
+        c++;
+    }
+
+    while (*c != '\0') {
+        if (*c == break_char) {
+            *ret_str = '\0';
+            ret_str++;
+
+            break_char = ' ';
+            c++;
+            while (*c == break_char) c++;
+            if (*c == '"') {
+                break_char = '"';
+                c++;
+            }
+            if (*c != '\0') {
+                arg_count++;
+                ret[arg_count] = ret_str;
+            }
+        } else {
+            *ret_str = *c;
+            ret_str++;
+
+            //
+            //  If we hit a break char, we count the argument then.
+            //  If we hit end of string, count it here; note we're
+            //  only counting it if we counted a character before it
+            //  (ie., trailing whitespace is not an arg.)
+            //
+
+            c++;
+
+            if (*c == '\0') {
+                *ret_str = '\0';
+            }
+        }
+    }
+
+
+    return ret;
+}
+
+int WINAPI mainCRTStartup(void)
+{
+    char **szArglist;
+    int nArgs;
+    int i;
+
+    // TODO: Can these fail??
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    wchar_t *u16cmdline = GetCommandLineW();
+
+    // Max bytes needed when converting from utf-16 to utf-8.
+    // https://stackoverflow.com/questions/55056322/maximum-utf-8-string-size-given-utf-16-size
+    size_t required_size = l_wcslen(u16cmdline) * 4;
+
+    // Cannot blow the stack because of limited lenght of windows cmd line :
+    // https://stackoverflow.com/questions/3205027/maximum-length-of-command-line-string
+    char buffer[required_size];
+
+    int size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, buffer,required_size, NULL, NULL);
+    l_exitif(!size, GetLastError(), "Error converting command line to utf-8. Are you using some ungodly character?");
+
+    szArglist = parseCommandLine(buffer, &nArgs);
+
+    if( NULL == szArglist )
+    {
+        return 0;
+    }
+    else {
+        i = main(nArgs, szArglist);
+    }
+
+    LocalFree(szArglist);
+
+    return(i);
+}
+#endif // __unix__
+#endif // L_WITHSTART
+
+#ifndef L_OSH
+#define L_OSH
 
 #ifndef L_DONTOVERRIDE
 
@@ -77,10 +277,12 @@ L_FD l_open_trunc(const char* file);
 #  define strchr l_strchr
 #  define strrchr l_strrchr
 #  define strstr l_strstr
+
 #  define isdigit l_isdigit
 #  define atol l_atol
 #  define atoi l_atoi
 #  define ltoa l_ltoa
+
 #  define memmove l_memmove
 #  define memset l_memset
 #  define memcmp l_memcmp
@@ -273,19 +475,6 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
 #ifdef __unix__
 
 #include <asm/unistd.h>
-#include <asm/ioctls.h>
-#include <asm/errno.h>
-#include <linux/fs.h>
-#include <linux/loop.h>
-#include <linux/time.h>
-
-
-/* for poll() */
-struct pollfd {
-    int fd;
-    short int events;
-    short int revents;
-};
 
 /* all the *at functions */
 #ifndef AT_FDCWD
@@ -296,25 +485,6 @@ struct pollfd {
 #define SEEK_SET        0
 #define SEEK_CUR        1
 #define SEEK_END        2
-
-/* reboot */
-#define LINUX_REBOOT_MAGIC1         0xfee1dead
-#define LINUX_REBOOT_MAGIC2         0x28121969
-#define LINUX_REBOOT_CMD_HALT       0xcdef0123
-#define LINUX_REBOOT_CMD_POWER_OFF  0x4321fedc
-#define LINUX_REBOOT_CMD_RESTART    0x01234567
-#define LINUX_REBOOT_CMD_SW_SUSPEND 0xd000fce2
-
-#define WEXITSTATUS(status)   (((status) & 0xff00) >> 8)
-#define WIFEXITED(status)     (((status) & 0x7f) == 0)
-
-/* for SIGCHLD */
-#include <asm/signal.h>
-
-// CLang warns for 'asm'
-#ifdef __clang__
-#pragma GCC diagnostic ignored "-Wlanguage-extension-token"
-#endif
 
 #if defined(__x86_64__)
 /* Syscalls for x86_64 :
@@ -438,25 +608,7 @@ struct pollfd {
                          _ret;                                                                 \
                          })
 
-#ifdef L_WITHSTART
-/* startup code */
-asm(".section .text\n"
-    ".global _start\n"
-    "_start:\n"
-    "pop %rdi\n"                // argc   (first arg, %rdi)
-    "mov %rsp, %rsi\n"          // argv[] (second arg, %rsi)
-    "lea 8(%rsi,%rdi,8),%rdx\n" // then a NULL then envp (third arg, %rdx)
-    "and $-16, %rsp\n"          // x86 ABI : esp must be 16-byte aligned when
-    "sub $8, %rsp\n"            // entering the callee
-    "call main\n"               // main() returns the status code, we'll exit with it.
-    "movzb %al, %rdi\n"         // retrieve exit code from 8 lower bits
-    "mov $60, %rax\n"           // NR_exit == 60
-    "syscall\n"                 // really exit
-    "hlt\n"                     // ensure it does not return
-    "");
-#endif
 
-/* fcntl / open */
 #define O_RDONLY            0
 #define O_WRONLY            1
 #define O_RDWR              2
@@ -468,40 +620,14 @@ asm(".section .text\n"
 #define O_NONBLOCK      0x800
 #define O_DIRECTORY   0x10000
 
-/* The struct returned by the stat() syscall, equivalent to stat64(). The
- * syscall returns 116 bytes and stops in the middle of __unused.
- */
-struct sys_stat_struct {
-    unsigned long st_dev;
-    unsigned long st_ino;
-    unsigned long st_nlink;
-    unsigned int  st_mode;
-    unsigned int  st_uid;
-
-    unsigned int  st_gid;
-    unsigned int  __pad0;
-    unsigned long st_rdev;
-    long          st_size;
-    long          st_blksize;
-
-    long          st_blocks;
-    unsigned long st_atime;
-    unsigned long st_atime_nsec;
-    unsigned long st_mtime;
-
-    unsigned long st_mtime_nsec;
-    unsigned long st_ctime;
-    unsigned long st_ctime_nsec;
-    long          __unused[3];
-};
-
 #else
 #error "Just linux x86_64 and windows are supported. Paste relevant nolibc.h sections for more archs"
-#endif
+#endif // __x86_64__
 
-inline void l_exit(int status)
+noreturn inline void l_exit(int status)
 {
     my_syscall1(__NR_exit, status & 255);
+    while(1);
 }
 
 inline int l_chdir(const char *path)
@@ -520,29 +646,6 @@ inline int l_dup(L_FD fd)
 {
     my_syscall1(__NR_dup, fd);
     return _ret;
-}
-
-inline int l_execve(const char *filename, char *const argv[], char *const envp[])
-{
-    my_syscall3(__NR_execve, filename, argv, envp);
-    return _ret;
-}
-
-inline pid_t l_fork(void)
-{
-#ifdef __NR_clone
-    /* note: some archs only have clone() and not fork(). Different archs
-     * have a different API, but most archs have the flags on first arg and
-     * will not use the rest with no other flag.
-     */
-    my_syscall5(__NR_clone, SIGCHLD, 0, 0, 0, 0);
-    return _ret;
-#elif defined(__NR_fork)
-    my_syscall0(__NR_fork);
-    return _ret;
-#else
-#error Neither __NR_clone nor __NR_fork defined, cannot implement sys_fork()
-#endif
 }
 
 inline off_t l_lseek(L_FD fd, off_t offset, int whence)
@@ -614,183 +717,13 @@ inline L_FD l_open_append(const char* file) {
 inline L_FD l_open_trunc(const char* file) {
     return l_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
 }
-#else
 
-#define WIN32_LEAN_AND_MEAN 1
-// See http://utf8everywhere.org/ for the general idea of managing text as utf-8 on windows
-#define UNICODE
-#define _UNICODE
-#include <windows.h>
-#include <shellapi.h>
+#else // Windows starts here
 
-#ifdef L_WITHSTART
-
-// MINGW complains I need to define this. It gets called inside main apparently
-void __main() {}
-int main(int argc, char* argv[]);
-
-// It also complain about this not being defined if compiled with -fwhole-program
- __attribute__((externally_visible)) 
-extern int atexit(void (*f)(void)){ (void) f; return 0;}
-
-// Some routines liberally taken from various versions of minicrt, mincrt and tinylib. Look them up.
-
-// CommandLineToArgvW is not in kernel32.dll
-// Under Windows we take utf16 at the boundaries, but represents string internally as utf-8 (aka char).
-static char** parseCommandLine(char* szCmdLine, int * argc)
+noreturn inline void l_exit(int status)
 {
-    int arg_count = 0;
-    int char_count = 0;
-    char break_char = ' ';
-    char *c;
-    char **ret;
-    char *ret_str;
-
-    //
-    //  Consume all spaces.  After this, we're either at
-    //  the end of string, or we have an arg, and it
-    //  might start with a quote
-    //
-
-    c = szCmdLine;
-    while (*c == ' ') c++;
-    if (*c == '"') {
-        break_char = '"';
-        c++;
-    }
-
-    while (*c != '\0') {
-        if (*c == break_char) {
-            break_char = ' ';
-            c++;
-            while (*c == break_char) c++;
-            if (*c == '"') {
-                break_char = '"';
-                c++;
-            }
-            arg_count++;
-        } else {
-            char_count++;
-
-            //
-            //  If we hit a break char, we count the argument then.
-            //  If we hit end of string, count it here; note we're
-            //  only counting it if we counted a character before it
-            //  (ie., trailing whitespace is not an arg.)
-            //
-
-            c++;
-
-            if (*c == '\0') {
-                arg_count++;
-            }
-        }
-    }
-
-    *argc = arg_count;
-
-    ret = LocalAlloc( LMEM_FIXED, (arg_count * sizeof(char*)) + (char_count + arg_count) * sizeof(char));
-
-    ret_str = (char*)(ret + arg_count);
-
-    arg_count = 0;
-    ret[arg_count] = ret_str;
-
-    //
-    //  Consume all spaces.  After this, we're either at
-    //  the end of string, or we have an arg, and it
-    //  might start with a quote
-    //
-
-    c = szCmdLine;
-    while (*c == ' ') c++;
-    if (*c == '"') {
-        break_char = '"';
-        c++;
-    }
-
-    while (*c != '\0') {
-        if (*c == break_char) {
-            *ret_str = '\0';
-            ret_str++;
-
-            break_char = ' ';
-            c++;
-            while (*c == break_char) c++;
-            if (*c == '"') {
-                break_char = '"';
-                c++;
-            }
-            if (*c != '\0') {
-                arg_count++;
-                ret[arg_count] = ret_str;
-            }
-        } else {
-            *ret_str = *c;
-            ret_str++;
-
-            //
-            //  If we hit a break char, we count the argument then.
-            //  If we hit end of string, count it here; note we're
-            //  only counting it if we counted a character before it
-            //  (ie., trailing whitespace is not an arg.)
-            //
-
-            c++;
-
-            if (*c == '\0') {
-                *ret_str = '\0';
-            }
-        }
-    }
-
-
-    return ret;
-}
-
-int WINAPI mainCRTStartup(void)
-{
-    char **szArglist;
-    int nArgs;
-    int i;
-
-    // TODO: Can these fail??
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-
-    wchar_t *u16cmdline = GetCommandLineW();
-
-    // Max bytes needed when converting from utf-16 to utf-8.
-    // https://stackoverflow.com/questions/55056322/maximum-utf-8-string-size-given-utf-16-size
-    size_t required_size = wcslen(u16cmdline) * 4;
-
-    // Cannot blow the stack because of limited lenght of windows cmd line :
-    // https://stackoverflow.com/questions/3205027/maximum-length-of-command-line-string
-    char buffer[required_size];
-
-    int size = WideCharToMultiByte(CP_UTF8, 0, u16cmdline, -1, buffer,required_size, NULL, NULL);
-    exitif(!size, GetLastError(), "Error converting command line to utf-8. Are you using some ungodly character?");
-
-    szArglist = parseCommandLine(buffer, &nArgs);
-
-    if( NULL == szArglist )
-    {
-        return 0;
-    }
-    else {
-        i = main(nArgs, szArglist);
-    }
-
-    LocalFree(szArglist);
-
-    return(i);
-}
-
-#endif // L_WITHSTART
-
-inline void l_exit(int status)
-{
-    ExitProcess(status);
+     ExitProcess(status);
+    while(1);
 }
 
 #define O_RDONLY            GENERIC_READ
@@ -803,33 +736,6 @@ inline void l_exit(int status)
 #define O_APPEND        0x400
 #define O_NONBLOCK      0x800
 #define O_DIRECTORY   0x10000
-
-#ifdef NONE
-inline L_FD l_open(const char *path, int flags, mode_t mode) {
-    size_t utf8Len = strlen(path) + 1; // +1 for terminating null
-    // The worst case scenario is for each byte to be a separate codepoint, which takes 2 bytes in u16.
-    size_t utf16Len = utf8Len * 2;
-    wchar_t buffer[utf16Len];
-
-    int result = MultiByteToWideChar(
-                     CP_UTF8,                // convert from UTF-8
-                     MB_ERR_INVALID_CHARS,   // error on invalid chars
-                     path,                   // source UTF-8 string
-                     utf8Len,                // total length of source UTF-8 string,
-                     // in CHAR's (= bytes), including end-of-string \0
-                     buffer,                 // destination buffer
-                     utf16Len                // size of destination buffer, in WCHAR's
-                 );
-
-    exitif(!result, GetLastError(), "Error converting file name from utf-8 to utf-16.");
-
-    HANDLE fd = CreateFileW(
-                    buffer,
-                    flags,
-
-}
-
-#endif
 
 #define RETURN_CHECK(toReturn) if(result) return toReturn; else return -1
 
@@ -931,3 +837,4 @@ inline void l_exitif(bool condition, int code, char *message) {
 inline void puts(const char* s) {
   l_write(L_STDOUT, s, strlen(s));
 }
+#endif // L_OSH
