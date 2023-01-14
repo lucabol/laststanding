@@ -53,11 +53,12 @@ char *l_strchr(const char *s, int c);
 char *l_strrchr(const char *s, int c);
 char *l_strstr(const char *s1, const char *s2);
 int l_strncmp(const char *s1, const char *s2, size_t n);
+void l_reverse(char str[], int length);
 
 int l_isdigit(int c);
 long l_atol(const char *s);
 int l_atoi(const char *s);
-char *l_ltoa(long in, char* buffer, int radix);
+char *l_itoa(int in, char* buffer, int radix);
 
 void *l_memmove(void *dst, const void *src, size_t len);
 void *l_memset(void *dst, int b, size_t len);
@@ -70,7 +71,7 @@ L_FD l_open(const char *path, int flags, mode_t mode);
 int l_close(L_FD fd);
 ssize_t l_read(L_FD fd, void *buf, size_t count);
 ssize_t l_write(L_FD fd, const void *buf, size_t count);
-void puts(const char* s);
+void l_puts(const char* s);
 void l_exitif(bool condition, int code, char *message);
 
 L_FD l_open_read(const char* file);
@@ -281,7 +282,7 @@ int WINAPI mainCRTStartup(void)
 #  define isdigit l_isdigit
 #  define atol l_atol
 #  define atoi l_atoi
-#  define ltoa l_ltoa
+#  define itoa l_itoa
 
 #  define memmove l_memmove
 #  define memset l_memset
@@ -448,23 +449,58 @@ inline int l_atoi(const char *s)
     return l_atol(s);
 }
 
-inline char *l_ltoa(long in, char* buffer, int radix)
+//function to reverse a string
+inline void l_reverse(char str[], int length)
 {
-    char       *pos = buffer + sizeof(buffer) - 1;
-    int         neg = in < 0;
-    unsigned long n = neg ? -in : in;
+    int start;
+    int end = length -1;
+    for(start = 0; start < end; ++start, --end)
+    {
+        const char ch = str[start];
+        str[start] = str[end];
+        str[end] = ch;
+    }
+}
 
-    *pos-- = '\0';
-    do {
-        *pos-- = '0' + n % radix;
-        n /= radix;
-        if (pos < buffer)
-            return pos + 1;
-    } while (n);
-
-    if (neg)
-        *pos-- = '-';
-    return pos + 1;
+inline char* l_itoa(int num, char* str, int base)
+{
+    int i = 0;
+    char isNegNum = 0;
+    /*Handle 0 explicitly, 
+      otherwise empty string is printed for 0 */
+    if (num == 0)
+    {
+        str[i++] = '0';
+        str[i] = '\0';
+    }
+    else
+    {
+        // In library itoa function -ve numbers handled only with
+        // base 10. SO here we are also following same concept
+        if ((num < 0) && (base == 10))
+        {
+            isNegNum = 1;
+            num = -num; // make num positive
+        }
+        // Process individual digits
+        do
+        {
+            const int rem = (num % base);
+            str[i++] = (rem > 9)? ((rem-10) + 'a') : (rem + '0');
+            num = num/base;
+        }
+        while (num != 0);
+        // If number is negative, append '-'
+        if (isNegNum)
+        {
+            str[i++] = '-';
+        }
+        // Append string terminator
+        str[i] = '\0';
+        // Reverse the string
+        l_reverse(str, i);
+    }
+    return str;
 }
 
 inline void *l_memcpy(void *dst, const void *src, size_t len)

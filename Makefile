@@ -7,7 +7,7 @@ TARGET := $(SRC:$(SRC_DIR)/%.c=$(BIN_DIR)/$(CC)-%)
 OPT:=fast
 
 override CPPFLAGS += -I.
-override CFLAGS   += -Wall -Wextra -Wpedantic -O$(OPT) -ffreestanding
+override CFLAGS   += -Wall -Wextra -Wpedantic -O$(OPT) -ffreestanding -g
 override LDFLAGS  += -L../libc/bin -nostdlib
 override LDLIBS   += -lgcc
 
@@ -16,7 +16,7 @@ override LDLIBS   += -lgcc
 all: $(TARGET)
 
 $(TARGET): $(SRC) | $(BIN_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $< $(LDLIBS) -o $@
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
