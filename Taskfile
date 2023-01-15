@@ -1,28 +1,34 @@
 #!/bin/bash
 
-function check {    # Clean things
-    make check
+RM=rm
+
+function clean {    # Clean binaries
+    $RM -rf bin
 }
 
-function cleanbuild {
+function build {    # Build {compiler:gcc} {optimizationchar:0}
   clean
-  build
-  exa -lB bin
-}
+  mkdir -p bin
+  CC=${1:-gcc}
+  OPT=${2:-3}
 
-function build {    # Build stuff
-  # -whole-program removes the inline functions from the exec, but makes the exe larger on Mingw??
-  # -flto on clang removes the inline functions, generates strange error on gcc and makes Mingw larger 
-  O=3
-  make CC=gcc LDFLAGS=-fwhole-program OPT=$O
-  make CC=clang LDFLAGS=-flto OPT=$O
-  make CC=mingw-gcc LDLIBS=-lkernel32 OPT=$O
-}
+  case $CC in
+    gcc)
+      LDFLAGS=-fwhole-program
+      ;;
+    clang)
+      LDFLAGS=-flto
+      ;;
+    mingw-gcc)
+      LDLIBS=-lkernel32
+      ;;
+  esac
 
-function clean {    # Runs something
-  make CC=gcc clean
-  make CC=clang clean
-  make CC=mingw-gcc clean
+  for f in test/*; do
+    x="${f##*/}"
+    x="${x%.*}";
+    $CC -I. -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
+  done
 }
 
 function help {     # Prints help
