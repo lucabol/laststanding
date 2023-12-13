@@ -7,22 +7,22 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdnoreturn.h>
 
-// This is not part of the C freestanding definition, but it is available on gcc, mingw & msvc
-// For: mode_t, off_t, ssize_t. If not present on your system, define these types.
-#include <sys/types.h>
-
+// This need to be before stdnoreturn because it defines 'noreturn' differently
 #ifndef __unix__
-
 #define WIN32_LEAN_AND_MEAN 1
 // See http://utf8everywhere.org/ for the general idea of managing text as utf-8 on windows
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
 #include <shellapi.h>
-
 #endif
+
+#include <stdnoreturn.h>
+
+// This is not part of the C freestanding definition, but it is available on gcc, mingw & msvc
+// For: mode_t, off_t, ssize_t. If not present on your system, define these types.
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
