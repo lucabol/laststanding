@@ -115,7 +115,7 @@ void __main() {}
 int main(int argc, char* argv[]);
 
 // It also complain about this not being defined if compiled with -fwhole-program
- __attribute__((externally_visible)) 
+__attribute__((__used__)) 
 extern int atexit(void (*f)(void)){ (void) f; return 0;}
 
 // Some routines liberally taken from various versions of minicrt, mincrt and tinylib. Look them up.
