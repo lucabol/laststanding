@@ -24,6 +24,12 @@
 // For: mode_t, off_t, ssize_t. If not present on your system, define these types.
 #include <sys/types.h>
 
+#if defined(_MSC_VER)
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+typedef DWORD mode_t;
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
