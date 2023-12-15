@@ -30,7 +30,7 @@ typedef SSIZE_T ssize_t;
 typedef DWORD mode_t;
 
 #pragma comment(linker, "/subsystem:console")
-#pragma comment(linker, "/GS-")
+#pragma comment(compiler, "/GS-")
 #pragma comment(lib, "kernel32.lib")
 #endif
 
