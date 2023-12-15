@@ -9,8 +9,8 @@
 #include <stdint.h>
 
 // This need to be before stdnoreturn because it defines 'noreturn' differently
-#ifndef __unix__
-#define WIN32_LEAN_AND_MEAN 1
+#ifdef _WIN32
+#define VC_EXTRALEAN
 // See http://utf8everywhere.org/ for the general idea of managing text as utf-8 on windows
 #define UNICODE
 #define _UNICODE
@@ -28,6 +28,10 @@
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 typedef DWORD mode_t;
+
+#pragma comment(linker, "/subsystem:console")
+#pragma comment(linker, "/GS-")
+#pragma comment(lib, "kernel32.lib")
 #endif
 
 #ifdef __cplusplus
@@ -233,6 +237,12 @@ static char** parseCommandLine(char* szCmdLine, int * argc)
     return ret;
 }
 
+#ifdef __GNUC__
+__attribute((externally_visible))
+#endif
+#ifdef __i686__
+__attribute((force_align_arg_pointer))
+#endif
 int WINAPI mainCRTStartup(void)
 {
     char **szArglist;
@@ -268,6 +278,8 @@ int WINAPI mainCRTStartup(void)
 
     LocalFree(szArglist);
 
+    // https://nullprogram.com/blog/2023/02/15/ recommends the below for non console apps ...
+    // TerminateProcess(GetCurrentProcess(), i);
     return(i);
 }
 #endif // __unix__

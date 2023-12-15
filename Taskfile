@@ -27,7 +27,7 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   for f in test/*; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
+    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
   done
 }
 
