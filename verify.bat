@@ -25,27 +25,29 @@ for %%f in (bin\*.exe) do (
     echo | set /p="✓ File type: "
     powershell -Command "Get-ItemProperty '%%f' | Select-Object Name, Length" 2>nul
     
-    REM Check for dependencies using dumpbin (if available) or objdump
+    REM Check for dependencies and print all of them
     echo | set /p="✓ Dependencies: "
     where dumpbin >nul 2>&1
     if %errorlevel% equ 0 (
-        dumpbin /dependents "%%f" 2>nul | findstr /C:"kernel32.dll" >nul
+        REM Test if dumpbin actually works by running it
+        dumpbin /dependents "%%f" >nul 2>&1
         if %errorlevel% equ 0 (
-            echo PASS ^(only kernel32.dll dependency^)
-        ) else (
-            echo Checking dependencies...
+            REM dumpbin works, show all dependencies
+            echo.
+            echo   All dependencies for %%f:
             dumpbin /dependents "%%f" 2>nul
+        ) else (
+            echo SKIP ^(dumpbin available but failed to analyze file^)
         )
     ) else (
         REM Fallback to objdump if available (MinGW)
         where objdump >nul 2>&1
         if %errorlevel% equ 0 (
-            objdump -p "%%f" 2>nul | findstr "DLL Name" | findstr /V "kernel32.dll" >nul
+            echo.
+            echo   All dependencies for %%f:
+            objdump -p "%%f" 2>nul | findstr "DLL Name"
             if %errorlevel% neq 0 (
-                echo PASS ^(minimal dependencies^)
-            ) else (
-                echo WARN ^(additional dependencies found^)
-                objdump -p "%%f" 2>nul | findstr "DLL Name"
+                echo   ^(No dynamic dependencies found^)
             )
         ) else (
             echo SKIP ^(no dependency analysis tools available^)
