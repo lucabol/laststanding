@@ -875,6 +875,46 @@ inline L_FD l_open_append(const char* file) {
 inline L_FD l_open_trunc(const char* file) {
     return l_win_open_gen(file, GENERIC_WRITE, 0, TRUNCATE_EXISTING | OPEN_ALWAYS);
 }
+
+inline L_FD l_open(const char *path, int flags, mode_t mode) {
+    DWORD desired = 0;
+    DWORD shared = 0;
+    DWORD dispo = 0;
+    
+    // Handle access flags
+    if ((flags & O_RDWR) == O_RDWR) {
+        desired = GENERIC_READ | GENERIC_WRITE;
+    } else if (flags & O_WRONLY) {
+        desired = GENERIC_WRITE;
+    } else {
+        desired = GENERIC_READ;
+    }
+    
+    // Handle append flag
+    if (flags & O_APPEND) {
+        desired = FILE_APPEND_DATA;
+        shared = FILE_SHARE_READ;
+    }
+    
+    // Handle creation and truncation flags
+    if (flags & O_CREAT) {
+        if (flags & O_EXCL) {
+            dispo = CREATE_NEW;
+        } else if (flags & O_TRUNC) {
+            dispo = CREATE_ALWAYS;
+        } else {
+            dispo = OPEN_ALWAYS;
+        }
+    } else {
+        if (flags & O_TRUNC) {
+            dispo = TRUNCATE_EXISTING;
+        } else {
+            dispo = OPEN_EXISTING;
+        }
+    }
+    
+    return l_win_open_gen(path, desired, shared, dispo);
+}
 #endif
 
 #ifdef __cplusplus
