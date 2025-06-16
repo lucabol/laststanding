@@ -782,7 +782,7 @@ noreturn inline void l_exit(int status)
 
 #define O_RDONLY            GENERIC_READ
 #define O_WRONLY            GENERIC_WRITE
-#define O_RDWR              GENERIC_READ | GENERIC_WRITE
+#define O_RDWR              (GENERIC_READ | GENERIC_WRITE)
 #define O_CREAT          0x40
 #define O_EXCL           0x80
 #define O_NOCTTY        0x100
