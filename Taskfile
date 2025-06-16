@@ -43,24 +43,25 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
       echo "Analyzing: $exe"
       echo "----------------------------------------"
       
-      # Check dependencies and print all of them
+      # Check dependencies and print all of them for each executable
       echo -n "✓ Dependencies: "
+      echo
+      echo "  All dependencies for $exe:"
       if ldd "$exe" 2>&1 | grep -q "not a dynamic executable"; then
-        echo "PASS (statically linked - no dependencies)"
+        echo "    (No dynamic dependencies - statically linked)"
       elif command -v ldd >/dev/null 2>&1; then
-        echo "DYNAMIC (dependencies found):"
-        ldd "$exe" 2>/dev/null || echo "  Error reading dependencies"
+        ldd "$exe" 2>/dev/null | sed 's/^/    /' || echo "    Error reading dependencies"
       else
-        echo "SKIP (ldd not available)"
+        echo "    (ldd not available - cannot check dependencies)"
       fi
       
-      # Alternative dependency check using readelf
+      # Alternative dependency check using readelf - show all dynamic entries
       echo -n "✓ Dynamic section: "
       if readelf -d "$exe" 2>/dev/null | grep -q "There is no dynamic section"; then
         echo "PASS (no dynamic section)"
       else
-        echo "PRESENT (showing dynamic dependencies):"
-        readelf -d "$exe" 2>/dev/null | grep -E "(NEEDED|Shared library)" || echo "  No NEEDED entries found"
+        echo "PRESENT (showing all dynamic dependencies):"
+        readelf -d "$exe" 2>/dev/null | grep -E "(NEEDED|Shared library)" | sed 's/^/  /' || echo "  No NEEDED entries found"
       fi
       
       # Check binary type and ensure it's stripped

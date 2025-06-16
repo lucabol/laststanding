@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM Windows verification script for stdlib independence and bloat-free executables
 REM This script works with Windows SDK tools and MinGW tools
 
@@ -29,15 +30,18 @@ for %%f in (bin\*.exe) do (
     echo | set /p="✓ Dependencies: "
     where dumpbin >nul 2>&1
     if %errorlevel% equ 0 (
-        REM Test if dumpbin actually works by running it
+        REM Test if dumpbin actually works by running it on this specific file
         dumpbin /dependents "%%f" >nul 2>&1
-        if %errorlevel% equ 0 (
+        if !errorlevel! equ 0 (
             REM dumpbin works, show all dependencies
             echo.
             echo   All dependencies for %%f:
-            dumpbin /dependents "%%f" 2>nul
+            dumpbin /dependents "%%f" 2>nul | findstr "\.dll"
+            if !errorlevel! neq 0 (
+                echo   ^(No dependencies found^)
+            )
         ) else (
-            echo SKIP ^(dumpbin available but failed to analyze file^)
+            echo SKIP ^(dumpbin failed to analyze this file^)
         )
     ) else (
         REM Fallback to objdump if available (MinGW)
