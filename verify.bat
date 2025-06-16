@@ -29,7 +29,7 @@ for %%f in (bin\*.exe) do (
     REM Check for dependencies and print all of them
     echo | set /p="✓ Dependencies: "
     where dumpbin >nul 2>&1
-    if %errorlevel% equ 0 (
+    if !errorlevel! equ 0 (
         REM Test if dumpbin actually works by running it on this specific file
         dumpbin /dependents "%%f" >nul 2>&1
         if !errorlevel! equ 0 (
@@ -46,11 +46,11 @@ for %%f in (bin\*.exe) do (
     ) else (
         REM Fallback to objdump if available (MinGW)
         where objdump >nul 2>&1
-        if %errorlevel% equ 0 (
+        if !errorlevel! equ 0 (
             echo.
             echo   All dependencies for %%f:
             objdump -p "%%f" 2>nul | findstr "DLL Name"
-            if %errorlevel% neq 0 (
+            if !errorlevel! neq 0 (
                 echo   ^(No dynamic dependencies found^)
             )
         ) else (
@@ -61,9 +61,9 @@ for %%f in (bin\*.exe) do (
     REM Check for standard library symbols using strings or findstr
     echo | set /p="✓ No stdlib symbols: "
     where strings >nul 2>&1
-    if %errorlevel% equ 0 (
+    if !errorlevel! equ 0 (
         strings "%%f" | findstr /I "libc glibc stdlib printf malloc free msvcrt" >nul
-        if %errorlevel% neq 0 (
+        if !errorlevel! neq 0 (
             echo PASS
         ) else (
             echo FAIL ^(found stdlib references^)
@@ -72,7 +72,7 @@ for %%f in (bin\*.exe) do (
     ) else (
         REM Fallback to simple binary search
         findstr /L "msvcrt libc stdlib" "%%f" >nul 2>&1
-        if %errorlevel% neq 0 (
+        if !errorlevel! neq 0 (
             echo PASS ^(basic check^)
         ) else (
             echo WARN ^(possible stdlib references^)
@@ -86,7 +86,7 @@ for %%f in (bin\*.exe) do (
     REM Check for exports/symbols using dumpbin
     echo | set /p="✓ Symbol count: "
     where dumpbin >nul 2>&1
-    if %errorlevel% equ 0 (
+    if !errorlevel! equ 0 (
         for /f %%i in ('dumpbin /exports "%%f" 2^>nul ^| findstr /C:"ordinal hint" ^| find /c /v ""') do (
             if %%i gtr 0 (
                 echo WARN ^(%%i exported symbols^)
@@ -96,7 +96,7 @@ for %%f in (bin\*.exe) do (
         )
     ) else (
         where objdump >nul 2>&1
-        if %errorlevel% equ 0 (
+        if !errorlevel! equ 0 (
             for /f %%i in ('objdump -t "%%f" 2^>nul ^| find /c /v ""') do (
                 if %%i gtr 5 (
                     echo WARN ^(%%i symbols^)
