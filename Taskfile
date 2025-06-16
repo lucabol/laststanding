@@ -31,6 +31,80 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   done
 }
 
+function verify {    # Verify executables don't depend on stdlib and contain no bloat
+  # Build first to ensure we have current binaries
+  build
+
+  echo "=== Verifying executables are stdlib-independent and bloat-free ==="
+  
+  for exe in bin/*; do
+    if [ -f "$exe" ] && [ -x "$exe" ]; then
+      echo
+      echo "Analyzing: $exe"
+      echo "----------------------------------------"
+      
+      # Check if binary is statically linked (no dynamic dependencies)
+      echo -n "✓ Static linking: "
+      if ldd "$exe" 2>&1 | grep -q "not a dynamic executable"; then
+        echo "PASS (statically linked)"
+      else
+        echo "FAIL (has dynamic dependencies)"
+        ldd "$exe"
+      fi
+      
+      # Check binary type and ensure it's stripped
+      echo -n "✓ Binary type: "
+      file_output=$(file "$exe")
+      if echo "$file_output" | grep -q "statically linked" && echo "$file_output" | grep -q "stripped"; then
+        echo "PASS (static, stripped)"
+      else
+        echo "FAIL"
+        echo "  $file_output"
+      fi
+      
+      # Check for absence of dynamic section
+      echo -n "✓ No dynamic section: "
+      if readelf -d "$exe" 2>/dev/null | grep -q "There is no dynamic section"; then
+        echo "PASS"
+      else
+        echo "FAIL (has dynamic section)"
+        readelf -d "$exe"
+      fi
+      
+      # Check for standard library symbols/strings
+      echo -n "✓ No stdlib symbols: "
+      stdlib_symbols=$(strings "$exe" | grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)" | head -5)
+      if [ -z "$stdlib_symbols" ]; then
+        echo "PASS"
+      else
+        echo "FAIL (found stdlib references)"
+        echo "$stdlib_symbols"
+      fi
+      
+      # Show binary size for bloat assessment
+      echo -n "✓ Binary size: "
+      size_output=$(size "$exe" | tail -n 1)
+      text_size=$(echo "$size_output" | awk '{print $1}')
+      total_size=$(echo "$size_output" | awk '{print $4}')
+      echo "${total_size} bytes (text: ${text_size})"
+      
+      # Check for excessive symbols (should be minimal or none due to stripping)
+      echo -n "✓ Symbol count: "
+      symbol_count=$(nm "$exe" 2>/dev/null | wc -l)
+      if [ "$symbol_count" -eq 0 ]; then
+        echo "PASS (no symbols - stripped)"
+      elif [ "$symbol_count" -lt 10 ]; then
+        echo "WARN ($symbol_count symbols)"
+      else
+        echo "FAIL ($symbol_count symbols - too many)"
+      fi
+    fi
+  done
+  
+  echo
+  echo "=== Verification complete ==="
+}
+
 function help {     # Prints help
     echo "Usage: $0 <task> <args>"
     echo "Execute a task with the specified arguments."
