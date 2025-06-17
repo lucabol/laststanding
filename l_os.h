@@ -814,89 +814,81 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
  *   - syscall performed with svc #0
  */
 
+// Dummy function to satisfy libgcc requirement on ARM
+int raise(int sig) {
+    (void)sig;
+    return 0;
+}
+
 #define my_syscall0(num) \
-    ({ \
-        long _ret; \
-        asm volatile ( \
-            "mov r7, %1\n\tsvc #0\n\tmov %0, r0\n" \
-            : "=r"(_ret) \
-            : "r"((long)(num)) \
-            : "r0", "r7", "memory" \
-        ); \
-        _ret; \
-    })
+    long _ret; \
+    asm volatile ( \
+        "mov r7, %1\n\tsvc #0\n" \
+        : "=r"(_ret) \
+        : "r"((long)(num)) \
+        : "r0", "r7", "memory" \
+    ); \
+    _ret;
 
 #define my_syscall1(num, arg1) \
-    ({ \
-        long _ret; \
-        asm volatile ( \
-            "mov r0, %1\n\tmov r7, %2\n\tsvc #0\n\tmov %0, r0\n" \
-            : "=r"(_ret) \
-            : "r"((long)(arg1)), "r"((long)(num)) \
-            : "r0", "r7", "memory" \
-        ); \
-        _ret; \
-    })
+    long _ret; \
+    asm volatile ( \
+        "mov r0, %1\n\tmov r7, %2\n\tsvc #0\n" \
+        : "=r"(_ret) \
+        : "r"((long)(arg1)), "r"((long)(num)) \
+        : "r0", "r7", "memory" \
+    ); \
+    _ret;
 
 #define my_syscall2(num, arg1, arg2) \
-    ({ \
-        long _ret; \
-        asm volatile ( \
-            "mov r0, %1\n\tmov r1, %2\n\tmov r7, %3\n\tsvc #0\n\tmov %0, r0\n" \
-            : "=r"(_ret) \
-            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(num)) \
-            : "r0", "r1", "r7", "memory" \
-        ); \
-        _ret; \
-    })
+    long _ret; \
+    asm volatile ( \
+        "mov r0, %1\n\tmov r1, %2\n\tmov r7, %3\n\tsvc #0\n" \
+        : "=r"(_ret) \
+        : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(num)) \
+        : "r0", "r1", "r7", "memory" \
+    ); \
+    _ret;
 
 #define my_syscall3(num, arg1, arg2, arg3) \
-    ({ \
-        long _ret; \
-        asm volatile ( \
-            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r7, %4\n\tsvc #0\n\tmov %0, r0\n" \
-            : "=r"(_ret) \
-            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(num)) \
-            : "r0", "r1", "r2", "r7", "memory" \
-        ); \
-        _ret; \
-    })
+    long _ret; \
+    asm volatile ( \
+        "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r7, %4\n\tsvc #0\n" \
+        : "=r"(_ret) \
+        : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(num)) \
+        : "r0", "r1", "r2", "r7", "memory" \
+    ); \
+    _ret;
 
 #define my_syscall4(num, arg1, arg2, arg3, arg4) \
-    ({ \
-        long _ret; \
-        asm volatile ( \
-            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r7, %5\n\tsvc #0\n\tmov %0, r0\n" \
-            : "=r"(_ret) \
-            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(num)) \
-            : "r0", "r1", "r2", "r3", "r7", "memory" \
-        ); \
-        _ret; \
-    })
+    long _ret; \
+    asm volatile ( \
+        "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r7, %5\n\tsvc #0\n" \
+        : "=r"(_ret) \
+        : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(num)) \
+        : "r0", "r1", "r2", "r3", "r7", "memory" \
+    ); \
+    _ret;
 
 #define my_syscall5(num, arg1, arg2, arg3, arg4, arg5) \
-    ({ \
-        long _ret; \
-        asm volatile ( \
-            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r4, %5\n\tmov r7, %6\n\tsvc #0\n\tmov %0, r0\n" \
-            : "=r"(_ret) \
-            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(arg5)), "r"((long)(num)) \
-            : "r0", "r1", "r2", "r3", "r4", "r7", "memory" \
-        ); \
-        _ret; \
-    })
+    long _ret; \
+    asm volatile ( \
+        "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r4, %5\n\tmov r7, %6\n\tsvc #0\n" \
+        : "=r"(_ret) \
+        : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(arg5)), "r"((long)(num)) \
+        : "r0", "r1", "r2", "r3", "r4", "r7", "memory" \
+    ); \
+    _ret;
 
 #define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6) \
-    ({ \
-        long _ret; \
-        asm volatile ( \
-            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r4, %5\n\tmov r5, %6\n\tmov r7, %7\n\tsvc #0\n\tmov %0, r0\n" \
-            : "=r"(_ret) \
-            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(arg5)), "r"((long)(arg6)), "r"((long)(num)) \
-            : "r0", "r1", "r2", "r3", "r4", "r5", "r7", "memory" \
-        ); \
-        _ret; \
-    })
+    long _ret; \
+    asm volatile ( \
+        "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r4, %5\n\tmov r5, %6\n\tmov r7, %7\n\tsvc #0\n" \
+        : "=r"(_ret) \
+        : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(arg5)), "r"((long)(arg6)), "r"((long)(num)) \
+        : "r0", "r1", "r2", "r3", "r4", "r5", "r7", "memory" \
+    ); \
+    _ret;
 
 // File flags (same as x86_64)
 #define O_RDONLY            0
@@ -922,30 +914,36 @@ noreturn inline void l_exit(int status)
 
 inline int l_chdir(const char *path)
 {
-    return my_syscall1(__NR_chdir, path);
+    my_syscall1(__NR_chdir, path);
+    return _ret;
 }
 
 inline int l_close(L_FD fd)
 {
-    return my_syscall1(__NR_close, fd);
+    my_syscall1(__NR_close, fd);
+    return _ret;
 }
 
 inline int l_dup(L_FD fd)
 {
-    return my_syscall1(__NR_dup, fd);
+    my_syscall1(__NR_dup, fd);
+    return _ret;
 }
 
 inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
-    return my_syscall3(__NR_lseek, fd, offset, whence);
+    my_syscall3(__NR_lseek, fd, offset, whence);
+    return _ret;
 }
 
 inline int l_mkdir(const char *path, mode_t mode)
 {
 #ifdef __NR_mkdirat
-    return my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
+    my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
+    return _ret;
 #elif defined(__NR_mkdir)
-    return my_syscall2(__NR_mkdir, path, mode);
+    my_syscall2(__NR_mkdir, path, mode);
+    return _ret;
 #else
 #error Neither __NR_mkdirat nor __NR_mkdir defined, cannot implement sys_mkdir()
 #endif
@@ -954,9 +952,11 @@ inline int l_mkdir(const char *path, mode_t mode)
 inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
 #ifdef __NR_openat
-    return my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
+    my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
+    return _ret;
 #elif defined(__NR_open)
-    return my_syscall3(__NR_open, path, flags, mode);
+    my_syscall3(__NR_open, path, flags, mode);
+    return _ret;
 #else
 #error Neither __NR_openat nor __NR_open defined, cannot implement sys_open()
 #endif
@@ -964,17 +964,20 @@ inline L_FD l_open(const char *path, int flags, mode_t mode)
 
 inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
-    return my_syscall3(__NR_read, fd, buf, count);
+    my_syscall3(__NR_read, fd, buf, count);
+    return _ret;
 }
 
 inline int l_sched_yield(void)
 {
-    return my_syscall0(__NR_sched_yield);
+    my_syscall0(__NR_sched_yield);
+    return _ret;
 }
 
 inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
-    return my_syscall3(__NR_write, fd, buf, count);
+    my_syscall3(__NR_write, fd, buf, count);
+    return _ret;
 }
 
 inline L_FD l_open_read(const char* file) {
