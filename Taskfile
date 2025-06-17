@@ -109,6 +109,18 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
   echo "=== Verification complete ==="
 }
 
+function test {    # Build and run all tests in bin directory
+  build "$@"
+  echo "=== Running all executables in bin/ ==="
+  for exe in bin/*; do
+    if [ -f "$exe" ] && [ -x "$exe" ]; then
+      echo "--- Running $exe ---"
+      "$exe"
+      echo
+    fi
+  done
+}
+
 function help {     # Prints help
     echo "Usage: $0 <task> <args>"
     echo "Execute a task with the specified arguments."
