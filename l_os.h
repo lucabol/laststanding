@@ -112,6 +112,17 @@ asm(".section .text\n"
     "syscall\n"                 // really exit
     "hlt\n"                     // ensure it does not return
     "");
+#elif defined(__arm__)
+/* startup code for ARM */
+asm(".section .text\n"
+    ".global _start\n"
+    "_start:\n"
+    "ldr r0, [sp]\n"            // argc
+    "add r1, sp, #4\n"          // argv
+    "bl main\n"                 // call main
+    "mov r7, #1\n"              // __NR_exit (1 on ARM)
+    "swi #0\n"                  // syscall
+    );
 #endif
 
 #else // windows
@@ -804,103 +815,88 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
  */
 
 #define my_syscall0(num) \
-    long _ret; \
-    long _num = (num); \
-    register long _r0 asm("r0"); \
-    asm volatile ( \
-        "mov r7, %1\n\tsvc #0\n" \
-        : "=r"(_r0) \
-        : "r"(_num) \
-        : "r7", "memory" \
-    ); \
-    _ret = _r0;
+    ({ \
+        long _ret; \
+        asm volatile ( \
+            "mov r7, %1\n\tsvc #0\n\tmov %0, r0\n" \
+            : "=r"(_ret) \
+            : "r"((long)(num)) \
+            : "r0", "r7", "memory" \
+        ); \
+        _ret; \
+    })
 
 #define my_syscall1(num, arg1) \
-    long _ret; \
-    long _num = (num); \
-    register long _r0 asm("r0") = (long)(arg1); \
-    asm volatile ( \
-        "mov r7, %2\n\tsvc #0\n" \
-        : "+r"(_r0) \
-        : "0"(_r0), "r"(_num) \
-        : "r7", "memory" \
-    ); \
-    _ret = _r0;
+    ({ \
+        long _ret; \
+        asm volatile ( \
+            "mov r0, %1\n\tmov r7, %2\n\tsvc #0\n\tmov %0, r0\n" \
+            : "=r"(_ret) \
+            : "r"((long)(arg1)), "r"((long)(num)) \
+            : "r0", "r7", "memory" \
+        ); \
+        _ret; \
+    })
 
 #define my_syscall2(num, arg1, arg2) \
-    long _ret; \
-    long _num = (num); \
-    register long _r0 asm("r0") = (long)(arg1); \
-    register long _r1 asm("r1") = (long)(arg2); \
-    asm volatile ( \
-        "mov r7, %3\n\tsvc #0\n" \
-        : "+r"(_r0) \
-        : "0"(_r0), "r"(_r1), "r"(_num) \
-        : "r7", "memory" \
-    ); \
-    _ret = _r0;
+    ({ \
+        long _ret; \
+        asm volatile ( \
+            "mov r0, %1\n\tmov r1, %2\n\tmov r7, %3\n\tsvc #0\n\tmov %0, r0\n" \
+            : "=r"(_ret) \
+            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(num)) \
+            : "r0", "r1", "r7", "memory" \
+        ); \
+        _ret; \
+    })
 
 #define my_syscall3(num, arg1, arg2, arg3) \
-    long _ret; \
-    long _num = (num); \
-    register long _r0 asm("r0") = (long)(arg1); \
-    register long _r1 asm("r1") = (long)(arg2); \
-    register long _r2 asm("r2") = (long)(arg3); \
-    asm volatile ( \
-        "mov r7, %4\n\tsvc #0\n" \
-        : "+r"(_r0) \
-        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_num) \
-        : "r7", "memory" \
-    ); \
-    _ret = _r0;
+    ({ \
+        long _ret; \
+        asm volatile ( \
+            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r7, %4\n\tsvc #0\n\tmov %0, r0\n" \
+            : "=r"(_ret) \
+            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(num)) \
+            : "r0", "r1", "r2", "r7", "memory" \
+        ); \
+        _ret; \
+    })
 
 #define my_syscall4(num, arg1, arg2, arg3, arg4) \
-    long _ret; \
-    long _num = (num); \
-    register long _r0 asm("r0") = (long)(arg1); \
-    register long _r1 asm("r1") = (long)(arg2); \
-    register long _r2 asm("r2") = (long)(arg3); \
-    register long _r3 asm("r3") = (long)(arg4); \
-    asm volatile ( \
-        "mov r7, %5\n\tsvc #0\n" \
-        : "+r"(_r0) \
-        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_num) \
-        : "r7", "memory" \
-    ); \
-    _ret = _r0;
+    ({ \
+        long _ret; \
+        asm volatile ( \
+            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r7, %5\n\tsvc #0\n\tmov %0, r0\n" \
+            : "=r"(_ret) \
+            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(num)) \
+            : "r0", "r1", "r2", "r3", "r7", "memory" \
+        ); \
+        _ret; \
+    })
 
 #define my_syscall5(num, arg1, arg2, arg3, arg4, arg5) \
-    long _ret; \
-    long _num = (num); \
-    register long _r0 asm("r0") = (long)(arg1); \
-    register long _r1 asm("r1") = (long)(arg2); \
-    register long _r2 asm("r2") = (long)(arg3); \
-    register long _r3 asm("r3") = (long)(arg4); \
-    register long _r4 asm("r4") = (long)(arg5); \
-    asm volatile ( \
-        "mov r7, %6\n\tsvc #0\n" \
-        : "+r"(_r0) \
-        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_num) \
-        : "r7", "memory" \
-    ); \
-    _ret = _r0;
+    ({ \
+        long _ret; \
+        asm volatile ( \
+            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r4, %5\n\tmov r7, %6\n\tsvc #0\n\tmov %0, r0\n" \
+            : "=r"(_ret) \
+            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(arg5)), "r"((long)(num)) \
+            : "r0", "r1", "r2", "r3", "r4", "r7", "memory" \
+        ); \
+        _ret; \
+    })
 
 #define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6) \
-    long _ret; \
-    long _num = (num); \
-    register long _r0 asm("r0") = (long)(arg1); \
-    register long _r1 asm("r1") = (long)(arg2); \
-    register long _r2 asm("r2") = (long)(arg3); \
-    register long _r3 asm("r3") = (long)(arg4); \
-    register long _r4 asm("r4") = (long)(arg5); \
-    register long _r5 asm("r5") = (long)(arg6); \
-    asm volatile ( \
-        "mov r7, %7\n\tsvc #0\n" \
-        : "+r"(_r0) \
-        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_r5), "r"(_num) \
-        : "r7", "memory" \
-    ); \
-    _ret = _r0;
+    ({ \
+        long _ret; \
+        asm volatile ( \
+            "mov r0, %1\n\tmov r1, %2\n\tmov r2, %3\n\tmov r3, %4\n\tmov r4, %5\n\tmov r5, %6\n\tmov r7, %7\n\tsvc #0\n\tmov %0, r0\n" \
+            : "=r"(_ret) \
+            : "r"((long)(arg1)), "r"((long)(arg2)), "r"((long)(arg3)), "r"((long)(arg4)), "r"((long)(arg5)), "r"((long)(arg6)), "r"((long)(num)) \
+            : "r0", "r1", "r2", "r3", "r4", "r5", "r7", "memory" \
+        ); \
+        _ret; \
+    })
 
 // File flags (same as x86_64)
 #define O_RDONLY            0
