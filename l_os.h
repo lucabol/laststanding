@@ -96,7 +96,8 @@ L_FD l_open_trunc(const char* file);
 
 #ifdef __unix__
 
-/* startup code */
+#if defined(__x86_64__)
+/* startup code for x86_64 only */
 asm(".section .text\n"
     ".global _start\n"
     "_start:\n"
@@ -111,6 +112,7 @@ asm(".section .text\n"
     "syscall\n"                 // really exit
     "hlt\n"                     // ensure it does not return
     "");
+#endif
 
 #else // windows
 
@@ -800,91 +802,92 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
  *   - return value in r0
  *   - syscall performed with svc #0
  */
+
 #define my_syscall0(num) \
     long _ret; \
-    register long _num asm("r7") = (num); \
+    long _num = (num); \
     register long _r0 asm("r0"); \
     asm volatile ( \
-        "svc #0\n" \
+        "mov r7, %1\n\tsvc #0\n" \
         : "=r"(_r0) \
         : "r"(_num) \
-        : "memory" \
+        : "r7", "memory" \
     ); \
     _ret = _r0;
 
 #define my_syscall1(num, arg1) \
     long _ret; \
-    register long _num asm("r7") = (num); \
+    long _num = (num); \
     register long _r0 asm("r0") = (long)(arg1); \
     asm volatile ( \
-        "svc #0\n" \
+        "mov r7, %2\n\tsvc #0\n" \
         : "+r"(_r0) \
-        : "r"(_num) \
-        : "memory" \
+        : "0"(_r0), "r"(_num) \
+        : "r7", "memory" \
     ); \
     _ret = _r0;
 
 #define my_syscall2(num, arg1, arg2) \
     long _ret; \
-    register long _num asm("r7") = (num); \
+    long _num = (num); \
     register long _r0 asm("r0") = (long)(arg1); \
     register long _r1 asm("r1") = (long)(arg2); \
     asm volatile ( \
-        "svc #0\n" \
+        "mov r7, %3\n\tsvc #0\n" \
         : "+r"(_r0) \
-        : "r"(_num), "r"(_r1) \
-        : "memory" \
+        : "0"(_r0), "r"(_r1), "r"(_num) \
+        : "r7", "memory" \
     ); \
     _ret = _r0;
 
 #define my_syscall3(num, arg1, arg2, arg3) \
     long _ret; \
-    register long _num asm("r7") = (num); \
+    long _num = (num); \
     register long _r0 asm("r0") = (long)(arg1); \
     register long _r1 asm("r1") = (long)(arg2); \
     register long _r2 asm("r2") = (long)(arg3); \
     asm volatile ( \
-        "svc #0\n" \
+        "mov r7, %4\n\tsvc #0\n" \
         : "+r"(_r0) \
-        : "r"(_num), "r"(_r1), "r"(_r2) \
-        : "memory" \
+        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_num) \
+        : "r7", "memory" \
     ); \
     _ret = _r0;
 
 #define my_syscall4(num, arg1, arg2, arg3, arg4) \
     long _ret; \
-    register long _num asm("r7") = (num); \
+    long _num = (num); \
     register long _r0 asm("r0") = (long)(arg1); \
     register long _r1 asm("r1") = (long)(arg2); \
     register long _r2 asm("r2") = (long)(arg3); \
     register long _r3 asm("r3") = (long)(arg4); \
     asm volatile ( \
-        "svc #0\n" \
+        "mov r7, %5\n\tsvc #0\n" \
         : "+r"(_r0) \
-        : "r"(_num), "r"(_r1), "r"(_r2), "r"(_r3) \
-        : "memory" \
+        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_num) \
+        : "r7", "memory" \
     ); \
     _ret = _r0;
 
 #define my_syscall5(num, arg1, arg2, arg3, arg4, arg5) \
     long _ret; \
-    register long _num asm("r7") = (num); \
+    long _num = (num); \
     register long _r0 asm("r0") = (long)(arg1); \
     register long _r1 asm("r1") = (long)(arg2); \
     register long _r2 asm("r2") = (long)(arg3); \
     register long _r3 asm("r3") = (long)(arg4); \
     register long _r4 asm("r4") = (long)(arg5); \
     asm volatile ( \
-        "svc #0\n" \
+        "mov r7, %6\n\tsvc #0\n" \
         : "+r"(_r0) \
-        : "r"(_num), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4) \
-        : "memory" \
+        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_num) \
+        : "r7", "memory" \
     ); \
     _ret = _r0;
 
 #define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6) \
     long _ret; \
-    register long _num asm("r7") = (num); \
+    long _num = (num); \
     register long _r0 asm("r0") = (long)(arg1); \
     register long _r1 asm("r1") = (long)(arg2); \
     register long _r2 asm("r2") = (long)(arg3); \
@@ -892,10 +895,10 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
     register long _r4 asm("r4") = (long)(arg5); \
     register long _r5 asm("r5") = (long)(arg6); \
     asm volatile ( \
-        "svc #0\n" \
+        "mov r7, %7\n\tsvc #0\n" \
         : "+r"(_r0) \
-        : "r"(_num), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_r5) \
-        : "memory" \
+        : "0"(_r0), "r"(_r1), "r"(_r2), "r"(_r3), "r"(_r4), "r"(_r5), "r"(_num) \
+        : "r7", "memory" \
     ); \
     _ret = _r0;
 
