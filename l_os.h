@@ -922,36 +922,30 @@ noreturn inline void l_exit(int status)
 
 inline int l_chdir(const char *path)
 {
-    my_syscall1(__NR_chdir, path);
-    return _ret;
+    return my_syscall1(__NR_chdir, path);
 }
 
 inline int l_close(L_FD fd)
 {
-    my_syscall1(__NR_close, fd);
-    return _ret;
+    return my_syscall1(__NR_close, fd);
 }
 
 inline int l_dup(L_FD fd)
 {
-    my_syscall1(__NR_dup, fd);
-    return _ret;
+    return my_syscall1(__NR_dup, fd);
 }
 
 inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
-    my_syscall3(__NR_lseek, fd, offset, whence);
-    return _ret;
+    return my_syscall3(__NR_lseek, fd, offset, whence);
 }
 
 inline int l_mkdir(const char *path, mode_t mode)
 {
 #ifdef __NR_mkdirat
-    my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
-    return _ret;
+    return my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
 #elif defined(__NR_mkdir)
-    my_syscall2(__NR_mkdir, path, mode);
-    return _ret;
+    return my_syscall2(__NR_mkdir, path, mode);
 #else
 #error Neither __NR_mkdirat nor __NR_mkdir defined, cannot implement sys_mkdir()
 #endif
@@ -960,11 +954,9 @@ inline int l_mkdir(const char *path, mode_t mode)
 inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
 #ifdef __NR_openat
-    my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
-    return _ret;
+    return my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
 #elif defined(__NR_open)
-    my_syscall3(__NR_open, path, flags, mode);
-    return _ret;
+    return my_syscall3(__NR_open, path, flags, mode);
 #else
 #error Neither __NR_openat nor __NR_open defined, cannot implement sys_open()
 #endif
@@ -972,20 +964,17 @@ inline L_FD l_open(const char *path, int flags, mode_t mode)
 
 inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
-    my_syscall3(__NR_read, fd, buf, count);
-    return _ret;
+    return my_syscall3(__NR_read, fd, buf, count);
 }
 
 inline int l_sched_yield(void)
 {
-    my_syscall0(__NR_sched_yield);
-    return _ret;
+    return my_syscall0(__NR_sched_yield);
 }
 
 inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
-    my_syscall3(__NR_write, fd, buf, count);
-    return _ret;
+    return my_syscall3(__NR_write, fd, buf, count);
 }
 
 inline L_FD l_open_read(const char* file) {
