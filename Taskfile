@@ -31,6 +31,18 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   done
 }
 
+function build_arm {    # Build for ARM (armhf/armv7)
+  clean
+  mkdir -p bin
+  CC=${1:-arm-linux-gnueabihf-gcc}
+  OPT=${2:-3}
+  for f in test/*; do
+    x="${f##*/}"
+    x="${x%.*}";
+    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -Wall -Wextra -Wpedantic -O$OPT $f -ffreestanding -nostdlib -lgcc -o bin/$x.armhf
+  done
+}
+
 function verify {    # Verify executables don't depend on stdlib and contain no bloat
   # Build first to ensure we have current binaries
   build
@@ -116,6 +128,18 @@ function test {    # Build and run all tests in bin directory
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       "$exe"
+      echo
+    fi
+  done
+}
+
+function test_arm {    # Build and run all tests for ARM using QEMU
+  build_arm "$@"
+  echo "=== Running all ARM executables in bin/ with QEMU ==="
+  for exe in bin/*.armhf; do
+    if [ -f "$exe" ] && [ -x "$exe" ]; then
+      echo "--- Running $exe ---"
+      qemu-arm -L /usr/arm-linux-gnueabihf "$exe"
       echo
     fi
   done
