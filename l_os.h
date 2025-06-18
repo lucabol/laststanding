@@ -139,7 +139,7 @@ asm(".section .text\n"
     "bl main\n"                   // main() returns the status code, we'll exit with it.
     "movs r7, $1\n"               // NR_exit == 1
     "svc $0x00\n"
-    ");
+    );
 #elif defined(__aarch64__)
 /* startup code for AArch64 */
 asm(".section .text\n"
@@ -155,7 +155,7 @@ asm(".section .text\n"
     "bl main\n"                   // main() returns the status code, we'll exit with it.
     "mov x8, 93\n"                // NR_exit == 93
     "svc #0\n"
-    ");
+    );
 #endif
 
 #else // windows
