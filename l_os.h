@@ -152,9 +152,36 @@ asm(".section .text\n"
     "add x2, x2, 8\n"             //           + 8 (skip null)
     "add x2, x2, x1\n"            //           + argv
     "and sp, x1, -16\n"           // sp must be 16-byte aligned in the callee
-    "bl main\n"                   // main() returns the status code, we'll exit with it.
-    "mov x8, 93\n"                // NR_exit == 93
+    "bl main\n"                   // main() returns the status code, we'll exit with it.    "mov x8, 93\n"                // NR_exit == 93
     "svc #0\n"
+    );
+#elif defined(__arm__)
+/* startup code for ARM */
+asm(".section .text\n"
+    ".weak _start\n"
+    ".global _start\n"
+    "_start:\n"
+#if defined(__THUMBEB__) || defined(__THUMBEL__)
+    /* We enter here in 32-bit mode but if some previous functions were in
+     * 16-bit mode, the assembler cannot know, so we need to tell it we're in
+     * 32-bit now, then switch to 16-bit (is there a better way to do it than
+     * by hand ?) and tell the asm we're now in 16-bit mode so that
+     * it generates correct instructions. Note that we do not support thumb1.
+     */
+    ".code 32\n"
+    "add     r0, pc, #1\n"
+    "bx      r0\n"
+    ".code 16\n"
+#endif
+    "pop {%r0}\n"                 // argc was in the stack
+    "mov %r1, %sp\n"              // argv = sp
+    "add %r2, %r1, %r0, lsl #2\n" // envp = argv + 4*argc ...
+    "add %r2, %r2, $4\n"          //        ... + 4
+    "and %r3, %r1, $-8\n"         // AAPCS : sp must be 8-byte aligned in the
+    "mov %sp, %r3\n"              //         callee, an bl doesn't push (lr=pc)
+    "bl main\n"                   // main() returns the status code, we'll exit with it.
+    "movs r7, $1\n"               // NR_exit == 1
+    "svc $0x00\n"
     );
 #endif
 
@@ -863,6 +890,14 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
 
 #else
 #error "Supported architectures: linux x86_64, aarch64, arm, and windows. Paste relevant nolibc.h sections for more archs."
+#endif
+
+// Dummy function to satisfy libgcc requirement on ARM
+#ifdef __arm__
+int raise(int sig) {
+    (void)sig;
+    return 0;
+}
 #endif
 
 noreturn inline void l_exit(int status)
