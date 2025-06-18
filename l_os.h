@@ -146,15 +146,15 @@ asm(".section .text\n"
     ".weak _start\n"
     ".global _start\n"
     "_start:\n"
-    "ldr x0, [sp]\n"              // argc (x0) was in the stack
-    "add x1, sp, 8\n"             // argv (x1) = sp
+    "ldr x0, [sp]\n"              // argc (x0) was in the stack    "add x1, sp, 8\n"             // argv (x1) = sp
     "lsl x2, x0, 3\n"             // envp (x2) = 8*argc ...
     "add x2, x2, 8\n"             //           + 8 (skip null)
     "add x2, x2, x1\n"            //           + argv
     "and sp, x1, -16\n"           // sp must be 16-byte aligned in the callee
-    "bl main\n"                   // main() returns the status code, we'll exit with it.    "mov x8, 93\n"                // NR_exit == 93
+    "bl main\n"                   // main() returns the status code, we'll exit with it.
+    "mov x8, 93\n"                // NR_exit == 93
     "svc #0\n"
-    );
+    ");
 #elif defined(__arm__)
 /* startup code for ARM */
 asm(".section .text\n"
@@ -182,7 +182,7 @@ asm(".section .text\n"
     "bl main\n"                   // main() returns the status code, we'll exit with it.
     "movs r7, $1\n"               // NR_exit == 1
     "svc $0x00\n"
-    );
+    ");
 #endif
 
 #else // windows
