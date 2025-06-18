@@ -688,24 +688,167 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
 #define O_NONBLOCK      0x800
 #define O_DIRECTORY   0x10000
 
-#elif defined(__aarch64__)
-/* Syscalls for ARM64 (AArch64):
- *   - syscall number in x8
- *   - arguments in x0-x5
- *   - return value in x0
- *   - syscall performed with svc #0
- */
-#define my_syscall0(num) \
-    long _ret; \
-    register long _num asm("x8") = (num); \
-    register long _x0 asm("x0"); \
-    asm volatile ( \
-        "svc #0\n" \
-        : "=r"(_x0) \
-        : "r"(_num) \
-        : "memory" \
-    ); \
-    _ret = _x0;
+ #elif defined(__aarch64__)
+// ARM64 syscall wrappers
+static inline long my_syscall0(long num) {
+    register long x8 asm("x8") = num;
+    register long x0 asm("x0");
+    asm volatile("svc #0"
+                 : "=r"(x0)
+                 : "r"(x8)
+                 : "memory");
+    return x0;
+}
+static inline long my_syscall1(long num, long a0) {
+    register long x8 asm("x8") = num;
+    register long x0 asm("x0") = a0;
+    asm volatile("svc #0"
+                 : "+r"(x0)
+                 : "r"(x8)
+                 : "memory");
+    return x0;
+}
+static inline long my_syscall2(long num, long a0, long a1) {
+    register long x8 asm("x8") = num;
+    register long x0 asm("x0") = a0;
+    register long x1 asm("x1") = a1;
+    asm volatile("svc #0"
+                 : "+r"(x0)
+                 : "r"(x1), "r"(x8)
+                 : "memory");
+    return x0;
+}
+static inline long my_syscall3(long num, long a0, long a1, long a2) {
+    register long x8 asm("x8") = num;
+    register long x0 asm("x0") = a0;
+    register long x1 asm("x1") = a1;
+    register long x2 asm("x2") = a2;
+    asm volatile("svc #0"
+                 : "+r"(x0)
+                 : "r"(x1), "r"(x2), "r"(x8)
+                 : "memory");
+    return x0;
+}
+static inline long my_syscall4(long num, long a0, long a1, long a2, long a3) {
+    register long x8 asm("x8") = num;
+    register long x0 asm("x0") = a0;
+    register long x1 asm("x1") = a1;
+    register long x2 asm("x2") = a2;
+    register long x3 asm("x3") = a3;
+    asm volatile("svc #0"
+                 : "+r"(x0)
+                 : "r"(x1), "r"(x2), "r"(x3), "r"(x8)
+                 : "memory");
+    return x0;
+}
+static inline long my_syscall5(long num, long a0, long a1, long a2, long a3, long a4) {
+    register long x8 asm("x8") = num;
+    register long x0 asm("x0") = a0;
+    register long x1 asm("x1") = a1;
+    register long x2 asm("x2") = a2;
+    register long x3 asm("x3") = a3;
+    register long x4 asm("x4") = a4;
+    asm volatile("svc #0"
+                 : "+r"(x0)
+                 : "r"(x1), "r"(x2), "r"(x3), "r"(x4), "r"(x8)
+                 : "memory");
+    return x0;
+}
+static inline long my_syscall6(long num, long a0, long a1, long a2, long a3, long a4, long a5) {
+    register long x8 asm("x8") = num;
+    register long x0 asm("x0") = a0;
+    register long x1 asm("x1") = a1;
+    register long x2 asm("x2") = a2;
+    register long x3 asm("x3") = a3;
+    register long x4 asm("x4") = a4;
+    register long x5 asm("x5") = a5;
+    asm volatile("svc #0"
+                 : "+r"(x0)
+                 : "r"(x1), "r"(x2), "r"(x3), "r"(x4), "r"(x5), "r"(x8)
+                 : "memory");
+    return x0;
+}
+
+#elif defined(__arm__)
+// ARM32 syscall wrappers
+static inline long my_syscall0(long num) {
+    register long r7 asm("r7") = num;
+    register long r0 asm("r0");
+    asm volatile("svc #0"
+                 : "=r"(r0)
+                 : "r"(r7)
+                 : "memory");
+    return r0;
+}
+static inline long my_syscall1(long num, long a0) {
+    register long r7 asm("r7") = num;
+    register long r0 asm("r0") = a0;
+    asm volatile("svc #0"
+                 : "+r"(r0)
+                 : "r"(r7)
+                 : "memory");
+    return r0;
+}
+static inline long my_syscall2(long num, long a0, long a1) {
+    register long r7 asm("r7") = num;
+    register long r0 asm("r0") = a0;
+    register long r1 asm("r1") = a1;
+    asm volatile("svc #0"
+                 : "+r"(r0)
+                 : "r"(r1), "r"(r7)
+                 : "memory");
+    return r0;
+}
+static inline long my_syscall3(long num, long a0, long a1, long a2) {
+    register long r7 asm("r7") = num;
+    register long r0 asm("r0") = a0;
+    register long r1 asm("r1") = a1;
+    register long r2 asm("r2") = a2;
+    asm volatile("svc #0"
+                 : "+r"(r0)
+                 : "r"(r1), "r"(r2), "r"(r7)
+                 : "memory");
+    return r0;
+}
+static inline long my_syscall4(long num, long a0, long a1, long a2, long a3) {
+    register long r7 asm("r7") = num;
+    register long r0 asm("r0") = a0;
+    register long r1 asm("r1") = a1;
+    register long r2 asm("r2") = a2;
+    register long r3 asm("r3") = a3;
+    asm volatile("svc #0"
+                 : "+r"(r0)
+                 : "r"(r1), "r"(r2), "r"(r3), "r"(r7)
+                 : "memory");
+    return r0;
+}
+static inline long my_syscall5(long num, long a0, long a1, long a2, long a3, long a4) {
+    register long r7 asm("r7") = num;
+    register long r0 asm("r0") = a0;
+    register long r1 asm("r1") = a1;
+    register long r2 asm("r2") = a2;
+    register long r3 asm("r3") = a3;
+    register long r4 asm("r4") = a4;
+    asm volatile("svc #0"
+                 : "+r"(r0)
+                 : "r"(r1), "r"(r2), "r"(r3), "r"(r4), "r"(r7)
+                 : "memory");
+    return r0;
+}
+static inline long my_syscall6(long num, long a0, long a1, long a2, long a3, long a4, long a5) {
+    register long r7 asm("r7") = num;
+    register long r0 asm("r0") = a0;
+    register long r1 asm("r1") = a1;
+    register long r2 asm("r2") = a2;
+    register long r3 asm("r3") = a3;
+    register long r4 asm("r4") = a4;
+    register long r5 asm("r5") = a5;
+    asm volatile("svc #0"
+                 : "+r"(r0)
+                 : "r"(r1), "r"(r2), "r"(r3), "r"(r4), "r"(r5), "r"(r7)
+                 : "memory");
+    return r0;
+}
 
 #define my_syscall1(num, arg1) \
     long _ret; \
