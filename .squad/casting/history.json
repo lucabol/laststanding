@@ -1,0 +1,9 @@
+[
+  {
+    "assignment_id": "laststanding-001",
+    "universe": "alien-1979",
+    "agents": ["Dallas", "Parker", "Lambert"],
+    "created_at": "2026-02-27T12:28:00Z",
+    "repo": "laststanding"
+  }
+]

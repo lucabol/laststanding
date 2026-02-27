@@ -1,0 +1,5 @@
+{
+  "allowed_universes": ["alien-1979", "the-thing", "mad-max-fury-road", "blade-runner", "terminator", "matrix", "dune", "2001-space-odyssey", "star-wars-ot", "star-trek-tos", "firefly", "expanse", "battlestar-galactica", "fifth-element", "arrival", "interstellar", "gravity", "moon-2009", "annihilation", "predator", "robocop", "total-recall", "twelve-monkeys", "dark-city", "gattaca", "ex-machina", "her-2013", "walle", "iron-giant", "akira", "ghost-in-the-shell"],
+  "max_capacity_override": null,
+  "prefer_universes": []
+}
