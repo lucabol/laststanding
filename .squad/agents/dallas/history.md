@@ -13,6 +13,10 @@
 
 Rewrote `build.bat` for universal compatibility. Auto-detects compiler (clang/cl on PATH → vswhere → vcvarsall fallback). Replaced hard-coded test file list with dynamic loop. All scripts pass.
 
+## Work Session — 2026-03-11T12:13:00Z
+
+Created unified `build.ps1` PowerShell wrapper bridging Windows and Linux builds. Parameters: `-Target windows|linux|arm|all`, `-Action build|test|verify|all`, `-Compiler gcc|clang`, `-OptLevel 0-3`, `-WSLDist <name>`, `-Verbose`. Auto-translates paths (`C:\` → `/mnt/c/`), converts CRLF to LF before WSL invocation (critical for syscall macros). Updated README.md with full documentation and examples. All tests pass; ARM gracefully skips on Windows.
+
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
@@ -28,3 +32,7 @@ Rewrote `build.bat` for universal compatibility. Auto-detects compiler (clang/cl
 - `verify.bat` now auto-detects dumpbin via vswhere/vcvarsall (same pattern as build.bat). Works from plain cmd.exe.
 - Never use Unicode characters (✓, ✗, etc.) in .bat scripts — cmd.exe default codepage can't render them. Use ASCII: PASS/FAIL/WARN/SKIP.
 - `test_all.bat` was already ASCII-clean — no changes needed there.
+- WSL builds on Windows-mounted filesystems (/mnt/c/) require CRLF→LF conversion first. Git checkout with `core.autocrlf=true` writes CRLF; gcc and bash choke on `\r` in inline asm string literals and shebangs. `build.ps1` runs `sed -i 's/\r$//'` before any WSL step.
+- `verify.bat` has a latent exit-code bug: `findstr` inside the last `for` loop leaks errorlevel 1 when it finds no stdlib refs (the success case). The script never explicitly resets it. Needs `exit /b 0` at the end.
+- Linux x86_64 syscall macros in `l_os.h` (lines 633+) are broken — missing GCC statement-expression wrappers `({ ... _ret; })`. `return my_syscall1(...)` expands to `return long _ret;` which is invalid C. ARM CI works because it uses separate inline build commands, not the Taskfile. This needs fixing before Linux WSL builds can succeed.
+- `build.ps1` created as unified PowerShell wrapper: `-Target windows|linux|arm|all`, `-Action build|test|verify|all`, `-Compiler gcc|clang`, `-OptLevel 0-3`. Uses `cmd /c call` for batch files, `wsl bash -c` for Linux/ARM via Taskfile.

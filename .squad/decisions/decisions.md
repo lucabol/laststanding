@@ -1,5 +1,43 @@
 # Decisions
 
+## Linux x86_64 syscall macros are broken
+**Author:** Dallas  
+**Date:** 2025-07-24  
+**Status:** Needs Fix
+
+### Issue
+The `my_syscall0` through `my_syscall6` macros in `l_os.h` (line 633+) for x86_64 Linux are missing GCC statement-expression wrappers. They expand to bare statements:
+
+```c
+#define my_syscall1(num, arg1) \
+         long _ret; \
+         register long _num asm("rax") = (num); \
+         ...
+```
+
+When used as `return my_syscall1(...)`, this expands to `return long _ret;` — invalid C.
+
+The correct pattern (from Linux nolibc) wraps in `({...})`:
+
+```c
+#define my_syscall1(num, arg1) ({ \
+         long _ret; \
+         register long _num asm("rax") = (num); \
+         ... \
+         _ret; \
+})
+```
+
+### Impact
+- Linux x86_64 builds via WSL and native Linux are broken (`Taskfile build` fails)
+- ARM CI works because `arm-ci.yml` uses inline build commands that compile directly, bypassing the Taskfile
+- Windows builds are unaffected (different code path using Win32 API)
+
+### Recommendation
+Fix the macros to use GCC statement expressions. Each `my_syscallN` needs `({` at the start and `_ret; })` at the end.
+
+---
+
 ## Windows CI uses clang on GHA windows-latest
 **Author:** Dallas  
 **Date:** 2026-03-11  
