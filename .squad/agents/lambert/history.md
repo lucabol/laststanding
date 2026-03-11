@@ -10,6 +10,10 @@
 - **Tests:** Each `.c` file in `test/` compiles to one binary in `bin/`. Uses `TEST_ASSERT(condition, "description")` and `TEST_FUNCTION("name")` macros from `test/test.c`.
 - **Created:** 2026-03-11
 
+## Work Session — 2026-03-11T11:30:00Z
+
+Fixed ERRORLEVEL bug in PR #27 Windows CI workflow (per Ripley's review). Applied delayed expansion fix (`enabledelayedexpansion` + `!ERRORLEVEL! neq 0`) to test validation logic. Tested locally, pushed to PR branch, commented with explanation. Also approved for PRs #28 and #29 contributions (ARM CI + extended tests).
+
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
@@ -19,3 +23,4 @@
 - **l_strstr behavior:** `l_strstr("", "")` returns NULL, unlike libc which returns the haystack pointer. This is because the while(*s1) loop skips when haystack is empty. Documented in tests as known behavior for Dallas to decide on.
 - **main() signature:** On Windows, `l_os.h` declares `int main(int argc, char* argv[])` — all test files must match this signature exactly (not `int main(void)`).
 - **Build on Windows without dev prompt:** clang is at `C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang.exe` — the x64 Native Tools Command Prompt sets this in PATH automatically.
+- **2026-03-11 — PR #27 ERRORLEVEL fix.** Windows batch `if errorlevel 1` does a signed `>= 1` comparison, so `exit(-1)` (ERRORLEVEL = -1) passes silently. Fix: use `setlocal enabledelayedexpansion` and `if !ERRORLEVEL! neq 0`. Also `%VAR%` inside `for` loop parenthesized blocks must use `!VAR!` for delayed expansion. This applies to `test_all.bat` as well (same gap exists there).

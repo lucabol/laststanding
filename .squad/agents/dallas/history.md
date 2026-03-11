@@ -12,3 +12,8 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+- `windows-latest` GHA runners ship with LLVM/clang pre-installed — no extra install step needed for the Windows build.
+- `build.bat` compiles with `clang -I. -O3 -lkernel32 -ffreestanding` — no MSVC needed.
+- `test_all.bat` calls `build.bat` internally, then runs every exe in `bin\`.
+- `verify.bat` uses `dumpbin` (MSVC SDK) or `objdump` (MinGW) for dependency analysis; falls back gracefully if neither is available.
+- Batch scripts need `shell: cmd` and `call` prefix in GitHub Actions to avoid early exit on the first command.
