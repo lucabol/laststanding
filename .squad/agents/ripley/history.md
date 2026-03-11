@@ -25,3 +25,4 @@ Detailed verdicts written to .squad/decisions/inbox/ripley-pr-reviews.md and mer
 - **Taskfile `test/*` glob pattern:** The Taskfile uses `for f in test/*` (not `test/*.c`). CI workflows matching this pattern are consistent with the project. Currently test/ only contains .c files.
 - **`test_all.bat` doesn't check error codes:** It runs all exes but doesn't detect failures. CI workflows should NOT rely on it for pass/fail gating.
 - **PR review on own repos:** GitHub API rejects `--approve` and `--request-changes` on your own PRs. Use `gh pr comment` for detailed reviews instead.
+- **2026-03-12 — Dallas follow-up fixes.** All PR #27 blocking issues resolved: (1) `build.ps1` CRLF now pure PowerShell (ReadAllBytes/WriteAllBytes); (2) l_os.h x86_64/AArch64 syscall statement expressions + startup asm; (3) `verify.bat` exit code. Tests passing across all platforms.

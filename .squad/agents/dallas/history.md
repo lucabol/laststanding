@@ -36,3 +36,19 @@ Created unified `build.ps1` PowerShell wrapper bridging Windows and Linux builds
 - `verify.bat` has a latent exit-code bug: `findstr` inside the last `for` loop leaks errorlevel 1 when it finds no stdlib refs (the success case). The script never explicitly resets it. Needs `exit /b 0` at the end.
 - Linux x86_64 syscall macros in `l_os.h` (lines 633+) are broken — missing GCC statement-expression wrappers `({ ... _ret; })`. `return my_syscall1(...)` expands to `return long _ret;` which is invalid C. ARM CI works because it uses separate inline build commands, not the Taskfile. This needs fixing before Linux WSL builds can succeed.
 - `build.ps1` created as unified PowerShell wrapper: `-Target windows|linux|arm|all`, `-Action build|test|verify|all`, `-Compiler gcc|clang`, `-OptLevel 0-3`. Uses `cmd /c call` for batch files, `wsl bash -c` for Linux/ARM via Taskfile.
+
+## Work Session — 2026-03-12
+
+Fixed two build blockers:
+
+**build.ps1 CRLF fix (Issue 1):** The WSL-based `sed -i 's/\r$//'` approach for CRLF stripping was unreliable — quoting through PowerShell → WSL → bash → sed is fragile, and `sed -i` on `/mnt/c/` NTFS filesystems can fail silently. Replaced with pure PowerShell byte-level CR removal using `ReadAllBytes`/`WriteAllBytes`. This avoids all quoting and filesystem issues.
+
+**l_os.h code fixes:** The actual compilation errors were NOT from CRLF — they were pre-existing code bugs:
+- x86_64 syscall macros 0–5 were missing GCC statement-expression wrappers `({ ... _ret; })`. Only `my_syscall6` had them. Added wrappers to all six.
+- AArch64 startup asm had two lines merged on one line (line 149) and a stray `"` before `);` in the asm closing.
+- Removed dead duplicate `#elif defined(__arm__)` startup block (identical condition already handled earlier in the same `#if` chain).
+- AArch64 syscall macros 5 and 6 were also missing `({` / `})` wrappers — fixed for consistency.
+
+**verify.bat exit code (Issue 2):** `findstr` inside the last `for` loop set `errorlevel 1` when it found no stdlib refs (the success case). Added `exit /b 0` at the end of the script.
+
+All targets verified: Windows verify PASS, Linux build PASS, Linux test PASS.
