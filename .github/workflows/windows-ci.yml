@@ -1,0 +1,34 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify clang is available
+        run: clang --version
+
+      - name: Create bin directory
+        run: if not exist bin mkdir bin
+        shell: cmd
+
+      - name: Build
+        run: call build.bat
+        shell: cmd
+
+      - name: Run tests
+        run: call test_all.bat
+        shell: cmd
+
+      - name: Verify binaries
+        run: call verify.bat
+        shell: cmd
