@@ -10,6 +10,10 @@
 - **Tests:** Each `.c` file in `test/` compiles to one binary in `bin/`. Uses `TEST_ASSERT(condition, "description")` and `TEST_FUNCTION("name")` macros from `test/test.c`.
 - **Created:** 2026-03-11
 
+## Work Session — 2026-03-11T11:30:00Z
+
+Fixed ERRORLEVEL bug in PR #27 Windows CI workflow (per Ripley's review). Applied delayed expansion fix (`enabledelayedexpansion` + `!ERRORLEVEL! neq 0`) to test validation logic. Tested locally, pushed to PR branch, commented with explanation. Also approved for PRs #28 and #29 contributions (ARM CI + extended tests).
+
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
