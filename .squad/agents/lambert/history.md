@@ -13,3 +13,9 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+- **2026-03-11 — Issue #12: Expanded test coverage.** Added `test/test_extended.c` with 82 edge-case tests for 15 l_* function groups (strlen, strstr, strchr, strrchr, strcpy, strncmp, memcmp, memcpy, memset, memmove, reverse, isdigit, atoi/atol, itoa, plus itoa↔atoi roundtrip). Updated `build.bat`. PR #29.
+- **Gitignore note:** The `.gitignore` pattern `test_*` catches files in `test/` that start with `test_`. New test files must be force-added with `git add -f`, or named without a `test_` prefix (e.g. `extended.c`).
+- **l_strstr behavior:** `l_strstr("", "")` returns NULL, unlike libc which returns the haystack pointer. This is because the while(*s1) loop skips when haystack is empty. Documented in tests as known behavior for Dallas to decide on.
+- **main() signature:** On Windows, `l_os.h` declares `int main(int argc, char* argv[])` — all test files must match this signature exactly (not `int main(void)`).
+- **Build on Windows without dev prompt:** clang is at `C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang.exe` — the x64 Native Tools Command Prompt sets this in PATH automatically.
