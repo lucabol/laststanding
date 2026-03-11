@@ -1,17 +1,26 @@
-# Team
+# Squad Team
 
-## Project Context
+> laststanding
 
-**Project:** laststanding — A freestanding C runtime and test suite with direct syscall wrappers. No libc dependency. Targets Linux (x86_64, ARM, AArch64) and Windows.
-**Stack:** C (freestanding), inline assembly, GCC/Clang/MinGW, Windows API
-**User:** Luca Bolognese
+## Coordinator
+
+| Name | Role | Notes |
+|------|------|-------|
+| Squad | Coordinator | Routes work, enforces handoffs and reviewer gates. |
 
 ## Members
 
-| Name | Role | Specialization | Emoji |
-|------|------|----------------|-------|
-| Dallas | Lead | Architecture, scope, code review | 🏗️ |
-| Parker | Core Dev | C implementation, syscalls, platform porting | 🔧 |
-| Lambert | Tester | Tests, edge cases, cross-platform verification | 🧪 |
-| Scribe | Session Logger | Memory, decisions, session logs | 📋 |
-| Ralph | Work Monitor | Work queue, backlog, keep-alive | 🔄 |
+| Name | Role | Charter | Status |
+|------|------|---------|--------|
+| Ripley | Lead | .squad/agents/ripley/charter.md | 🏗️ Lead |
+| Dallas | Systems Dev | .squad/agents/dallas/charter.md | 🔧 Systems Dev |
+| Lambert | Tester | .squad/agents/lambert/charter.md | 🧪 Tester |
+| Scribe | Session Logger | .squad/agents/scribe/charter.md | 📋 Scribe |
+| Ralph | Work Monitor | — | 🔄 Monitor |
+
+## Project Context
+
+- **Owner:** Luca Bolognese
+- **Project:** laststanding — A freestanding C runtime. Minimal reimplementations of libc functions with direct syscall wrappers. No libc/glibc dependency. Statically linked, stripped, stdlib-free.
+- **Stack:** C, inline assembly, cross-platform (Linux x86_64, ARM, AArch64, Windows)
+- **Created:** 2026-03-11

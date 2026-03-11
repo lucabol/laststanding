@@ -6,13 +6,12 @@ How to decide who handles what.
 
 | Work Type | Route To | Examples |
 |-----------|----------|----------|
-| C implementation | Dallas | New `l_` functions, syscall wrappers, inline asm, platform code |
-| Build scripts | Dallas | Taskfile, build.bat, compiler flags |
-| Architecture | Ripley | Syscall layer design, platform abstractions, API design |
-| Code review | Ripley | Review PRs, check quality, suggest improvements |
-| Testing | Lambert | Write tests, find edge cases, verify fixes |
-| Cross-platform verification | Lambert | Test on x86_64, ARM, AArch64, Windows |
-| Scope & priorities | Ripley | What to build next, trade-offs, decisions |
+| {domain 1} | {Name} | {example tasks} |
+| {domain 2} | {Name} | {example tasks} |
+| {domain 3} | {Name} | {example tasks} |
+| Code review | {Name} | Review PRs, check quality, suggest improvements |
+| Testing | {Name} | Write tests, find edge cases, verify fixes |
+| Scope & priorities | {Name} | What to build next, trade-offs, decisions |
 | Async issue work (bugs, tests, small features) | @copilot 🤖 | Well-defined tasks matching capability profile |
 | Session logging | Scribe | Automatic — never needs routing |
 
