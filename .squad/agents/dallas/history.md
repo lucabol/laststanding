@@ -52,3 +52,30 @@ Fixed two build blockers:
 **verify.bat exit code (Issue 2):** `findstr` inside the last `for` loop set `errorlevel 1` when it found no stdlib refs (the success case). Added `exit /b 0` at the end of the script.
 
 All targets verified: Windows verify PASS, Linux build PASS, Linux test PASS.
+
+## Work Session — 2026-03-12 (follow-up)
+
+Re-investigated reported Linux build breakage. Found that the previous fixes (statement-expression wrappers, AArch64 asm, verify.bat exit code) are ALL correctly in place in `l_os.h` and `verify.bat`. The file has LF line endings (no CRLF contamination). Verified by:
+- Compiling `test/test.c` under WSL with full strict flags — exits 0, only `-Wpedantic` warnings about GNU statement expressions (expected, harmless).
+- Running the compiled test binary — all tests pass.
+- Running `build.ps1 -Target windows -Action verify` — PASS, exit code 0.
+
+The reported errors were likely from a stale build or a cached/uncommitted version of `l_os.h`. No code changes needed this session — everything was already fixed.
+
+## Work Session — 2026-03-13
+
+Fixed ARM (32-bit armhf) build target — was completely broken because `l_os.h` had no `#elif defined(__arm__)` branch in the syscall macros section (lines 591–890). Only x86_64 and aarch64 were handled; ARM fell through to `#error`.
+
+**Changes:**
+
+1. **l_os.h — added ARM 32-bit syscall macros:** Full `my_syscall0`–`my_syscall6` for ARM EABI (r0–r5 for args, r7 for syscall number, `svc #0`). Used `push {r7}` / `pop {r7}` pattern to save/restore r7 inside the asm block, avoiding the well-known Thumb mode frame pointer conflict (`r7 cannot be used in 'asm'`). Also added ARM O_* file flag definitions (same values as x86_64, O_DIRECTORY=0x4000).
+
+2. **Taskfile — added `-fomit-frame-pointer` to `build_arm`:** Belt-and-suspenders alongside the push/pop pattern.
+
+**Verified:** All 3 test files compile to `ELF 32-bit LSB executable, ARM, EABI5, statically linked, stripped`. Linux x86_64 build+test still passes (no regressions). QEMU not installed in WSL so runtime tests skipped.
+
+## Learnings
+
+- ARM 32-bit syscall macros must use `push {r7}` / `mov r7, <nr>` / `svc #0` / `pop {r7}` pattern (not `register ... asm("r7")`) because Thumb mode uses r7 as frame pointer. GCC rejects r7 in register constraints AND clobber lists when it's the frame pointer.
+- ARM file flags (O_RDONLY, O_WRONLY, O_CREAT, etc.) use the same values as x86_64. O_DIRECTORY is 0x4000 on ARM vs 0x10000 on aarch64.
+- `build.ps1` was already correctly wired — the ARM build failure was purely a missing code section in `l_os.h`, not a build script problem.
