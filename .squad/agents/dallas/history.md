@@ -79,3 +79,50 @@ Fixed ARM (32-bit armhf) build target — was completely broken because `l_os.h`
 - ARM 32-bit syscall macros must use `push {r7}` / `mov r7, <nr>` / `svc #0` / `pop {r7}` pattern (not `register ... asm("r7")`) because Thumb mode uses r7 as frame pointer. GCC rejects r7 in register constraints AND clobber lists when it's the frame pointer.
 - ARM file flags (O_RDONLY, O_WRONLY, O_CREAT, etc.) use the same values as x86_64. O_DIRECTORY is 0x4000 on ARM vs 0x10000 on aarch64.
 - `build.ps1` was already correctly wired — the ARM build failure was purely a missing code section in `l_os.h`, not a build script problem.
+
+## Work Session — 2026-03-14
+
+Fixed three bugs: x86_64 segfault, ARM memcmp, and test failure detection.
+
+**Bug 1 — x86_64 segfault at -O3:** Root cause was a stack misalignment bug in the `_start` assembly. The `sub $8, %rsp` instruction after `and $-16, %rsp` caused the stack to be misaligned by 8 bytes when entering `main`. The x86-64 ABI requires that at the CALL instruction, %rsp is 16-byte aligned; after CALL pushes the 8-byte return address, %rsp % 16 == 8 at function entry. The extra `sub $8` broke this contract. At -O3, GCC auto-vectorizes loops (e.g., memset/strlen) using aligned SSE/AVX stores (`movaps`), which segfault on misaligned addresses. Fix: removed the `sub $8, %rsp` line.
+
+**Bug 2 — ARM l_memcmp wrong result:** `l_memcmp` used `char c1` to store the subtraction result. On ARM where `char` is unsigned by default, negative results (e.g., 'c'-'d' = -1) were stored as 255, returning positive instead of negative. Fix: changed `c1` to `int` and casts to `unsigned char *` per the C standard's memcmp specification.
+
+**Bug 3 — Taskfile/build.ps1 failure detection:** The Taskfile's `test` and `test_arm` loops didn't track exit codes — failures were swallowed by the loop continuing. Also changed test globs from `bin/*` to `bin/test*` so non-test utilities (countlines) aren't run. Added failure flag propagation with `exit 1`. In `build.ps1`, added output scanning for failure indicators ("Segmentation fault", "FAILED", "core dumped") as a safety net in `Invoke-Step`, independent of exit codes.
+
+**Also fixed:** `l_strstr` had an out-of-bounds read when needle was longer than remaining haystack — l_memcmp would read past the buffer. Added haystack length tracking to stop searching when fewer chars remain than needle length. Preserves the documented `l_strstr("", "") == NULL` behavior (pending decision #12).
+
+Verified: Linux x86_64 test PASS (all tests including extended at -O3), ARM test_arm PASS (memcmp passes), Windows test PASS, build.ps1 correctly reports PASS/FAIL.
+
+## Learnings
+
+- x86_64 `_start` must NOT have `sub $8, %rsp` before `call main`. The ABI requires %rsp to be 16-byte aligned at the point of `call`; the `call` instruction itself pushes 8 bytes, giving the callee rsp%16==8 as expected. Adding `sub $8` causes rsp%16==0 at entry — wrong alignment that triggers segfaults from vectorized SIMD stores at -O3.
+- `l_memcmp` must use `int` (not `char`) for the difference result and `unsigned char *` casts. On ARM, `char` is unsigned by default, so storing a negative subtraction result in `char` wraps to a large positive value. The C standard mandates unsigned char comparison for memcmp.
+- `l_strstr` must bound its memcmp calls to not read past the haystack. When needle is longer than remaining haystack, the memcmp would read out-of-bounds memory. Track haystack length and stop when fewer chars remain than needle length.
+- Taskfile test loops must track exit codes with a failure flag and `exit 1` — bash `for` loops don't propagate non-zero exit codes from loop body commands.
+- The Taskfile `test` glob should be `bin/test*` not `bin/*` to avoid running non-test utilities that require arguments.
+- Never use Unicode characters (✓, ✗, etc.) in C test output either — when WSL output flows through PowerShell, encoding gets mangled (same codepage issue as .bat files). Use ASCII: `[OK]` / `[FAIL]`.
+- `build.ps1` ARM verify must call `./Taskfile verify_arm` (not `verify`), which checks `bin/*.armhf` files for ARM ELF type, static linking, stripped, no stdlib symbols. The `verify` function only checks x86_64 binaries.
+- The ARM 'all' action list in build.ps1 must include 'verify' alongside 'build' and 'test' — it was originally missing.
+
+## Work Session — 2026-03-15
+
+Enhanced `build.ps1` concise (non-ShowAll) output to show inline stats per step instead of bare PASS/FAIL.
+
+**Changes to `Invoke-Step` concise branch:**
+- Build steps show compiler command + file count: `clang -I. -O3 -ffreestanding ...  3 files  PASS`
+- Test steps show binary count + assertion count: `3 binaries, 176 assertions  PASS`
+- Verify steps show binary count + max size + link type: `3 binaries, max 22KB, KERNEL32 only  PASS`
+- Labels padded to 22 chars for alignment
+
+**New helper functions:** `Get-BuildSummary`, `Get-TestSummary`, `Get-VerifySummary`, `Get-StepSummary`, `Collect-BinarySizes`, `Write-BinarySizeTable`
+
+**Binary size comparison table (new):** Printed before the summary when ≥2 targets were verified. Right-aligned comma-separated byte sizes, one column per target.
+
+**Unchanged:** `-ShowAll` mode, failure detection, full-output-on-failure behavior. ShowAll mode also collects binary sizes for the comparison table.
+
+## Learnings
+
+- Windows `verify.bat` outputs file sizes as `File: test.exe  16384 bytes`; Linux/ARM Taskfile `verify` outputs `Binary size: 13401 bytes (text: ...)`. Both patterns must be handled.
+- `build.bat` echoes `Using compiler: <CC>` and then indented filenames; Taskfile `build` produces no output on success — file count falls back to `Get-ChildItem test\*.c`.
+- Test output uses `[OK]` per assertion and `--- Running <exe> ---` per binary — regex counts of these give assertion and binary counts.

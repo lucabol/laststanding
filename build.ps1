@@ -9,10 +9,14 @@
     Compiler for Linux/ARM targets: gcc, clang (default: gcc)
 .PARAMETER OptLevel
     Optimization level 0-3 (default: 3)
+.PARAMETER ShowAll
+    Show full compiler output, test assertions, and verification details.
+    By default output is concise: one PASS/FAIL line per step (full output shown on failure).
 .EXAMPLE
     .\build.ps1 -Target windows -Action build
     .\build.ps1 -Target linux -Action test -Compiler clang -OptLevel 2
-    .\build.ps1   # builds, tests, and verifies everything
+    .\build.ps1 -ShowAll              # verbose: show everything
+    .\build.ps1                       # concise: builds, tests, and verifies everything
 #>
 
 param(
@@ -26,7 +30,9 @@ param(
     [string]$Compiler = 'gcc',
 
     [ValidateRange(0, 3)]
-    [int]$OptLevel = 3
+    [int]$OptLevel = 3,
+
+    [switch]$ShowAll
 )
 
 Set-StrictMode -Version Latest
@@ -56,6 +62,7 @@ $WslRepoRoot = Get-WslPath $RepoRoot
 
 # --- State tracking ---
 $Results = [System.Collections.ArrayList]::new()
+$script:BinarySizes = @{}  # Key: target name, Value: hashtable of { binaryName: sizeBytes }
 
 function Write-Header {
     param([string]$Text)
@@ -70,6 +77,206 @@ function Add-Result {
         Action = $Action
         Status = $Status
     })
+}
+
+# --- Step summary helpers (concise mode) ---
+function Get-BuildSummary {
+    param([string]$TargetName, [string]$Output)
+
+    $cc = ""
+    if ($Output -match 'Using compiler:\s*(.+)') {
+        $ccRaw = $Matches[1].Trim()
+        if ($ccRaw -match '[/\\]') {
+            $cc = [System.IO.Path]::GetFileNameWithoutExtension($ccRaw)
+        } else {
+            $cc = $ccRaw
+        }
+    }
+    if (-not $cc) {
+        $cc = switch ($TargetName) {
+            'Linux' { $Compiler }
+            'ARM'   { "arm-linux-gnueabihf-gcc" }
+            default { "" }
+        }
+    }
+
+    $cmd = switch ($TargetName) {
+        'Windows' { "$cc -I. -O3 -lkernel32 -ffreestanding" }
+        'Linux'   { "$cc -I. -O$OptLevel -ffreestanding -nostdlib" }
+        'ARM'     { "$cc -I. -O$OptLevel -ffreestanding -nostdlib" }
+        default   { $cc }
+    }
+    if ($cmd.Length -gt 42) { $cmd = $cmd.Substring(0, 39) + "..." }
+
+    # Count compiled files from output (build.bat echoes filenames)
+    $fileCount = 0
+    foreach ($line in ($Output -split "`n")) {
+        $t = $line.Trim()
+        if ($t -and $t -match '^\w[\w_.-]*$' -and $t -notmatch '^(Using|Build|Setting|Error|FAILED|mkdir|call)') {
+            $fileCount++
+        }
+    }
+    if ($fileCount -eq 0) {
+        $fileCount = @(Get-ChildItem -Path (Join-Path $RepoRoot "test") -Filter "*.c" -File -ErrorAction SilentlyContinue).Count
+    }
+
+    $parts = @()
+    if ($cmd) { $parts += $cmd }
+    if ($fileCount -gt 0) { $parts += "$fileCount files" }
+    return ($parts -join "   ")
+}
+
+function Get-TestSummary {
+    param([string]$TargetName, [string]$Output)
+
+    $okCount = ([regex]::Matches($Output, '\[OK\]')).Count
+    $runCount = ([regex]::Matches($Output, '--- Running')).Count
+
+    $parts = @()
+    if ($runCount -gt 0) { $parts += "$runCount binaries" }
+    if ($okCount -gt 0) { $parts += "$okCount assertions" }
+    if ($TargetName -eq 'ARM') { $parts += "(QEMU)" }
+
+    return ($parts -join ", ")
+}
+
+function Get-VerifySummary {
+    param([string]$TargetName, [string]$Output)
+
+    $analyzeCount = ([regex]::Matches($Output, 'Analyzing:')).Count
+
+    # Extract binary sizes and populate comparison table data
+    $maxSize = [int64]0
+    Collect-BinarySizes $TargetName $Output
+    if ($script:BinarySizes.ContainsKey($TargetName)) {
+        foreach ($sz in $script:BinarySizes[$TargetName].Values) {
+            if ($sz -gt $maxSize) { $maxSize = $sz }
+        }
+    }
+
+    # Dependency type
+    $depType = ""
+    if ($TargetName -eq 'Windows') {
+        $dllMatches = [regex]::Matches($Output, '(?i)(\w+)\.dll')
+        $dlls = @($dllMatches | ForEach-Object { $_.Groups[1].Value.ToUpper() } | Sort-Object -Unique)
+        if ($dlls.Count -ge 1 -and @($dlls | Where-Object { $_ -ne 'KERNEL32' }).Count -eq 0) {
+            $depType = "KERNEL32 only"
+        } elseif ($dlls.Count -eq 0) {
+            $depType = "no imports"
+        }
+    } else {
+        if ($Output -match 'statically linked' -or $Output -match 'no dynamic section' -or $Output -match 'No dynamic dependencies') {
+            $depType = "static"
+        }
+    }
+
+    $parts = @()
+    if ($analyzeCount -gt 0) { $parts += "$analyzeCount binaries" }
+    if ($maxSize -gt 0) {
+        $kb = [math]::Ceiling($maxSize / 1024)
+        $parts += "max ${kb}KB"
+    }
+    if ($depType) { $parts += $depType }
+
+    return ($parts -join ", ")
+}
+
+function Collect-BinarySizes {
+    param([string]$TargetName, [string]$Output)
+
+    $sizes = @{}
+    $lines = $Output -split "`n"
+    $currentBinary = ""
+
+    foreach ($line in $lines) {
+        if ($line -match 'Analyzing:\s*(.+)') {
+            $path = $Matches[1].Trim()
+            $currentBinary = [System.IO.Path]::GetFileNameWithoutExtension($path)
+        }
+        # Windows verify.bat format: "File: test.exe  16384 bytes"
+        if ($line -match 'File:\s+(\S+)\s+(\d+)\s+bytes') {
+            $fname = $Matches[1]
+            $sz = [int64]$Matches[2]
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($fname)
+            $sizes[$name] = $sz
+        }
+        # Linux/ARM Taskfile format: "Binary size: 13401 bytes (text: ...)"
+        elseif ($line -match 'Binary size:\s+(\d+)\s+bytes') {
+            $sz = [int64]$Matches[1]
+            if ($currentBinary) { $sizes[$currentBinary] = $sz }
+        }
+    }
+    if ($sizes.Count -gt 0) {
+        $script:BinarySizes[$TargetName] = $sizes
+    }
+}
+
+function Get-StepSummary {
+    param([string]$TargetName, [string]$ActionName, [string]$Output)
+    switch ($ActionName) {
+        'Build'  { return Get-BuildSummary $TargetName $Output }
+        'Test'   { return Get-TestSummary  $TargetName $Output }
+        'Verify' { return Get-VerifySummary $TargetName $Output }
+    }
+    return ""
+}
+
+function Write-BinarySizeTable {
+    $targets = @($script:BinarySizes.Keys | Sort-Object)
+    if ($targets.Count -lt 2) { return }
+
+    # Collect all binary names across targets
+    $allBinaries = @()
+    foreach ($t in $targets) {
+        foreach ($name in $script:BinarySizes[$t].Keys) {
+            if ($name -notin $allBinaries) { $allBinaries += $name }
+        }
+    }
+    $allBinaries = $allBinaries | Sort-Object
+    if ($allBinaries.Count -eq 0) { return }
+
+    Write-Host ""
+    Write-Host "=== Binary Sizes ===" -ForegroundColor Cyan
+
+    $nameWidth = [math]::Max("Binary".Length, ($allBinaries | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum)
+
+    # Compute column widths per target (right-aligned numbers)
+    $colWidths = @{}
+    foreach ($t in $targets) {
+        $w = $t.Length
+        foreach ($bin in $allBinaries) {
+            if ($script:BinarySizes[$t].ContainsKey($bin)) {
+                $len = ("{0:N0}" -f $script:BinarySizes[$t][$bin]).Length
+                if ($len -gt $w) { $w = $len }
+            }
+        }
+        $colWidths[$t] = $w
+    }
+
+    # Header
+    $header = "Binary".PadRight($nameWidth)
+    $sep    = ("-" * "Binary".Length).PadRight($nameWidth)
+    foreach ($t in $targets) {
+        $w = $colWidths[$t]
+        $header += "  " + $t.PadLeft($w)
+        $sep    += "  " + ("-" * $t.Length).PadLeft($w)
+    }
+    Write-Host $header
+    Write-Host $sep
+
+    # Rows
+    foreach ($bin in $allBinaries) {
+        $row = $bin.PadRight($nameWidth)
+        foreach ($t in $targets) {
+            $w = $colWidths[$t]
+            if ($script:BinarySizes[$t].ContainsKey($bin)) {
+                $row += "  " + ("{0:N0}" -f $script:BinarySizes[$t][$bin]).PadLeft($w)
+            } else {
+                $row += "  " + "-".PadLeft($w)
+            }
+        }
+        Write-Host $row
+    }
 }
 
 # --- WSL availability check (cached) ---
@@ -133,19 +340,71 @@ function Invoke-Step {
         [string]$ActionName,
         [scriptblock]$Block
     )
-    Write-Header "$TargetName $ActionName"
-    try {
-        & $Block
-        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-            Write-Host "FAIL" -ForegroundColor Red
+
+    # Safety-net patterns: if any of these appear in test output, treat as FAIL
+    # regardless of exit code (catches cases where shell loops swallow failures)
+    $FailurePatterns = @('Segmentation fault', 'core dumped', 'FAILED', 'SOME TESTS FAILED', 'SOME ARM TESTS FAILED')
+
+    if ($ShowAll) {
+        # Verbose: capture + stream, then check for failure indicators
+        Write-Header "$TargetName $ActionName"
+        try {
+            $output = & $Block 2>&1
+            $output | ForEach-Object { Write-Host $_ }
+            $exitFail = ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
+            $outputStr = ($output | Out-String)
+            $contentFail = $false
+            foreach ($pat in $FailurePatterns) {
+                if ($outputStr -match [regex]::Escape($pat)) { $contentFail = $true; break }
+            }
+            if ($exitFail -or $contentFail) {
+                Write-Host "FAIL" -ForegroundColor Red
+                Add-Result $TargetName $ActionName "FAIL"
+                return
+            }
+            Write-Host "PASS" -ForegroundColor Green
+            Add-Result $TargetName $ActionName "PASS"
+            if ($ActionName -eq 'Verify') {
+                Collect-BinarySizes $TargetName $outputStr
+            }
+        } catch {
+            Write-Host "FAIL: $_" -ForegroundColor Red
             Add-Result $TargetName $ActionName "FAIL"
-            return
         }
-        Write-Host "PASS" -ForegroundColor Green
-        Add-Result $TargetName $ActionName "PASS"
-    } catch {
-        Write-Host "FAIL: $_" -ForegroundColor Red
-        Add-Result $TargetName $ActionName "FAIL"
+    } else {
+        # Concise: capture output, show one-liner with stats, dump output only on failure
+        $label = switch ($ActionName) {
+            'Build'  { "Building $TargetName" }
+            'Test'   { "Testing $TargetName" }
+            'Verify' { "Verifying $TargetName" }
+            default  { "$TargetName $ActionName" }
+        }
+        $paddedLabel = "$label...".PadRight(22)
+        Write-Host -NoNewline "  $paddedLabel "
+        try {
+            $output = & $Block 2>&1
+            $exitFail = ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
+            $outputStr = ($output | Out-String)
+            $contentFail = $false
+            foreach ($pat in $FailurePatterns) {
+                if ($outputStr -match [regex]::Escape($pat)) { $contentFail = $true; break }
+            }
+            if ($exitFail -or $contentFail) {
+                Write-Host "FAIL" -ForegroundColor Red
+                $output | ForEach-Object { Write-Host "    $_" }
+                Add-Result $TargetName $ActionName "FAIL"
+                return
+            }
+            $summary = Get-StepSummary $TargetName $ActionName $outputStr
+            if ($summary) {
+                Write-Host -NoNewline "$summary  "
+            }
+            Write-Host "PASS" -ForegroundColor Green
+            Add-Result $TargetName $ActionName "PASS"
+        } catch {
+            Write-Host "FAIL: $_" -ForegroundColor Red
+            Add-Result $TargetName $ActionName "FAIL"
+        }
     }
 }
 
@@ -179,7 +438,7 @@ function Invoke-WindowsVerify {
 $script:CrlfFixed = $false
 function Invoke-CrlfFix {
     if ($script:CrlfFixed) { return }
-    Write-Host "  Stripping CRLF for WSL..." -ForegroundColor DarkGray
+    if ($ShowAll) { Write-Host "  Stripping CRLF for WSL..." -ForegroundColor DarkGray }
     $targets = Get-ChildItem -Path $RepoRoot -Include '*.c','*.h' -Recurse -File
     $taskfile = Join-Path $RepoRoot 'Taskfile'
     if (Test-Path $taskfile) { $targets += Get-Item $taskfile }
@@ -259,7 +518,7 @@ function Invoke-Aarch64Test {
 function Invoke-ArmVerify {
     Invoke-Step "ARM" "Verify" {
         Invoke-CrlfFix
-        wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify"
+        wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_arm"
     }
 }
 
@@ -309,7 +568,7 @@ function Invoke-Target {
                 foreach ($act in $actions) { Add-Result "ARM" $act "SKIP" }
                 return
             }
-            $actions = if ($A -eq 'all') { @('build', 'test') } else { @($A) }
+            $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
             foreach ($act in $actions) {
                 switch ($act) {
                     'build'  { Invoke-ArmBuild  }
@@ -326,6 +585,11 @@ $targets = if ($Target -eq 'all') { @('windows', 'linux', 'arm') } else { @($Tar
 foreach ($t in $targets) {
     Invoke-Target $t $Action
 }
+
+# ============================================================
+#  Binary size comparison table
+# ============================================================
+Write-BinarySizeTable
 
 # ============================================================
 #  Summary
