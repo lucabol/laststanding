@@ -50,7 +50,7 @@ void can_read_prog_name(int argc, char* argv[]) {
     TEST_SECTION_PASS("Program name reading");
 }
 
-void can_open_and_close_files() {
+void can_open_and_close_files(void) {
   TEST_FUNCTION("Basic File Operations");
 
   char* msg = "Hello world!";
@@ -70,7 +70,7 @@ void can_open_and_close_files() {
   TEST_SECTION_PASS("Basic file operation");
 }
 
-void can_print_unicode() {
+void can_print_unicode(void) {
   TEST_FUNCTION("Unicode Output");
   char msg[] = u8"κόσμε";
   puts(msg);

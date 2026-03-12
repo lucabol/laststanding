@@ -4,6 +4,7 @@ RM=rm
 
 function clean {    # Clean binaries
     $RM -rf bin
+    $RM -rf test_mkdir_tmpdir
 }
 
 function build {    # Build {compiler:gcc} {optimizationchar:0}
