@@ -13,6 +13,70 @@ A minimal C runtime and test suite for exploring freestanding, static, and cross
 - Simple build and test automation via `Taskfile` (bash) and `test_all.bat` (Windows)
 - AArch64 (64-bit ARM) fully supported and tested via QEMU
 
+## How to Use
+
+### Quick Start
+
+`laststanding` is a single-header library. Copy `l_os.h` into your project and include it:
+
+```c
+#define L_MAINFILE
+#include "l_os.h"
+
+int main(int argc, char *argv[]) {
+    puts("Hello from laststanding!\n");
+    return 0;
+}
+```
+
+### Compile-Time Flags
+
+| Define | Purpose |
+|--------|---------|
+| `L_MAINFILE` | Activates both function definitions and platform startup code. **Exactly one** translation unit must define this before including `l_os.h`. |
+| `L_DONTOVERRIDE` | Prevents `#define strlen l_strlen` style aliases. Use this if you need to mix `laststanding` with standard library headers. |
+
+In multi-file projects, only one `.c` file defines `L_MAINFILE`. Other files include `l_os.h` without it — they get type definitions and constants but no function bodies or startup code:
+
+```c
+// utils.c — no L_MAINFILE, safe to include alongside other headers
+#include "l_os.h"
+
+// main.c — the one translation unit with startup code and definitions
+#define L_MAINFILE
+#include "l_os.h"
+```
+
+### Compiler Flags
+
+Binaries must be compiled freestanding with no standard library:
+
+**Linux (gcc or clang):**
+```sh
+gcc -I. -O3 -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
+```
+
+**Windows (clang):**
+```bat
+clang -I. -O3 -lkernel32 -ffreestanding -Wall -Wextra -Wpedantic -o myapp.exe myapp.c
+```
+
+**ARM cross-compilation (gcc):**
+```sh
+arm-linux-gnueabihf-gcc -I. -O3 -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
+```
+
+### Key Types
+
+| Type | Purpose |
+|------|---------|
+| `L_FD` | File descriptor (`ptrdiff_t`). Used instead of `int` for Windows `HANDLE` compatibility. |
+| `L_STDIN`, `L_STDOUT`, `L_STDERR` | Standard file descriptor constants (0, 1, 2). |
+
+### Standard Name Aliases
+
+By default, `l_os.h` defines macros that alias standard names to their `l_` equivalents (e.g., `strlen` → `l_strlen`, `exit` → `l_exit`). This lets you write familiar C code without the `l_` prefix. Define `L_DONTOVERRIDE` before including to disable this.
+
 ## Function Reference
 
 Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
