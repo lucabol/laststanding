@@ -12,6 +12,8 @@
 .PARAMETER ShowAll
     Show full compiler output, test assertions, and verification details.
     By default output is concise: one PASS/FAIL line per step (full output shown on failure).
+.PARAMETER Help
+    Show this help message.
 .EXAMPLE
     .\ci.ps1 -Target windows -Action build
     .\ci.ps1 -Target linux -Action test -Compiler clang -OptLevel 2
@@ -32,8 +34,15 @@ param(
     [ValidateRange(0, 3)]
     [int]$OptLevel = 3,
 
-    [switch]$ShowAll
+    [switch]$ShowAll,
+
+    [switch]$Help
 )
+
+if ($Help) {
+    Get-Help $MyInvocation.MyCommand.Path -Detailed
+    return
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'
