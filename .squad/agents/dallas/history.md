@@ -104,6 +104,9 @@ Verified: Linux x86_64 test PASS (all tests including extended at -O3), ARM test
 - Never use Unicode characters (✓, ✗, etc.) in C test output either — when WSL output flows through PowerShell, encoding gets mangled (same codepage issue as .bat files). Use ASCII: `[OK]` / `[FAIL]`.
 - `build.ps1` ARM verify must call `./Taskfile verify_arm` (not `verify`), which checks `bin/*.armhf` files for ARM ELF type, static linking, stripped, no stdlib symbols. The `verify` function only checks x86_64 binaries.
 - The ARM 'all' action list in build.ps1 must include 'verify' alongside 'build' and 'test' — it was originally missing.
+- PowerShell Core (pwsh) provides `$IsLinux`, `$IsWindows`, `$IsMacOS` as automatic variables. Windows PowerShell 5.1 does NOT define them — use `Test-Path variable:IsLinux` to detect availability and fall back to `$true` for Windows.
+- On GitHub Actions, all runners (ubuntu, windows, macos) have `pwsh` pre-installed — `shell: pwsh` works everywhere without an install step.
+- When ci.ps1 runs natively on Linux (not via WSL), it must call `bash -c "cd '$RepoRoot' && ./Taskfile ..."` directly — no WSL prefix, no CRLF stripping, no WSL path translation.
 
 ## Work Session — 2026-03-15
 
@@ -168,6 +171,23 @@ Fixed ARM clang cross-compilation failures caused by GCC-specific inline assembl
 - ARM inline asm must use bare register names (`r0`, `sp`) not `%r0`/`%sp`, and `#` for immediates not `$`. GCC accepts both syntaxes; clang only accepts the ARM-native syntax. The `%` and `$` prefixes are x86 conventions that GCC's ARM backend also accepts but clang does not.
 - Clang's assembler rejects `.weak sym` followed by `.global sym` — it treats this as a binding change error. `.weak` already implies global visibility, so `.global` is redundant and should be omitted.
 - C functions with empty parameter lists `void f()` should use `void f(void)` for strict C correctness. Clang warns about this with `-Wstrict-prototypes`; GCC is silent by default.
+
+## Work Session — 2026-03-17
+
+Unified CI: made ci.ps1 cross-platform and consolidated GitHub Actions workflows.
+
+**ci.ps1 changes:**
+- Added OS detection using `$IsLinux`/`$IsWindows` (PowerShell Core automatic vars), with fallback for Windows PowerShell 5.1 (which lacks them).
+- When `$IsLinux`: Linux/ARM functions call `./Taskfile` directly (no WSL wrapper, no CRLF stripping). Windows target is skipped. ARM compiler and QEMU checks run natively via `bash -c`.
+- When `$IsWindows`: all existing WSL-based behavior preserved unchanged.
+- WSL path translation (`Get-WslPath`) and WSL availability check only run on Windows.
+
+**Workflow consolidation:**
+- Created single `.github/workflows/ci.yml` replacing `windows-ci.yml`, `linux-ci.yml`, `arm-ci.yml`.
+- Three jobs: `windows` (windows-latest, pwsh), `linux` (ubuntu-latest, pwsh), `arm` (ubuntu-latest + cross-compilers, pwsh).
+- All jobs use `./ci.ps1 -Target <target>` as the single entry point.
+
+**Verified:** Windows build+test+verify all PASS. Linux build via WSL PASS (confirming Windows code path unchanged).
 
 ## Work Session — 2026-03-16 (follow-up)
 
