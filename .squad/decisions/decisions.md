@@ -61,3 +61,25 @@ Bash `set -e` in GHA properly catches `exit(-1)` failures (truncated to exit cod
 The `l_strstr("","")` divergence from libc is documented as known behavior. This is tracked in decisions.md — Dallas should decide whether to fix or formalize the deviation. Not a blocker for this PR.
 
 **Minor follow-up:** Test macros duplicated between `test.c` and `test_extended.c`. Consider extracting a shared `test/test_macros.h` in a future PR.
+
+---
+
+## Rename build.ps1 → ci.ps1 + multi-compiler matrix
+**Author:** Dallas  
+**Date:** 2026-03-15  
+**Status:** Implemented
+
+### Context
+`build.ps1` performs build + test + verify, not just build. Script naming needed updating to reflect scope.
+
+### Decision
+1. Renamed `build.ps1` → `ci.ps1`
+2. `build.ps1` kept as backward-compatible one-line wrapper
+3. `ci.ps1` defaults to `-Compiler all`, running gcc + clang for Linux and ARM targets
+4. Build matrix: Windows (clang), Linux (gcc + clang), ARM (gcc + clang)
+
+### Implications
+- All existing references to `build.ps1` still work
+- CI now catches compiler-specific bugs
+- `verify` and `verify_arm` pass through compiler args
+- README.md updated to reference `ci.ps1`

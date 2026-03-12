@@ -126,3 +126,45 @@ Enhanced `build.ps1` concise (non-ShowAll) output to show inline stats per step 
 - Windows `verify.bat` outputs file sizes as `File: test.exe  16384 bytes`; Linux/ARM Taskfile `verify` outputs `Binary size: 13401 bytes (text: ...)`. Both patterns must be handled.
 - `build.bat` echoes `Using compiler: <CC>` and then indented filenames; Taskfile `build` produces no output on success — file count falls back to `Get-ChildItem test\*.c`.
 - Test output uses `[OK]` per assertion and `--- Running <exe> ---` per binary — regex counts of these give assertion and binary counts.
+
+## Work Session — 2026-03-15 (follow-up)
+
+Two changes: multi-compiler matrix and build.ps1 → ci.ps1 rename.
+
+**1. Multi-compiler builds:** ci.ps1 now runs BOTH gcc AND clang for Linux and ARM targets by default (`-Compiler all`). The Taskfile's `build_arm` handles clang cross-compilation with `--target=arm-linux-gnueabihf --sysroot=/usr/arm-linux-gnueabihf -flto`. The `verify` and `verify_arm` functions now pass through `"$@"` so the compiler parameter propagates to the rebuild step. Summary table shows `Linux (gcc)`, `Linux (clang)`, `ARM (gcc)`, `ARM (clang)` as separate targets. Binary size table uses short column names: `Win/clang`, `Lin/gcc`, `Lin/clang`, `ARM/gcc`, `ARM/clang`.
+
+**2. Renamed build.ps1 → ci.ps1:** The script does build + test + verify across all platforms — "ci" is more accurate. `build.ps1` kept as a one-line backward-compat wrapper (`& "$PSScriptRoot\ci.ps1" @args`). README.md updated.
+
+Verified: `.\ci.ps1 -Target linux` runs both gcc and clang, all 6 steps PASS. Backward-compat wrapper `.\build.ps1` also works.
+
+## Learnings
+
+- ARM clang cross-compilation uses `clang --target=arm-linux-gnueabihf --sysroot=/usr/arm-linux-gnueabihf -flto` — no `-lgcc` needed. The sysroot comes from the `gcc-arm-linux-gnueabihf` package.
+- When parameterizing Taskfile functions for clang vs gcc, pass the explicit compiler name (`arm-linux-gnueabihf-gcc`) not an empty string — bash word splitting collapses empty args, shifting positional parameters.
+- `ci.ps1` is the canonical name for the unified CI script; `build.ps1` is a backward-compat wrapper.
+- clang produces noticeably smaller freestanding binaries than gcc (e.g., 15KB vs 22KB for test_extended at -O3).
+
+## Work Session — 2026-03-16
+
+Fixed ARM clang cross-compilation failures caused by GCC-specific inline assembly syntax in `l_os.h`.
+
+**Changes:**
+
+1. **l_os.h — ARM `_start` assembly syntax (lines 131-139):** Replaced GCC-specific register/immediate prefixes with universal syntax that both gcc and clang accept:
+   - `%r0` → `r0`, `%r1` → `r1`, `%r2` → `r2`, `%r3` → `r3`, `%sp` → `sp` (bare register names)
+   - `$4` → `#4`, `$-8` → `#-8`, `$1` → `#1`, `$0x00` → `#0` (`#` for ARM immediates)
+   The Thumb block (lines 126-128) was already using correct bare register syntax.
+
+2. **l_os.h — Removed `.global _start` after `.weak _start` (ARM + AArch64):** Clang's assembler rejects changing symbol binding from weak to global. `.weak` already implies global visibility, so `.global` was redundant.
+
+3. **test/test.c — 5 functions, test/test_extended.c — 15 functions:** Added `(void)` to all empty parameter lists (`void test_foo()` → `void test_foo(void)`). Clang warns about function declarations without prototypes (`-Wstrict-prototypes`).
+
+**Syscall macros (my_syscall0–6) were already correct** — they used bare register names and `#0` syntax, which work with both compilers.
+
+**Verified:** All 3 test files compile clean with both ARM clang and ARM gcc. x86_64 gcc build+test passes (no regressions).
+
+## Learnings
+
+- ARM inline asm must use bare register names (`r0`, `sp`) not `%r0`/`%sp`, and `#` for immediates not `$`. GCC accepts both syntaxes; clang only accepts the ARM-native syntax. The `%` and `$` prefixes are x86 conventions that GCC's ARM backend also accepts but clang does not.
+- Clang's assembler rejects `.weak sym` followed by `.global sym` — it treats this as a binding change error. `.weak` already implies global visibility, so `.global` is redundant and should be omitted.
+- C functions with empty parameter lists `void f()` should use `void f(void)` for strict C correctness. Clang warns about this with `-Wstrict-prototypes`; GCC is silent by default.
