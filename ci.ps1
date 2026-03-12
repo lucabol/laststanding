@@ -234,9 +234,9 @@ function Get-StepSummary {
 
 function Write-BinarySizeTable {
     $targets = @($script:BinarySizes.Keys | Sort-Object)
-    if ($targets.Count -lt 2) { return }
+    if ($targets.Count -eq 0) { return }
 
-    # Short display names for column headers
+    # Short display names for row labels
     $shortNames = @{
         'Windows'       = 'Win/clang'
         'Linux (gcc)'   = 'Lin/gcc'
@@ -258,39 +258,44 @@ function Write-BinarySizeTable {
     Write-Host ""
     Write-Host "=== Binary Sizes ===" -ForegroundColor Cyan
 
-    $nameWidth = [math]::Max("Binary".Length, ($allBinaries | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum)
-
-    # Compute column widths per target (right-aligned numbers)
-    $colWidths = @{}
+    # Build config labels for first column
+    $configLabels = @()
     foreach ($t in $targets) {
-        $colLabel = if ($shortNames.ContainsKey($t)) { $shortNames[$t] } else { $t }
-        $w = $colLabel.Length
-        foreach ($bin in $allBinaries) {
+        $configLabels += if ($shortNames.ContainsKey($t)) { $shortNames[$t] } else { $t }
+    }
+    $configWidth = [math]::Max("Configuration".Length, ($configLabels | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum)
+
+    # Compute column widths per binary (right-aligned numbers)
+    $colWidths = @{}
+    foreach ($bin in $allBinaries) {
+        $w = $bin.Length
+        foreach ($t in $targets) {
             if ($script:BinarySizes[$t].ContainsKey($bin)) {
                 $len = ("{0:N0}" -f $script:BinarySizes[$t][$bin]).Length
                 if ($len -gt $w) { $w = $len }
             }
         }
-        $colWidths[$t] = $w
+        $colWidths[$bin] = $w
     }
 
-    # Header
-    $header = "Binary".PadRight($nameWidth)
-    $sep    = ("-" * "Binary".Length).PadRight($nameWidth)
-    foreach ($t in $targets) {
-        $w = $colWidths[$t]
-        $colLabel = if ($shortNames.ContainsKey($t)) { $shortNames[$t] } else { $t }
-        $header += "  " + $colLabel.PadLeft($w)
-        $sep    += "  " + ("-" * $colLabel.Length).PadLeft($w)
+    # Header (binaries as columns)
+    $header = "Configuration".PadRight($configWidth)
+    $sep    = ("-" * "Configuration".Length).PadRight($configWidth)
+    foreach ($bin in $allBinaries) {
+        $w = $colWidths[$bin]
+        $header += "  " + $bin.PadLeft($w)
+        $sep    += "  " + ("-" * $bin.Length).PadLeft($w)
     }
     Write-Host $header
     Write-Host $sep
 
-    # Rows
-    foreach ($bin in $allBinaries) {
-        $row = $bin.PadRight($nameWidth)
-        foreach ($t in $targets) {
-            $w = $colWidths[$t]
+    # Rows (one per configuration)
+    for ($i = 0; $i -lt $targets.Count; $i++) {
+        $t = $targets[$i]
+        $label = $configLabels[$i]
+        $row = $label.PadRight($configWidth)
+        foreach ($bin in $allBinaries) {
+            $w = $colWidths[$bin]
             if ($script:BinarySizes[$t].ContainsKey($bin)) {
                 $row += "  " + ("{0:N0}" -f $script:BinarySizes[$t][$bin]).PadLeft($w)
             } else {
