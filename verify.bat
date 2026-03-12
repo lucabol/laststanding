@@ -1,117 +1,109 @@
 @echo off
 setlocal enabledelayedexpansion
-REM Windows verification script for stdlib independence and bloat-free executables
-REM This script works with Windows SDK tools and MinGW tools
+REM Verify executables are stdlib-independent and bloat-free.
+REM Works from any cmd.exe window -- auto-detects analysis tools.
 
 echo === Verifying executables are stdlib-independent and bloat-free ===
 
-REM Ensure bin directory exists and has executables
 if not exist bin\ (
     echo Error: bin directory not found. Run build.bat first.
     exit /b 1
 )
 
-REM Build executables first (basic Windows build)
 if not exist bin\test.exe (
     echo Building executables first...
     call build.bat
 )
 
+REM --- Detect analysis tools ---
+set "HAS_STRINGS="
+where strings >nul 2>&1 && set "HAS_STRINGS=1"
+
+where dumpbin >nul 2>&1 && ( set "DEP_TOOL=dumpbin" & goto :tools_ready )
+where objdump >nul 2>&1 && ( set "DEP_TOOL=objdump" & goto :tools_ready )
+
+REM Try Visual Studio for dumpbin (same pattern as build.bat)
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE%" (
+    for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2^>nul`) do set "VSINSTALL=%%i"
+)
+if defined VSINSTALL (
+    set "VCVARSALL=!VSINSTALL!\VC\Auxiliary\Build\vcvarsall.bat"
+    if exist "!VCVARSALL!" (
+        call "!VCVARSALL!" x64 >nul 2>&1
+        where dumpbin >nul 2>&1 && ( set "DEP_TOOL=dumpbin" & goto :tools_ready )
+    )
+)
+
+set "DEP_TOOL=none"
+
+:tools_ready
+echo Dependency tool: %DEP_TOOL%
+
 for %%f in (bin\*.exe) do (
     echo.
     echo Analyzing: %%f
     echo ----------------------------------------
-    
-    REM Check file type using PowerShell
-    echo | set /p="✓ File type: "
-    powershell -Command "Get-ItemProperty '%%f' | Select-Object Name, Length" 2>nul
-    
-    REM Check for dependencies and print all of them
-    echo | set /p="✓ Dependencies: "
-    where dumpbin >nul 2>&1
-    if !errorlevel! equ 0 (
-        REM Test if dumpbin actually works by running it on this specific file
-        dumpbin /dependents "%%f" >nul 2>&1
-        if !errorlevel! equ 0 (
-            REM dumpbin works, show all dependencies
-            echo.
-            echo   All dependencies for %%f:
-            dumpbin /dependents "%%f" 2>nul | findstr "\.dll"
-            if !errorlevel! neq 0 (
-                echo   ^(No dependencies found^)
-            )
-        ) else (
-            echo SKIP ^(dumpbin failed to analyze this file^)
-        )
-    ) else (
-        REM Fallback to objdump if available (MinGW)
-        where objdump >nul 2>&1
-        if !errorlevel! equ 0 (
-            echo.
-            echo   All dependencies for %%f:
-            objdump -p "%%f" 2>nul | findstr "DLL Name"
-            if !errorlevel! neq 0 (
-                echo   ^(No dynamic dependencies found^)
-            )
-        ) else (
-            echo SKIP ^(no dependency analysis tools available^)
-        )
+
+    for %%A in ("%%f") do echo   File: %%~nxA  %%~zA bytes
+
+    REM --- Dependencies ---
+    if "!DEP_TOOL!"=="dumpbin" (
+        echo   Dependencies:
+        dumpbin /dependents "%%f" 2>nul | findstr "\.dll"
+        if !errorlevel! neq 0 echo     [none]
     )
-    
-    REM Check for standard library symbols using strings or findstr
-    echo | set /p="✓ No stdlib symbols: "
-    where strings >nul 2>&1
-    if !errorlevel! equ 0 (
-        strings "%%f" | findstr /I "libc glibc stdlib printf malloc free msvcrt" >nul
+    if "!DEP_TOOL!"=="objdump" (
+        echo   Dependencies:
+        objdump -p "%%f" 2>nul | findstr "DLL Name"
+        if !errorlevel! neq 0 echo     [none]
+    )
+    if "!DEP_TOOL!"=="none" (
+        echo   Dependencies: SKIP [no tool]
+    )
+
+    REM --- Stdlib symbols ---
+    if defined HAS_STRINGS (
+        strings "%%f" | findstr /I "libc glibc stdlib printf malloc free msvcrt" >nul 2>&1
         if !errorlevel! neq 0 (
-            echo PASS
+            echo   Stdlib symbols: PASS
         ) else (
-            echo FAIL ^(found stdlib references^)
+            echo   Stdlib symbols: FAIL
             strings "%%f" | findstr /I "libc glibc stdlib printf malloc free msvcrt"
         )
     ) else (
-        REM Fallback to simple binary search
         findstr /L "msvcrt libc stdlib" "%%f" >nul 2>&1
         if !errorlevel! neq 0 (
-            echo PASS ^(basic check^)
+            echo   Stdlib symbols: PASS [basic check]
         ) else (
-            echo WARN ^(possible stdlib references^)
+            echo   Stdlib symbols: WARN [possible refs]
         )
     )
-    
-    REM Show file size
-    echo | set /p="✓ Binary size: "
-    for %%A in ("%%f") do echo %%~zA bytes
-    
-    REM Check for exports/symbols using dumpbin
-    echo | set /p="✓ Symbol count: "
-    where dumpbin >nul 2>&1
-    if !errorlevel! equ 0 (
+
+    REM --- Symbol count ---
+    if "!DEP_TOOL!"=="dumpbin" (
         for /f %%i in ('dumpbin /exports "%%f" 2^>nul ^| findstr /C:"ordinal hint" ^| find /c /v ""') do (
             if %%i gtr 0 (
-                echo WARN ^(%%i exported symbols^)
+                echo   Symbol count: WARN [%%i exports]
             ) else (
-                echo PASS ^(no exports^)
+                echo   Symbol count: PASS [no exports]
             )
         )
-    ) else (
-        where objdump >nul 2>&1
-        if !errorlevel! equ 0 (
-            for /f %%i in ('objdump -t "%%f" 2^>nul ^| find /c /v ""') do (
-                if %%i gtr 5 (
-                    echo WARN ^(%%i symbols^)
-                ) else (
-                    echo PASS ^(minimal symbols^)
-                )
+    )
+    if "!DEP_TOOL!"=="objdump" (
+        for /f %%i in ('objdump -t "%%f" 2^>nul ^| find /c /v ""') do (
+            if %%i gtr 5 (
+                echo   Symbol count: WARN [%%i symbols]
+            ) else (
+                echo   Symbol count: PASS [minimal]
             )
-        ) else (
-            echo SKIP ^(no symbol analysis tools available^)
         )
+    )
+    if "!DEP_TOOL!"=="none" (
+        echo   Symbol count: SKIP [no tool]
     )
 )
 
 echo.
 echo === Verification complete ===
-echo.
-echo Note: This script works best with Windows SDK tools ^(dumpbin^) or MinGW tools ^(objdump, strings^)
-echo Install Visual Studio Build Tools or MinGW for complete analysis.
+exit /b 0

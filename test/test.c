@@ -18,9 +18,9 @@ static int passed_count = 0;
     test_count++; \
     if (condition) { \
         passed_count++; \
-        puts("  ✓ " test_name "\n"); \
+        puts("  [OK] " test_name "\n"); \
     } else { \
-        puts("  ✗ " test_name " FAILED: " #condition "\n"); \
+        puts("  [FAIL] " test_name " FAILED: " #condition "\n"); \
         exit(-1); \
     } \
 } while(0)
@@ -78,7 +78,7 @@ void can_print_unicode() {
   TEST_ASSERT(1, "unicode output test completed");
   TEST_SECTION_PASS("Unicode output");
 }
-void test_string_functions() {
+void test_string_functions(void) {
   TEST_FUNCTION("String Functions");
   
   /*
@@ -122,7 +122,7 @@ void test_string_functions() {
   TEST_SECTION_PASS("String function");
 }
 
-void test_character_number_functions() {
+void test_character_number_functions(void) {
   TEST_FUNCTION("Character/Number Functions");
   
   // Test l_isdigit
@@ -161,7 +161,7 @@ void test_character_number_functions() {
   TEST_SECTION_PASS("Character/number function");
 }
 
-void test_memory_functions() {
+void test_memory_functions(void) {
   TEST_FUNCTION("Memory Functions");
   
   // Test l_memset
@@ -193,7 +193,7 @@ void test_memory_functions() {
   TEST_SECTION_PASS("Memory function");
 }
 
-void test_file_operations() {
+void test_file_operations(void) {
   TEST_FUNCTION("File Operations");
   
   char* test_msg = "Test message";
@@ -240,7 +240,7 @@ void test_file_operations() {
   TEST_SECTION_PASS("File operation");
 }
 
-void test_system_functions() {
+void test_system_functions(void) {
   TEST_FUNCTION("System Functions");
   
   // Test l_exitif with false condition (should not exit)

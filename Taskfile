@@ -31,21 +31,32 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   done
 }
 
-function build_arm {    # Build for ARM (armhf/armv7)
+function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueabihf-gcc} {optimizationchar:3}
   clean
   mkdir -p bin
   CC=${1:-arm-linux-gnueabihf-gcc}
   OPT=${2:-3}
+
+  LDFLAGS=""
+  LINK_LIB="-lgcc"
+
+  case $CC in
+    clang)
+      LDFLAGS="--target=arm-linux-gnueabihf --sysroot=/usr/arm-linux-gnueabihf -flto"
+      LINK_LIB=""
+      ;;
+  esac
+
   for f in test/*; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -Wall -Wextra -Wpedantic -O$OPT $f -ffreestanding -nostdlib -lgcc -o bin/$x.armhf
+    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -Wl,--gc-sections -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
   done
 }
 
-function verify {    # Verify executables don't depend on stdlib and contain no bloat
+function verify {    # Verify executables don't depend on stdlib and contain no bloat {compiler:gcc} {optimizationchar:3}
   # Build first to ensure we have current binaries
-  build
+  build "$@"
 
   echo "=== Verifying executables are stdlib-independent and bloat-free ==="
   
@@ -56,7 +67,7 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
       echo "----------------------------------------"
       
       # Check dependencies and print all of them for each executable
-      echo -n "✓ Dependencies: "
+      echo -n "  Dependencies: "
       echo
       echo "  All dependencies for $exe:"
       if ldd "$exe" 2>&1 | grep -q "not a dynamic executable"; then
@@ -68,7 +79,7 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
       fi
       
       # Alternative dependency check using readelf - show all dynamic entries
-      echo -n "✓ Dynamic section: "
+      echo -n "  Dynamic section: "
       if readelf -d "$exe" 2>/dev/null | grep -q "There is no dynamic section"; then
         echo "PASS (no dynamic section)"
       else
@@ -77,7 +88,7 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
       fi
       
       # Check binary type and ensure it's stripped
-      echo -n "✓ Binary type: "
+      echo -n "  Binary type: "
       file_output=$(file "$exe")
       if echo "$file_output" | grep -q "statically linked" && echo "$file_output" | grep -q "stripped"; then
         echo "PASS (static, stripped)"
@@ -88,7 +99,7 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
 
       
       # Check for standard library symbols/strings
-      echo -n "✓ No stdlib symbols: "
+      echo -n "  No stdlib symbols: "
       stdlib_symbols=$(strings "$exe" | grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)" | head -5)
       if [ -z "$stdlib_symbols" ]; then
         echo "PASS"
@@ -98,14 +109,14 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
       fi
       
       # Show binary size for bloat assessment
-      echo -n "✓ Binary size: "
+      echo -n "  Binary size: "
       size_output=$(size "$exe" | tail -n 1)
       text_size=$(echo "$size_output" | awk '{print $1}')
       total_size=$(echo "$size_output" | awk '{print $4}')
       echo "${total_size} bytes (text: ${text_size})"
       
       # Check for excessive symbols (should be minimal or none due to stripping)
-      echo -n "✓ Symbol count: "
+      echo -n "  Symbol count: "
       symbol_count=$(nm "$exe" 2>/dev/null | wc -l)
       if [ "$symbol_count" -eq 0 ]; then
         echo "PASS (no symbols - stripped)"
@@ -124,25 +135,108 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
 function test {    # Build and run all tests in bin directory
   build "$@"
   echo "=== Running all executables in bin/ ==="
-  for exe in bin/*; do
+  local fail=0
+  for exe in bin/test*; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       "$exe"
+      if [ $? -ne 0 ]; then
+        echo "FAIL: $exe exited with error"
+        fail=1
+      fi
       echo
     fi
   done
+  if [ $fail -ne 0 ]; then
+    echo "=== SOME TESTS FAILED ==="
+    exit 1
+  fi
 }
 
 function test_arm {    # Build and run all tests for ARM using QEMU
   build_arm "$@"
   echo "=== Running all ARM executables in bin/ with QEMU ==="
-  for exe in bin/*.armhf; do
+  local fail=0
+  for exe in bin/test*.armhf; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-arm -L /usr/arm-linux-gnueabihf "$exe"
+      if [ $? -ne 0 ]; then
+        echo "FAIL: $exe exited with error"
+        fail=1
+      fi
       echo
     fi
   done
+  if [ $fail -ne 0 ]; then
+    echo "=== SOME ARM TESTS FAILED ==="
+    exit 1
+  fi
+}
+
+function verify_arm {    # Verify ARM executables are stdlib-independent and bloat-free {compiler:arm-linux-gnueabihf-gcc} {optimizationchar:3}
+  # Build ARM first to ensure we have current binaries
+  build_arm "$@"
+
+  echo "=== Verifying ARM executables are stdlib-independent and bloat-free ==="
+
+  for exe in bin/*.armhf; do
+    if [ -f "$exe" ]; then
+      echo
+      echo "Analyzing: $exe"
+      echo "----------------------------------------"
+
+      # Check file type (should be ARM ELF)
+      echo -n "  File type: "
+      file_output=$(file "$exe")
+      if echo "$file_output" | grep -q "ARM" && echo "$file_output" | grep -q "statically linked" && echo "$file_output" | grep -q "stripped"; then
+        echo "PASS (ARM ELF, static, stripped)"
+      else
+        echo "FAIL"
+        echo "    $file_output"
+      fi
+
+      # Check dynamic section
+      echo -n "  Dynamic section: "
+      if readelf -d "$exe" 2>/dev/null | grep -q "There is no dynamic section"; then
+        echo "PASS (no dynamic section)"
+      else
+        echo "PRESENT (showing dynamic dependencies):"
+        readelf -d "$exe" 2>/dev/null | grep -E "(NEEDED|Shared library)" | sed 's/^/    /' || echo "    No NEEDED entries found"
+      fi
+
+      # Check for stdlib symbols/strings
+      echo -n "  No stdlib symbols: "
+      stdlib_symbols=$(strings "$exe" | grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)" | head -5)
+      if [ -z "$stdlib_symbols" ]; then
+        echo "PASS"
+      else
+        echo "FAIL (found stdlib references)"
+        echo "$stdlib_symbols"
+      fi
+
+      # Binary size
+      echo -n "  Binary size: "
+      size_output=$(size "$exe" | tail -n 1)
+      text_size=$(echo "$size_output" | awk '{print $1}')
+      total_size=$(echo "$size_output" | awk '{print $4}')
+      echo "${total_size} bytes (text: ${text_size})"
+
+      # Symbol count
+      echo -n "  Symbol count: "
+      symbol_count=$(nm "$exe" 2>/dev/null | wc -l)
+      if [ "$symbol_count" -eq 0 ]; then
+        echo "PASS (no symbols - stripped)"
+      elif [ "$symbol_count" -lt 10 ]; then
+        echo "WARN ($symbol_count symbols)"
+      else
+        echo "FAIL ($symbol_count symbols - too many)"
+      fi
+    fi
+  done
+
+  echo
+  echo "=== ARM Verification complete ==="
 }
 
 function help {     # Prints help
