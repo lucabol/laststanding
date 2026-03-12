@@ -235,9 +235,9 @@ function Get-StepSummary {
 function Write-BinarySizeTable {
     $targets = @($script:BinarySizes.Keys | Sort-Object @{
         Expression = {
-            $sum = 0
-            foreach ($sz in $script:BinarySizes[$_].Values) { $sum += $sz }
-            $sum
+            if ($script:BinarySizes[$_].ContainsKey('countlines')) {
+                $script:BinarySizes[$_]['countlines']
+            } else { [int]::MaxValue }
         }
     })
     if ($targets.Count -eq 0) { return }
