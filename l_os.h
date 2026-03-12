@@ -56,41 +56,89 @@ typedef   ptrdiff_t       L_FD;
 
 #ifdef L_WITHDEFS
 
+// String functions
+/// Returns the length of a wide character string
 size_t l_wcslen(const wchar_t *s);
+/// Returns the length of a null-terminated string
 size_t l_strlen(const char *str);
+/// Copies src string to dst, returns dst
 char *l_strcpy(char *dst, const char *src);
+/// Copies up to n characters from src to dst, padding with nulls
 char *l_strncpy(char *dst, const char *src, size_t n);
+/// Returns pointer to first occurrence of c in s, or NULL
 char *l_strchr(const char *s, int c);
+/// Returns pointer to last occurrence of c in s, or NULL
 char *l_strrchr(const char *s, int c);
+/// Returns pointer to first occurrence of s2 in s1, or NULL
 char *l_strstr(const char *s1, const char *s2);
+/// Compares two strings, returns <0, 0, or >0
 int l_strcmp(const char *s1, const char *s2);
+/// Compares up to n characters of two strings
 int l_strncmp(const char *s1, const char *s2, size_t n);
+/// Reverses a string in place
 void l_reverse(char str[], int length);
 
+// Conversion functions
+/// Returns non-zero if c is a digit ('0'-'9')
 int l_isdigit(int c);
+/// Converts a string to a long integer
 long l_atol(const char *s);
+/// Converts a string to an integer
 int l_atoi(const char *s);
+/// Converts an integer to a string in the given radix (2-36)
 char *l_itoa(int in, char* buffer, int radix);
 
+// Memory functions
+/// Copies len bytes from src to dst, handling overlapping regions
 void *l_memmove(void *dst, const void *src, size_t len);
+/// Fills len bytes of dst with byte value b
 void *l_memset(void *dst, int b, size_t len);
+/// Compares n bytes of s1 and s2, returns <0, 0, or >0
 int l_memcmp(const void *s1, const void *s2, size_t n);
+/// Copies len bytes from src to dst
 void *l_memcpy(void *dst, const void *src, size_t len);
 
-// System interaction
+// System functions
+/// Terminates the process with the given status code
 noreturn void l_exit(int status);
+/// Opens a file with the given flags and mode, returns file descriptor
 L_FD l_open(const char *path, int flags, mode_t mode);
+/// Closes a file descriptor
 int l_close(L_FD fd);
+/// Reads up to count bytes from fd into buf
 ssize_t l_read(L_FD fd, void *buf, size_t count);
+/// Writes up to count bytes from buf to fd
 ssize_t l_write(L_FD fd, const void *buf, size_t count);
+/// Writes a string to stdout
 void l_puts(const char* s);
+/// Exits with code and message if condition is true
 void l_exitif(bool condition, int code, char *message);
 
+// Convenience file openers
+/// Opens a file for reading
 L_FD l_open_read(const char* file);
+/// Opens or creates a file for writing
 L_FD l_open_write(const char* file);
+/// Opens or creates a file for reading and writing
 L_FD l_open_readwrite(const char* file);
+/// Opens or creates a file for appending
 L_FD l_open_append(const char* file);
+/// Opens or creates a file, truncating to zero length
 L_FD l_open_trunc(const char* file);
+
+#ifdef __unix__
+// Unix-only functions
+/// Changes the current working directory
+int l_chdir(const char *path);
+/// Duplicates a file descriptor
+int l_dup(L_FD fd);
+/// Repositions the file offset of fd
+off_t l_lseek(L_FD fd, off_t offset, int whence);
+/// Creates a directory with the given permissions
+int l_mkdir(const char *path, mode_t mode);
+/// Yields the processor to other threads
+int l_sched_yield(void);
+#endif
 
 #endif // L_WITHDEFS
 

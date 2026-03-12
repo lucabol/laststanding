@@ -13,14 +13,59 @@ A minimal C runtime and test suite for exploring freestanding, static, and cross
 - Simple build and test automation via `Taskfile` (bash) and `test_all.bat` (Windows)
 - AArch64 (64-bit ARM) fully supported and tested via QEMU
 
-## Scope: What's Included and Not Included
+## Function Reference
 
-### Included
-- String and memory operations (`strlen`, `memcpy`, `strchr`, `memset`, etc.)
-- Number conversion (`atoi`, `itoa`, etc.)
-- File I/O operations (`open`, `read`, `write`, `close`, `fstat`, `seek`)
-- Syscall wrappers for Linux and Windows
-- Platform startup code and entry points for all supported architectures
+Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
+
+<!-- BEGIN FUNCTION REFERENCE -->
+
+| Function | Description | Platform |
+|----------|-------------|----------|
+| **String functions** | | |
+| `l_wcslen` | Returns the length of a wide character string | All |
+| `l_strlen` | Returns the length of a null-terminated string | All |
+| `l_strcpy` | Copies src string to dst, returns dst | All |
+| `l_strncpy` | Copies up to n characters from src to dst, padding with nulls | All |
+| `l_strchr` | Returns pointer to first occurrence of c in s, or NULL | All |
+| `l_strrchr` | Returns pointer to last occurrence of c in s, or NULL | All |
+| `l_strstr` | Returns pointer to first occurrence of s2 in s1, or NULL | All |
+| `l_strcmp` | Compares two strings, returns <0, 0, or >0 | All |
+| `l_strncmp` | Compares up to n characters of two strings | All |
+| `l_reverse` | Reverses a string in place | All |
+| **Conversion functions** | | |
+| `l_isdigit` | Returns non-zero if c is a digit ('0'-'9') | All |
+| `l_atol` | Converts a string to a long integer | All |
+| `l_atoi` | Converts a string to an integer | All |
+| `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
+| **Memory functions** | | |
+| `l_memmove` | Copies len bytes from src to dst, handling overlapping regions | All |
+| `l_memset` | Fills len bytes of dst with byte value b | All |
+| `l_memcmp` | Compares n bytes of s1 and s2, returns <0, 0, or >0 | All |
+| `l_memcpy` | Copies len bytes from src to dst | All |
+| **System functions** | | |
+| `l_exit` | Terminates the process with the given status code | All |
+| `l_open` | Opens a file with the given flags and mode, returns file descriptor | All |
+| `l_close` | Closes a file descriptor | All |
+| `l_read` | Reads up to count bytes from fd into buf | All |
+| `l_write` | Writes up to count bytes from buf to fd | All |
+| `l_puts` | Writes a string to stdout | All |
+| `l_exitif` | Exits with code and message if condition is true | All |
+| **Convenience file openers** | | |
+| `l_open_read` | Opens a file for reading | All |
+| `l_open_write` | Opens or creates a file for writing | All |
+| `l_open_readwrite` | Opens or creates a file for reading and writing | All |
+| `l_open_append` | Opens or creates a file for appending | All |
+| `l_open_trunc` | Opens or creates a file, truncating to zero length | All |
+| **Unix-only functions** | | |
+| `l_chdir` | Changes the current working directory | Unix |
+| `l_dup` | Duplicates a file descriptor | Unix |
+| `l_lseek` | Repositions the file offset of fd | Unix |
+| `l_mkdir` | Creates a directory with the given permissions | Unix |
+| `l_sched_yield` | Yields the processor to other threads | Unix |
+
+<!-- END FUNCTION REFERENCE -->
+
+## Scope
 
 ### Not Included (by Design)
 - `printf`/`sprintf` — use direct write syscalls or minimal formatting
@@ -74,8 +119,6 @@ test_all.bat
 # Test ARM binaries (via WSL + QEMU)
 .\ci.ps1 -Target arm -Action test
 ```
-
-> **Note:** `build.ps1` is kept as a backward-compatible wrapper that forwards to `ci.ps1`.
 
 **Requirements:**
 - Windows builds work natively (requires clang on PATH or Visual Studio Build Tools)
