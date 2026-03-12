@@ -1,9 +1,16 @@
 *.exe
 *.o
 *.obj
+*.armhf
+*.aarch64
 tags
 test_*
 bin/*
 .cache/
 compile_commands.json
+results.txt
+test_explicit_open
+test_file
+test_rw_file
+test_write_file
 
