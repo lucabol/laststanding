@@ -233,7 +233,13 @@ function Get-StepSummary {
 }
 
 function Write-BinarySizeTable {
-    $targets = @($script:BinarySizes.Keys | Sort-Object)
+    $targets = @($script:BinarySizes.Keys | Sort-Object @{
+        Expression = {
+            $sum = 0
+            foreach ($sz in $script:BinarySizes[$_].Values) { $sum += $sz }
+            $sum
+        }
+    })
     if ($targets.Count -eq 0) { return }
 
     # Short display names for row labels
