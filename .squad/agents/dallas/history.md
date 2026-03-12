@@ -168,3 +168,19 @@ Fixed ARM clang cross-compilation failures caused by GCC-specific inline assembl
 - ARM inline asm must use bare register names (`r0`, `sp`) not `%r0`/`%sp`, and `#` for immediates not `$`. GCC accepts both syntaxes; clang only accepts the ARM-native syntax. The `%` and `$` prefixes are x86 conventions that GCC's ARM backend also accepts but clang does not.
 - Clang's assembler rejects `.weak sym` followed by `.global sym` — it treats this as a binding change error. `.weak` already implies global visibility, so `.global` is redundant and should be omitted.
 - C functions with empty parameter lists `void f()` should use `void f(void)` for strict C correctness. Clang warns about this with `-Wstrict-prototypes`; GCC is silent by default.
+
+## Work Session — 2026-03-16 (follow-up)
+
+Added two new `l_*` functions to `l_os.h` with full test coverage.
+
+**Changes:**
+
+1. **l_strcmp(const char *s1, const char *s2):** Full string comparison using unsigned char, returns <0/0/>0. Declaration, override `#define`, and implementation placed next to `l_strncmp`.
+
+2. **l_strncpy(char *dst, const char *src, size_t n):** Copies at most n chars from src to dst, zero-pads remainder per C standard. Declaration, override `#define`, and implementation placed next to `l_strcpy`.
+
+3. **l_getenv — deferred.** Linux `_start` doesn't capture `envp`; `/proc/self/environ` approach requires static buffers and is Linux-only. Windows needs `GetEnvironmentVariableW` + static buffer. Both are cross-cutting changes better handled as standalone work. Decision documented in `.squad/decisions.md`.
+
+4. **Tests:** Added `test_strcmp` (12 assertions) and `test_strncpy` (7 assertions) to `test/test_extended.c` following existing patterns.
+
+Verified: Windows build + all tests pass (build.bat && test_all.bat).

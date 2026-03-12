@@ -59,9 +59,11 @@ typedef   ptrdiff_t       L_FD;
 size_t l_wcslen(const wchar_t *s);
 size_t l_strlen(const char *str);
 char *l_strcpy(char *dst, const char *src);
+char *l_strncpy(char *dst, const char *src, size_t n);
 char *l_strchr(const char *s, int c);
 char *l_strrchr(const char *s, int c);
 char *l_strstr(const char *s1, const char *s2);
+int l_strcmp(const char *s1, const char *s2);
 int l_strncmp(const char *s1, const char *s2, size_t n);
 void l_reverse(char str[], int length);
 
@@ -104,8 +106,7 @@ asm(".section .text\n"
     "pop %rdi\n"                // argc   (first arg, %rdi)
     "mov %rsp, %rsi\n"          // argv[] (second arg, %rsi)
     "lea 8(%rsi,%rdi,8),%rdx\n" // then a NULL then envp (third arg, %rdx)
-    "and $-16, %rsp\n"          // x86 ABI : esp must be 16-byte aligned when
-    "sub $8, %rsp\n"            // entering the callee
+    "and $-16, %rsp\n"          // x86 ABI : stack must be 16-byte aligned before CALL
     "call main\n"               // main() returns the status code, we'll exit with it.
     "movzb %al, %rdi\n"         // retrieve exit code from 8 lower bits
     "mov $60, %rax\n"           // NR_exit == 60
@@ -116,7 +117,6 @@ asm(".section .text\n"
 /* startup code for ARM */
 asm(".section .text\n"
     ".weak _start\n"
-    ".global _start\n"
     "_start:\n"
 #if defined(__THUMBEB__) || defined(__THUMBEL__)
     /* We enter here in 32-bit mode but if some previous functions were in
@@ -130,23 +130,23 @@ asm(".section .text\n"
     "bx      r0\n"
     ".code 16\n"
 #endif
-    "pop {%r0}\n"                 // argc was in the stack
-    "mov %r1, %sp\n"              // argv = sp
-    "add %r2, %r1, %r0, lsl #2\n" // envp = argv + 4*argc ...
-    "add %r2, %r2, $4\n"          //        ... + 4
-    "and %r3, %r1, $-8\n"         // AAPCS : sp must be 8-byte aligned in the
-    "mov %sp, %r3\n"              //         callee, an bl doesn't push (lr=pc)
+    "pop {r0}\n"                   // argc was in the stack
+    "mov r1, sp\n"                 // argv = sp
+    "add r2, r1, r0, lsl #2\n"    // envp = argv + 4*argc ...
+    "add r2, r2, #4\n"            //        ... + 4
+    "and r3, r1, #-8\n"           // AAPCS : sp must be 8-byte aligned in the
+    "mov sp, r3\n"                //         callee, an bl doesn't push (lr=pc)
     "bl main\n"                   // main() returns the status code, we'll exit with it.
-    "movs r7, $1\n"               // NR_exit == 1
-    "svc $0x00\n"
+    "movs r7, #1\n"               // NR_exit == 1
+    "svc #0\n"
     );
 #elif defined(__aarch64__)
 /* startup code for AArch64 */
 asm(".section .text\n"
     ".weak _start\n"
-    ".global _start\n"
     "_start:\n"
-    "ldr x0, [sp]\n"              // argc (x0) was in the stack    "add x1, sp, 8\n"             // argv (x1) = sp
+    "ldr x0, [sp]\n"              // argc (x0) was in the stack
+    "add x1, sp, 8\n"             // argv (x1) = sp
     "lsl x2, x0, 3\n"             // envp (x2) = 8*argc ...
     "add x2, x2, 8\n"             //           + 8 (skip null)
     "add x2, x2, x1\n"            //           + argv
@@ -154,35 +154,7 @@ asm(".section .text\n"
     "bl main\n"                   // main() returns the status code, we'll exit with it.
     "mov x8, 93\n"                // NR_exit == 93
     "svc #0\n"
-    ");
-#elif defined(__arm__)
-/* startup code for ARM */
-asm(".section .text\n"
-    ".weak _start\n"
-    ".global _start\n"
-    "_start:\n"
-#if defined(__THUMBEB__) || defined(__THUMBEL__)
-    /* We enter here in 32-bit mode but if some previous functions were in
-     * 16-bit mode, the assembler cannot know, so we need to tell it we're in
-     * 32-bit now, then switch to 16-bit (is there a better way to do it than
-     * by hand ?) and tell the asm we're now in 16-bit mode so that
-     * it generates correct instructions. Note that we do not support thumb1.
-     */
-    ".code 32\n"
-    "add     r0, pc, #1\n"
-    "bx      r0\n"
-    ".code 16\n"
-#endif
-    "pop {%r0}\n"                 // argc was in the stack
-    "mov %r1, %sp\n"              // argv = sp
-    "add %r2, %r1, %r0, lsl #2\n" // envp = argv + 4*argc ...
-    "add %r2, %r2, $4\n"          //        ... + 4
-    "and %r3, %r1, $-8\n"         // AAPCS : sp must be 8-byte aligned in the
-    "mov %sp, %r3\n"              //         callee, an bl doesn't push (lr=pc)
-    "bl main\n"                   // main() returns the status code, we'll exit with it.
-    "movs r7, $1\n"               // NR_exit == 1
-    "svc $0x00\n"
-    ");
+    );
 #endif
 
 #else // windows
@@ -369,6 +341,8 @@ int WINAPI mainCRTStartup(void)
 #  define strchr l_strchr
 #  define strrchr l_strrchr
 #  define strstr l_strstr
+#  define strcmp l_strcmp
+#  define strncpy l_strncpy
 
 #  define isdigit l_isdigit
 #  define atol l_atol
@@ -444,9 +418,9 @@ inline void *l_memset(void *dst, int b, size_t len)
 inline int l_memcmp(const void *s1, const void *s2, size_t n)
 {
     size_t ofs = 0;
-    char c1 = 0;
+    int c1 = 0;
 
-    while (ofs < n && !(c1 = ((char *)s1)[ofs] - ((char *)s2)[ofs])) {
+    while (ofs < n && !(c1 = ((unsigned char *)s1)[ofs] - ((unsigned char *)s2)[ofs])) {
         ofs++;
     }
     return c1;
@@ -457,6 +431,18 @@ inline char *l_strcpy(char *dst, const char *src)
     char *ret = dst;
 
     while ((*dst++ = *src++));
+    return ret;
+}
+
+inline char *l_strncpy(char *dst, const char *src, size_t n)
+{
+    char *ret = dst;
+    size_t i;
+
+    for (i = 0; i < n && src[i] != '\0'; i++)
+        dst[i] = src[i];
+    for (; i < n; i++)
+        dst[i] = '\0';
     return ret;
 }
 
@@ -497,11 +483,27 @@ inline int l_strncmp(const char *s1, const char *s2, size_t n) {
     return 0;
 }
 
+inline int l_strcmp(const char *s1, const char *s2) {
+    unsigned char u1, u2;
+
+    for (;;) {
+        u1 = (unsigned char) *s1++;
+        u2 = (unsigned char) *s2++;
+        if (u1 != u2)
+            return u1 - u2;
+        if (u1 == '\0')
+            return 0;
+    }
+}
+
 inline char *l_strstr(const char *s1, const char *s2) {
-    const size_t len = strlen (s2);
-    while (*s1)
+    const size_t len = l_strlen(s2);
+    const size_t slen = l_strlen(s1);
+    if (len > slen) return (0);
+    const char *end = s1 + slen - len;
+    while (*s1 && s1 <= end)
     {
-        if (!l_memcmp (s1, s2, len))
+        if (!l_memcmp(s1, s2, len))
             return (char *)s1;
         ++s1;
     }
@@ -631,6 +633,7 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
  */
 
 #define my_syscall0(num)                                                      \
+({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          \
@@ -639,9 +642,12 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
                          : "=a" (_ret)                                                 \
                          : "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         )
+                         );                                                            \
+         _ret;                                                                 \
+})
 
 #define my_syscall1(num, arg1)                                                \
+({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -652,9 +658,12 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
                          : "r"(_arg1),                                                 \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         )
+                         );                                                            \
+         _ret;                                                                 \
+})
 
 #define my_syscall2(num, arg1, arg2)                                          \
+({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -666,9 +675,12 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
                          : "r"(_arg1), "r"(_arg2),                                     \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         )
+                         );                                                            \
+         _ret;                                                                 \
+})
 
 #define my_syscall3(num, arg1, arg2, arg3)                                    \
+({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -681,9 +693,12 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
                          : "r"(_arg1), "r"(_arg2), "r"(_arg3),                         \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r10", "r11", "memory", "cc"             \
-                         )
+                         );                                                            \
+         _ret;                                                                 \
+})
 
 #define my_syscall4(num, arg1, arg2, arg3, arg4)                              \
+({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -697,9 +712,12 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
                          : "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4),             \
                          "0"(_num)                                                   \
                          : "rcx", "r8", "r9", "r11", "memory", "cc"                    \
-                         )
+                         );                                                            \
+         _ret;                                                                 \
+})
 
 #define my_syscall5(num, arg1, arg2, arg3, arg4, arg5)                        \
+({                                                                            \
          long _ret;                                                            \
          register long _num  asm("rax") = (num);                               \
          register long _arg1 asm("rdi") = (long)(arg1);                        \
@@ -714,7 +732,9 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
                          : "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4), "r"(_arg5), \
                          "0"(_num)                                                   \
                          : "rcx", "r9", "r11", "memory", "cc"                          \
-                         )
+                         );                                                            \
+         _ret;                                                                 \
+})
 
 #define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6)                  \
         ({                                                                            \
@@ -844,6 +864,7 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
 })
 
 #define my_syscall5(num, arg1, arg2, arg3, arg4, arg5) \
+({                                                     \
     long _ret; \
     register long _num asm("x8") = (num); \
     register long _x0 asm("x0") = (long)(arg1); \
@@ -857,9 +878,12 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
         : "r"(_num), "r"(_x1), "r"(_x2), "r"(_x3), "r"(_x4) \
         : "memory" \
     ); \
-    _ret = _x0;
+    _ret = _x0; \
+    _ret; \
+})
 
 #define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6) \
+({                                                           \
     long _ret; \
     register long _num asm("x8") = (num); \
     register long _x0 asm("x0") = (long)(arg1); \
@@ -874,7 +898,9 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
         : "r"(_num), "r"(_x1), "r"(_x2), "r"(_x3), "r"(_x4), "r"(_x5) \
         : "memory" \
     ); \
-    _ret = _x0;
+    _ret = _x0; \
+    _ret; \
+})
 
 // File flags (same as x86_64)
 #define O_RDONLY            0
@@ -888,6 +914,169 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
 #define O_NONBLOCK      0x800
 #define O_DIRECTORY   0x10000
 
+#elif defined(__arm__)
+/* Syscalls for ARM (32-bit, EABI) :
+ *   - syscall number is passed in r7
+ *   - arguments are in r0, r1, r2, r3, r4, r5
+ *   - the system call is performed by calling svc #0
+ *   - syscall return comes in r0
+ *   - lr is clobbered by the svc instruction
+ *   - r7 is saved/restored via push/pop to avoid conflicts with
+ *     Thumb mode's use of r7 as the frame pointer
+ */
+
+#define my_syscall0(num)                                                      \
+({                                                                            \
+	register long _arg1 asm("r0");                                        \
+	long _num = (long)(num);                                              \
+	                                                                      \
+	asm volatile (                                                        \
+		"push {r7}\n"                                                 \
+		"mov r7, %[nr]\n"                                             \
+		"svc #0\n"                                                    \
+		"pop {r7}\n"                                                  \
+		: "=r"(_arg1)                                                 \
+		: [nr] "r"(_num)                                              \
+		: "memory", "cc", "lr"                                        \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall1(num, arg1)                                                \
+({                                                                            \
+	register long _arg1 asm("r0") = (long)(arg1);                         \
+	long _num = (long)(num);                                              \
+	                                                                      \
+	asm volatile (                                                        \
+		"push {r7}\n"                                                 \
+		"mov r7, %[nr]\n"                                             \
+		"svc #0\n"                                                    \
+		"pop {r7}\n"                                                  \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1),                                                 \
+		  [nr] "r"(_num)                                              \
+		: "memory", "cc", "lr"                                        \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall2(num, arg1, arg2)                                          \
+({                                                                            \
+	register long _arg1 asm("r0") = (long)(arg1);                         \
+	register long _arg2 asm("r1") = (long)(arg2);                         \
+	long _num = (long)(num);                                              \
+	                                                                      \
+	asm volatile (                                                        \
+		"push {r7}\n"                                                 \
+		"mov r7, %[nr]\n"                                             \
+		"svc #0\n"                                                    \
+		"pop {r7}\n"                                                  \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2),                                     \
+		  [nr] "r"(_num)                                              \
+		: "memory", "cc", "lr"                                        \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall3(num, arg1, arg2, arg3)                                    \
+({                                                                            \
+	register long _arg1 asm("r0") = (long)(arg1);                         \
+	register long _arg2 asm("r1") = (long)(arg2);                         \
+	register long _arg3 asm("r2") = (long)(arg3);                         \
+	long _num = (long)(num);                                              \
+	                                                                      \
+	asm volatile (                                                        \
+		"push {r7}\n"                                                 \
+		"mov r7, %[nr]\n"                                             \
+		"svc #0\n"                                                    \
+		"pop {r7}\n"                                                  \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2), "r"(_arg3),                         \
+		  [nr] "r"(_num)                                              \
+		: "memory", "cc", "lr"                                        \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall4(num, arg1, arg2, arg3, arg4)                              \
+({                                                                            \
+	register long _arg1 asm("r0") = (long)(arg1);                         \
+	register long _arg2 asm("r1") = (long)(arg2);                         \
+	register long _arg3 asm("r2") = (long)(arg3);                         \
+	register long _arg4 asm("r3") = (long)(arg4);                         \
+	long _num = (long)(num);                                              \
+	                                                                      \
+	asm volatile (                                                        \
+		"push {r7}\n"                                                 \
+		"mov r7, %[nr]\n"                                             \
+		"svc #0\n"                                                    \
+		"pop {r7}\n"                                                  \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4),             \
+		  [nr] "r"(_num)                                              \
+		: "memory", "cc", "lr"                                        \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall5(num, arg1, arg2, arg3, arg4, arg5)                        \
+({                                                                            \
+	register long _arg1 asm("r0") = (long)(arg1);                         \
+	register long _arg2 asm("r1") = (long)(arg2);                         \
+	register long _arg3 asm("r2") = (long)(arg3);                         \
+	register long _arg4 asm("r3") = (long)(arg4);                         \
+	register long _arg5 asm("r4") = (long)(arg5);                         \
+	long _num = (long)(num);                                              \
+	                                                                      \
+	asm volatile (                                                        \
+		"push {r7}\n"                                                 \
+		"mov r7, %[nr]\n"                                             \
+		"svc #0\n"                                                    \
+		"pop {r7}\n"                                                  \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4), "r"(_arg5),\
+		  [nr] "r"(_num)                                              \
+		: "memory", "cc", "lr"                                        \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6)                  \
+({                                                                            \
+	register long _arg1 asm("r0") = (long)(arg1);                         \
+	register long _arg2 asm("r1") = (long)(arg2);                         \
+	register long _arg3 asm("r2") = (long)(arg3);                         \
+	register long _arg4 asm("r3") = (long)(arg4);                         \
+	register long _arg5 asm("r4") = (long)(arg5);                         \
+	register long _arg6 asm("r5") = (long)(arg6);                         \
+	long _num = (long)(num);                                              \
+	                                                                      \
+	asm volatile (                                                        \
+		"push {r7}\n"                                                 \
+		"mov r7, %[nr]\n"                                             \
+		"svc #0\n"                                                    \
+		"pop {r7}\n"                                                  \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4), "r"(_arg5),\
+		  "r"(_arg6), [nr] "r"(_num)                                  \
+		: "memory", "cc", "lr"                                        \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+// File flags (same as x86_64)
+#define O_RDONLY            0
+#define O_WRONLY            1
+#define O_RDWR              2
+#define O_CREAT          0x40
+#define O_EXCL           0x80
+#define O_NOCTTY        0x100
+#define O_TRUNC         0x200
+#define O_APPEND        0x400
+#define O_NONBLOCK      0x800
+#define O_DIRECTORY    0x4000
+
 #else
 #error "Supported architectures: linux x86_64, aarch64, arm, and windows. Paste relevant nolibc.h sections for more archs."
 #endif
@@ -899,6 +1088,9 @@ int raise(int sig) {
     return 0;
 }
 #endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 
 noreturn inline void l_exit(int status)
 {
@@ -962,6 +1154,8 @@ inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     return my_syscall3(__NR_write, fd, buf, count);
 }
+
+#pragma GCC diagnostic pop
 
 inline L_FD l_open_read(const char* file) {
     return l_open(file, O_RDONLY, 0);
