@@ -126,6 +126,16 @@ L_FD l_open_append(const char* file);
 /// Opens or creates a file, truncating to zero length
 L_FD l_open_trunc(const char* file);
 
+// Terminal and timing functions (cross-platform)
+/// Sleeps for the given number of milliseconds
+void l_sleep_ms(unsigned int ms);
+/// Sets stdin to raw mode (no echo, no line buffering), returns old mode
+unsigned long l_term_raw(void);
+/// Restores terminal mode from value returned by l_term_raw
+void l_term_restore(unsigned long old_mode);
+/// Reads from fd without blocking, returns 0 if no data available
+ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
+
 #ifdef __unix__
 // Unix-only functions
 /// Changes the current working directory
@@ -138,6 +148,14 @@ off_t l_lseek(L_FD fd, off_t offset, int whence);
 int l_mkdir(const char *path, mode_t mode);
 /// Yields the processor to other threads
 int l_sched_yield(void);
+/// Sleeps for the given number of milliseconds
+void l_sleep_ms(unsigned int ms);
+/// Sets stdin to raw mode (no echo, no line buffering), returns old mode
+unsigned long l_term_raw(void);
+/// Restores terminal mode from value returned by l_term_raw
+void l_term_restore(unsigned long old_mode);
+/// Reads from fd without blocking, returns 0 if no data available
+ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
 #endif
 
 #endif // L_WITHDEFS
@@ -1198,6 +1216,62 @@ inline int l_sched_yield(void)
     return my_syscall0(__NR_sched_yield);
 }
 
+// Terminal and timing support for Unix
+struct l_timespec {
+    long tv_sec;
+    long tv_nsec;
+};
+
+inline void l_sleep_ms(unsigned int ms)
+{
+    struct l_timespec ts;
+    ts.tv_sec = ms / 1000;
+    ts.tv_nsec = (long)(ms % 1000) * 1000000L;
+    my_syscall2(__NR_nanosleep, &ts, (void*)0);
+}
+
+// termios constants for raw mode
+#define L_TCGETS   0x5401
+#define L_TCSETS   0x5402
+#define L_ICANON   0000002
+#define L_ECHO     0000010
+#define L_ISIG     0000001
+
+struct l_termios {
+    unsigned int c_iflag;
+    unsigned int c_oflag;
+    unsigned int c_cflag;
+    unsigned int c_lflag;
+    unsigned char c_line;
+    unsigned char c_cc[19];
+};
+
+static struct l_termios l_saved_termios;
+
+inline unsigned long l_term_raw(void)
+{
+    struct l_termios raw;
+    my_syscall3(__NR_ioctl, L_STDIN, L_TCGETS, &l_saved_termios);
+    l_memcpy(&raw, &l_saved_termios, sizeof(raw));
+    raw.c_lflag &= ~(L_ICANON | L_ECHO | L_ISIG);
+    raw.c_cc[6] = 0;  // VMIN = 0 (non-blocking)
+    raw.c_cc[5] = 0;  // VTIME = 0
+    my_syscall3(__NR_ioctl, L_STDIN, L_TCSETS, &raw);
+    return l_saved_termios.c_lflag;
+}
+
+inline void l_term_restore(unsigned long old_mode)
+{
+    (void)old_mode;
+    my_syscall3(__NR_ioctl, L_STDIN, L_TCSETS, &l_saved_termios);
+}
+
+inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
+{
+    // With VMIN=0, VTIME=0 set by l_term_raw, read returns immediately
+    return my_syscall3(__NR_read, fd, buf, count);
+}
+
 inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     return my_syscall3(__NR_write, fd, buf, count);
@@ -1276,6 +1350,53 @@ inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 inline int l_close(L_FD fd) {
     BOOL result = CloseHandle((HANDLE)fd);
     if(result) return 0; else return -1;
+}
+
+// Terminal and timing support for Windows
+inline void l_sleep_ms(unsigned int ms)
+{
+    Sleep(ms);
+}
+
+static DWORD l_saved_console_mode;
+
+inline unsigned long l_term_raw(void)
+{
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    GetConsoleMode(in, &l_saved_console_mode);
+    DWORD raw = l_saved_console_mode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT);
+    SetConsoleMode(in, raw);
+    // Enable ANSI escape sequences on stdout
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD out_mode;
+    GetConsoleMode(out, &out_mode);
+    SetConsoleMode(out, out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    return l_saved_console_mode;
+}
+
+inline void l_term_restore(unsigned long old_mode)
+{
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    SetConsoleMode(in, (DWORD)old_mode);
+}
+
+inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
+{
+    (void)fd; (void)count;
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    INPUT_RECORD ir;
+    DWORD events;
+    while (PeekConsoleInputW(in, &ir, 1, &events) && events > 0) {
+        ReadConsoleInputW(in, &ir, 1, &events);
+        if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+            char c = ir.Event.KeyEvent.uChar.AsciiChar;
+            if (c) {
+                *(char*)buf = c;
+                return 1;
+            }
+        }
+    }
+    return 0;
 }
 
 

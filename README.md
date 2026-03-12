@@ -120,12 +120,21 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_open_readwrite` | Opens or creates a file for reading and writing | All |
 | `l_open_append` | Opens or creates a file for appending | All |
 | `l_open_trunc` | Opens or creates a file, truncating to zero length | All |
+| **Terminal and timing functions (cross-platform)** | | |
+| `l_sleep_ms` | Sleeps for the given number of milliseconds | All |
+| `l_term_raw` | Sets stdin to raw mode (no echo, no line buffering), returns old mode | All |
+| `l_term_restore` | Restores terminal mode from value returned by l_term_raw | All |
+| `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | All |
 | **Unix-only functions** | | |
 | `l_chdir` | Changes the current working directory | Unix |
 | `l_dup` | Duplicates a file descriptor | Unix |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
 | `l_sched_yield` | Yields the processor to other threads | Unix |
+| `l_sleep_ms` | Sleeps for the given number of milliseconds | Unix |
+| `l_term_raw` | Sets stdin to raw mode (no echo, no line buffering), returns old mode | Unix |
+| `l_term_restore` | Restores terminal mode from value returned by l_term_raw | Unix |
+| `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | Unix |
 
 <!-- END FUNCTION REFERENCE -->
 
