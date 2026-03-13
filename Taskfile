@@ -111,10 +111,8 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
       
       # Show binary size for bloat assessment
       echo -n "  Binary size: "
-      size_output=$(size "$exe" | tail -n 1)
-      text_size=$(echo "$size_output" | awk '{print $1}')
-      total_size=$(echo "$size_output" | awk '{print $4}')
-      echo "${total_size} bytes (text: ${text_size})"
+      total_size=$(stat -c%s "$exe" 2>/dev/null || stat -f%z "$exe" 2>/dev/null || wc -c < "$exe")
+      echo "${total_size} bytes"
       
       # Check for excessive symbols (should be minimal or none due to stripping)
       echo -n "  Symbol count: "
@@ -218,10 +216,8 @@ function verify_arm {    # Verify ARM executables are stdlib-independent and blo
 
       # Binary size
       echo -n "  Binary size: "
-      size_output=$(size "$exe" | tail -n 1)
-      text_size=$(echo "$size_output" | awk '{print $1}')
-      total_size=$(echo "$size_output" | awk '{print $4}')
-      echo "${total_size} bytes (text: ${text_size})"
+      total_size=$(stat -c%s "$exe" 2>/dev/null || stat -f%z "$exe" 2>/dev/null || wc -c < "$exe")
+      echo "${total_size} bytes"
 
       # Symbol count
       echo -n "  Symbol count: "
