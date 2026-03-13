@@ -1523,3 +1523,20 @@ inline void puts(const char* s) {
   l_write(L_STDOUT, s, strlen(s));
 }
 #endif // L_OSH
+
+// Provide non-inline linker symbols for memset/memcpy/memmove.
+// Compilers (especially clang LTO on ARM) emit calls to these for
+// large struct copies/zeroing even in freestanding mode.
+#ifdef L_MAINFILE
+#undef memset
+#undef memcpy
+#undef memmove
+void *memset(void *dst, int b, size_t len) { return l_memset(dst, b, len); }
+void *memcpy(void *dst, const void *src, size_t len) { return l_memcpy(dst, src, len); }
+void *memmove(void *dst, const void *src, size_t len) { return l_memmove(dst, src, len); }
+#ifndef L_DONTOVERRIDE
+#define memset l_memset
+#define memcpy l_memcpy
+#define memmove l_memmove
+#endif
+#endif // L_MAINFILE
