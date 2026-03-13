@@ -44,7 +44,7 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
   case $CC in
     clang)
       LDFLAGS="--target=arm-linux-gnueabihf --sysroot=/usr/arm-linux-gnueabihf -flto"
-      LINK_LIB=""
+      LINK_LIB="-lgcc"
       ;;
   esac
 
