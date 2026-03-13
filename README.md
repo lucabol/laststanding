@@ -53,17 +53,17 @@ Binaries must be compiled freestanding with no standard library:
 
 **Linux (gcc or clang):**
 ```sh
-gcc -I. -O3 -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
+gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
 ```
 
 **Windows (clang):**
 ```bat
-clang -I. -O3 -lkernel32 -ffreestanding -Wall -Wextra -Wpedantic -o myapp.exe myapp.c
+clang -I. -Oz -lkernel32 -ffreestanding -Wall -Wextra -Wpedantic -o myapp.exe myapp.c
 ```
 
 **ARM cross-compilation (gcc):**
 ```sh
-arm-linux-gnueabihf-gcc -I. -O3 -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
+arm-linux-gnueabihf-gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
 ```
 
 ### Key Types

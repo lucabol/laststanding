@@ -8,7 +8,7 @@
 .PARAMETER Compiler
     Compiler for Linux/ARM targets: gcc, clang, all (default: all — runs both gcc and clang)
 .PARAMETER OptLevel
-    Optimization level 0-3 (default: 3)
+    Optimization level: 0, 1, 2, 3, s, or z (default: z — optimize for size)
 .PARAMETER ShowAll
     Show full compiler output, test assertions, and verification details.
     By default output is concise: one PASS/FAIL line per step (full output shown on failure).
@@ -31,8 +31,8 @@ param(
     [ValidateSet('gcc', 'clang', 'all')]
     [string]$Compiler = 'all',
 
-    [ValidateRange(0, 3)]
-    [int]$OptLevel = 3,
+    [ValidateSet('0', '1', '2', '3', 's', 'z')]
+    [string]$OptLevel = 'z',
 
     [switch]$ShowAll,
 
@@ -118,7 +118,7 @@ function Get-BuildSummary {
     }
 
     $cmd = if ($TargetName -eq 'Windows') {
-        "$cc -I. -O3 -lkernel32 -ffreestanding"
+        "$cc -I. -O$OptLevel -lkernel32 -ffreestanding"
     } elseif ($TargetName -match 'Linux') {
         "$cc -I. -O$OptLevel -ffreestanding -nostdlib"
     } elseif ($TargetName -match 'ARM') {

@@ -41,7 +41,7 @@ if not exist bin mkdir bin
 
 for %%f in (test\*.c) do (
     echo   %%~nf
-    "%CC%" -I. "%%f" -O3 -lkernel32 -ffreestanding -o "bin\%%~nf.exe"
+    "%CC%" -I. "%%f" -Oz -lkernel32 -ffreestanding -o "bin\%%~nf.exe"
     if errorlevel 1 (
         echo FAILED: %%~nf
         exit /b 1

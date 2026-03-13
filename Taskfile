@@ -11,7 +11,7 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   clean
   mkdir -p bin
   CC=${1:-gcc}
-  OPT=${2:-3}
+  OPT=${2:-z}
 
   case $CC in
     gcc)
@@ -36,7 +36,7 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
   clean
   mkdir -p bin
   CC=${1:-arm-linux-gnueabihf-gcc}
-  OPT=${2:-3}
+  OPT=${2:-z}
 
   LDFLAGS=""
   LINK_LIB="-lgcc"
