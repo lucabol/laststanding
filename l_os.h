@@ -130,9 +130,9 @@ L_FD l_open_trunc(const char* file);
 /// Sleeps for the given number of milliseconds
 void l_sleep_ms(unsigned int ms);
 /// Sets stdin to raw mode (no echo, no line buffering), returns old mode
-unsigned long l_term_raw(void);
+static unsigned long l_term_raw(void);
 /// Restores terminal mode from value returned by l_term_raw
-void l_term_restore(unsigned long old_mode);
+static void l_term_restore(unsigned long old_mode);
 /// Reads from fd without blocking, returns 0 if no data available
 ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
 /// Gets terminal size in rows and columns
