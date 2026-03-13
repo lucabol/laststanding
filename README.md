@@ -125,16 +125,13 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_term_raw` | Sets stdin to raw mode (no echo, no line buffering), returns old mode | All |
 | `l_term_restore` | Restores terminal mode from value returned by l_term_raw | All |
 | `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | All |
+| `l_term_size` | Gets terminal size in rows and columns | All |
 | **Unix-only functions** | | |
 | `l_chdir` | Changes the current working directory | Unix |
 | `l_dup` | Duplicates a file descriptor | Unix |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
 | `l_sched_yield` | Yields the processor to other threads | Unix |
-| `l_sleep_ms` | Sleeps for the given number of milliseconds | Unix |
-| `l_term_raw` | Sets stdin to raw mode (no echo, no line buffering), returns old mode | Unix |
-| `l_term_restore` | Restores terminal mode from value returned by l_term_raw | Unix |
-| `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | Unix |
 
 <!-- END FUNCTION REFERENCE -->
 

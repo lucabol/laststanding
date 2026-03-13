@@ -135,6 +135,8 @@ unsigned long l_term_raw(void);
 void l_term_restore(unsigned long old_mode);
 /// Reads from fd without blocking, returns 0 if no data available
 ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
+/// Gets terminal size in rows and columns
+void l_term_size(int *rows, int *cols);
 
 #ifdef __unix__
 // Unix-only functions
@@ -148,14 +150,6 @@ off_t l_lseek(L_FD fd, off_t offset, int whence);
 int l_mkdir(const char *path, mode_t mode);
 /// Yields the processor to other threads
 int l_sched_yield(void);
-/// Sleeps for the given number of milliseconds
-void l_sleep_ms(unsigned int ms);
-/// Sets stdin to raw mode (no echo, no line buffering), returns old mode
-unsigned long l_term_raw(void);
-/// Restores terminal mode from value returned by l_term_raw
-void l_term_restore(unsigned long old_mode);
-/// Reads from fd without blocking, returns 0 if no data available
-ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
 #endif
 
 #endif // L_WITHDEFS
@@ -1272,6 +1266,17 @@ inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
     return my_syscall3(__NR_read, fd, buf, count);
 }
 
+#define L_TIOCGWINSZ 0x5413
+struct l_winsize { unsigned short ws_row, ws_col, ws_xpixel, ws_ypixel; };
+
+inline void l_term_size(int *rows, int *cols)
+{
+    struct l_winsize ws;
+    long ret = my_syscall3(__NR_ioctl, L_STDIN, L_TIOCGWINSZ, &ws);
+    if (ret < 0) { *rows = 24; *cols = 80; }
+    else { *rows = ws.ws_row; *cols = ws.ws_col; }
+}
+
 inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     return my_syscall3(__NR_write, fd, buf, count);
@@ -1397,6 +1402,18 @@ inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
         }
     }
     return 0;
+}
+
+inline void l_term_size(int *rows, int *cols)
+{
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (GetConsoleScreenBufferInfo(out, &csbi)) {
+        *cols = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        *rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    } else {
+        *rows = 24; *cols = 80;
+    }
 }
 
 
