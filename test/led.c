@@ -31,26 +31,40 @@ typedef struct {
 
 static Editor E;
 
-// --- Output helpers ---
+// --- Screen buffer (eliminates flicker by writing in one syscall) ---
 
-static void out(const char *s, int len) { write(STDOUT, s, len); }
-static void outs(const char *s)         { out(s, strlen(s)); }
+#define SCREEN_BUF_SIZE (256 * 100)
+static char screen_buf[SCREEN_BUF_SIZE];
+static int screen_pos;
 
-static void out_num(int n) {
+static void sb_clear(void)                { screen_pos = 0; }
+static void sb_flush(void)                { write(STDOUT, screen_buf, screen_pos); screen_pos = 0; }
+
+static void sb_append(const char *s, int len) {
+    if (screen_pos + len > SCREEN_BUF_SIZE) len = SCREEN_BUF_SIZE - screen_pos;
+    memcpy(screen_buf + screen_pos, s, len);
+    screen_pos += len;
+}
+
+static void sb_str(const char *s) { sb_append(s, strlen(s)); }
+
+static void sb_num(int n) {
     char buf[12];
     itoa(n, buf, 10);
-    outs(buf);
+    sb_str(buf);
 }
 
-static void move_cursor(int r, int c) {
-    outs("\033[");
-    out_num(r);
-    outs(";");
-    out_num(c);
-    outs("H");
+static void sb_move(int r, int c) {
+    sb_str("\033[");
+    sb_num(r);
+    sb_str(";");
+    sb_num(c);
+    sb_str("H");
 }
 
-static void clear_line(void) { outs("\033[2K"); }
+// --- Direct output (for non-render operations) ---
+
+static void outs(const char *s) { write(STDOUT, s, strlen(s)); }
 
 static void set_status(const char *msg) {
     int i = 0;
@@ -129,59 +143,59 @@ static int editor_save(void) {
 // --- Rendering ---
 
 static void render(void) {
-    // Build full screen buffer to minimize flicker
-    outs("\033[?25l");  // hide cursor
-    move_cursor(1, 1);
+    sb_clear();
+    sb_str("\033[?25l");  // hide cursor
+    sb_move(1, 1);
 
     int text_rows = E.rows - 1;  // last row = status bar
 
     for (int y = 0; y < text_rows; y++) {
         int file_line = E.scroll_y + y;
-        clear_line();
+        sb_str("\033[2K");  // clear line
         if (file_line < E.num_lines) {
             char *line = E.lines[file_line];
             int len = strlen(line);
-            // Only show what fits in terminal width
             int show = len < E.cols ? len : E.cols;
-            if (show > 0) out(line, show);
+            if (show > 0) sb_append(line, show);
         } else {
-            outs("~");
+            sb_str("~");
         }
-        if (y < text_rows - 1) outs("\r\n");
+        if (y < text_rows - 1) sb_str("\r\n");
     }
 
     // Status bar (inverted colors)
-    outs("\r\n");
-    clear_line();
-    outs("\033[7m");  // reverse video
+    sb_str("\r\n");
+    sb_str("\033[2K");  // clear line
+    sb_str("\033[7m");  // reverse video
 
     const char *mode_str = "NORMAL";
     if (E.mode == INSERT) mode_str = "INSERT";
     else if (E.mode == COMMAND) mode_str = "COMMAND";
 
-    outs(" ");
-    outs(mode_str);
-    outs(" | ");
-    if (E.filename[0]) outs(E.filename);
-    else outs("[No Name]");
-    if (E.modified) outs(" [+]");
-    outs(" | L");
-    out_num(E.cy + 1);
-    outs(",C");
-    out_num(E.cx + 1);
-    outs(" ");
-    if (E.status[0]) { outs("| "); outs(E.status); outs(" "); }
+    sb_str(" ");
+    sb_str(mode_str);
+    sb_str(" | ");
+    if (E.filename[0]) sb_str(E.filename);
+    else sb_str("[No Name]");
+    if (E.modified) sb_str(" [+]");
+    sb_str(" | L");
+    sb_num(E.cy + 1);
+    sb_str(",C");
+    sb_num(E.cx + 1);
+    sb_str(" ");
+    if (E.status[0]) { sb_str("| "); sb_str(E.status); sb_str(" "); }
 
     // Pad the rest of status bar
-    // (simple: just output enough spaces)
-    outs("                                        ");
-    outs("\033[0m");  // reset colors
+    sb_str("                                        ");
+    sb_str("\033[0m");  // reset colors
 
     // Position cursor
     int screen_y = E.cy - E.scroll_y + 1;
     int screen_x = E.cx + 1;
-    move_cursor(screen_y, screen_x);
-    outs("\033[?25h");  // show cursor
+    sb_move(screen_y, screen_x);
+    sb_str("\033[?25h");  // show cursor
+
+    sb_flush();  // single write() for the entire frame
 }
 
 // --- Cursor & scroll ---
@@ -584,22 +598,23 @@ int main(int argc, char *argv[]) {
 
     unsigned long old_mode = l_term_raw();
     outs("\033[2J");  // clear screen
+    int dirty = 1;
 
     while (!E.quit) {
-        render();
+        if (dirty) { render(); dirty = 0; }
         char c;
         ssize_t n = l_read_nonblock(L_STDIN, &c, 1);
         if (n > 0) {
             handle_input(c);
+            dirty = 1;
         } else {
             l_sleep_ms(20);
         }
     }
 
     // Cleanup
-    outs("\033[2J");   // clear screen
-    move_cursor(1, 1);
-    outs("\033[?25h"); // show cursor
+    outs("\033[2J\033[H");  // clear screen + home
+    outs("\033[?25h");      // show cursor
     l_term_restore(old_mode);
 
     return 0;
