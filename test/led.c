@@ -27,6 +27,7 @@ typedef struct {
     int  yank_count;
     int  quit;
     int  count;           // numeric prefix for commands
+    int  crlf;            // 1 = Windows CRLF, 0 = Unix LF
 } Editor;
 
 static Editor E;
@@ -87,12 +88,31 @@ static void editor_load(const char *path) {
     char buf[4096];
     ssize_t n;
     int line = 0, col = 0;
+    int saw_cr = 0;
+    E.crlf = -1;  // unknown until first newline
     E.lines[0][0] = '\0';
 
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
         for (int i = 0; i < n; i++) {
-            if (buf[i] == '\n' || buf[i] == '\r') {
-                if (buf[i] == '\r' && i + 1 < n && buf[i + 1] == '\n') i++;
+            if (saw_cr) {
+                saw_cr = 0;
+                if (buf[i] == '\n') {
+                    if (E.crlf < 0) E.crlf = 1;
+                    continue;  // skip the \n after \r
+                }
+            }
+            if (buf[i] == '\r') {
+                // End this line; check next char for \n
+                E.lines[line][col] = '\0';
+                line++;
+                if (line >= MAX_LINES) goto done;
+                col = 0;
+                E.lines[line][0] = '\0';
+                saw_cr = 1;
+                continue;
+            }
+            if (buf[i] == '\n') {
+                if (E.crlf < 0) E.crlf = 0;
                 E.lines[line][col] = '\0';
                 line++;
                 if (line >= MAX_LINES) goto done;
@@ -106,6 +126,7 @@ static void editor_load(const char *path) {
     }
 done:
     close(fd);
+    if (E.crlf < 0) E.crlf = 0;  // default to LF for empty/no-newline files
     E.num_lines = line + 1;
     if (E.num_lines == 0) E.num_lines = 1;
     E.modified = 0;
@@ -122,9 +143,11 @@ static int editor_save(void) {
         set_status("Error: cannot save");
         return -1;
     }
+    const char *eol = E.crlf ? "\r\n" : "\n";
+    int eol_len = E.crlf ? 2 : 1;
     for (int i = 0; i < E.num_lines; i++) {
         write(fd, E.lines[i], strlen(E.lines[i]));
-        write(fd, "\n", 1);
+        write(fd, eol, eol_len);
     }
     close(fd);
     E.modified = 0;
@@ -182,6 +205,8 @@ static void render(void) {
     sb_num(E.cy + 1);
     sb_str(",C");
     sb_num(E.cx + 1);
+    sb_str(" | ");
+    sb_str(E.crlf ? "CRLF" : "LF");
     sb_str(" ");
     if (E.status[0]) { sb_str("| "); sb_str(E.status); sb_str(" "); }
 
@@ -193,6 +218,8 @@ static void render(void) {
     int screen_y = E.cy - E.scroll_y + 1;
     int screen_x = E.cx + 1;
     sb_move(screen_y, screen_x);
+    // Cursor shape: bar in insert mode, block in normal/command
+    sb_str(E.mode == INSERT ? "\033[5 q" : "\033[1 q");
     sb_str("\033[?25h");  // show cursor
 
     sb_flush();  // single write() for the entire frame
@@ -614,6 +641,7 @@ int main(int argc, char *argv[]) {
 
     // Cleanup
     outs("\033[2J\033[H");  // clear screen + home
+    outs("\033[1 q");       // restore block cursor
     outs("\033[?25h");      // show cursor
     l_term_restore(old_mode);
 
