@@ -1242,7 +1242,7 @@ struct l_termios {
 
 static struct l_termios l_saved_termios;
 
-inline unsigned long l_term_raw(void)
+static inline unsigned long l_term_raw(void)
 {
     struct l_termios raw;
     my_syscall3(__NR_ioctl, L_STDIN, L_TCGETS, &l_saved_termios);
@@ -1254,7 +1254,7 @@ inline unsigned long l_term_raw(void)
     return l_saved_termios.c_lflag;
 }
 
-inline void l_term_restore(unsigned long old_mode)
+static inline void l_term_restore(unsigned long old_mode)
 {
     (void)old_mode;
     my_syscall3(__NR_ioctl, L_STDIN, L_TCSETS, &l_saved_termios);
@@ -1365,7 +1365,7 @@ inline void l_sleep_ms(unsigned int ms)
 
 static DWORD l_saved_console_mode;
 
-inline unsigned long l_term_raw(void)
+static inline unsigned long l_term_raw(void)
 {
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
     GetConsoleMode(in, &l_saved_console_mode);
@@ -1379,7 +1379,7 @@ inline unsigned long l_term_raw(void)
     return l_saved_console_mode;
 }
 
-inline void l_term_restore(unsigned long old_mode)
+static inline void l_term_restore(unsigned long old_mode)
 {
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
     SetConsoleMode(in, (DWORD)old_mode);
