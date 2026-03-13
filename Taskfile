@@ -43,8 +43,11 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
 
   case $CC in
     clang)
+      # ARM clang uses -Os (not -Oz) to avoid __aeabi_idiv calls that need libgcc,
+      # whose div-by-zero handler calls raise() which we don't have.
+      OPT=s
       LDFLAGS="--target=arm-linux-gnueabihf --sysroot=/usr/arm-linux-gnueabihf -flto"
-      LINK_LIB="-lgcc"
+      LINK_LIB=""
       ;;
   esac
 
