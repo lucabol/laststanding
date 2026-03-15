@@ -63,6 +63,8 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
   echo "=== Verifying executables are stdlib-independent and bloat-free ==="
   
   for exe in bin/*; do
+    # Skip Windows (.exe) and ARM (.armhf) binaries
+    case "$exe" in *.exe|*.armhf) continue ;; esac
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo
       echo "Analyzing: $exe"
@@ -137,6 +139,8 @@ function test {    # Build and run all tests in bin directory
   echo "=== Running all executables in bin/ ==="
   local fail=0
   for exe in bin/test*; do
+    # Skip Windows (.exe) and ARM (.armhf) binaries
+    case "$exe" in *.exe|*.armhf) continue ;; esac
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       "$exe"
