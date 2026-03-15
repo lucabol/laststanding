@@ -680,6 +680,22 @@ void test_getenv(void) {
     TEST_ASSERT(path != NULL, "PATH environment variable exists");
     TEST_ASSERT(l_strlen(path) > 0, "PATH is not empty");
 
+    // Verify the value looks like a PATH (contains path separators)
+#ifdef _WIN32
+    TEST_ASSERT(l_strchr(path, ';') != NULL || l_strchr(path, '\\') != NULL,
+                "PATH value contains Windows path characters");
+#else
+    TEST_ASSERT(l_strchr(path, '/') != NULL, "PATH value contains '/' (Unix paths)");
+#endif
+
+    // Partial name must NOT match (PAT != PATH)
+    char *partial = l_getenv("PAT");
+    TEST_ASSERT(partial == NULL, "partial name 'PAT' does not match 'PATH'");
+
+    // Empty name
+    char *empty = l_getenv("");
+    TEST_ASSERT(empty == NULL, "empty name returns NULL");
+
     // Non-existent variable
     char *bogus = l_getenv("LASTSTANDING_NONEXISTENT_VAR_XYZ");
     TEST_ASSERT(bogus == NULL, "non-existent variable returns NULL");

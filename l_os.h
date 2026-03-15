@@ -1538,7 +1538,7 @@ inline void l_getenv_init(int argc, char *argv[]) {
 }
 
 inline char *l_getenv(const char *name) {
-    if (!name) return (char*)0;
+    if (!name || !*name) return (char*)0;
     size_t name_len = l_strlen(name) + 1;
     wchar_t wname[256];
     MultiByteToWideChar(CP_UTF8, 0, name, name_len, wname, 256);
@@ -1559,7 +1559,7 @@ inline void l_getenv_init(int argc, char *argv[]) {
 }
 
 inline char *l_getenv(const char *name) {
-    if (!l_envp || !name) return (char*)0;
+    if (!l_envp || !name || !*name) return (char*)0;
     size_t len = l_strlen(name);
     for (char **ep = l_envp; *ep; ep++) {
         if (l_strncmp(*ep, name, len) == 0 && (*ep)[len] == '=')
