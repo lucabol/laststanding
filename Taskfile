@@ -8,7 +8,6 @@ function clean {    # Clean binaries
 }
 
 function build {    # Build {compiler:gcc} {optimizationchar:0}
-  clean
   mkdir -p bin
   CC=${1:-gcc}
   OPT=${2:-z}
@@ -33,7 +32,6 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
 }
 
 function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueabihf-gcc} {optimizationchar:3}
-  clean
   mkdir -p bin
   CC=${1:-arm-linux-gnueabihf-gcc}
   OPT=${2:-z}
