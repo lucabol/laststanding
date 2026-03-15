@@ -113,6 +113,8 @@ ssize_t l_write(L_FD fd, const void *buf, size_t count);
 void l_puts(const char* s);
 /// Exits with code and message if condition is true
 void l_exitif(bool condition, int code, char *message);
+/// Returns value of environment variable, or NULL if not found
+char *l_getenv(const char *name);
 
 // Convenience file openers
 /// Opens a file for reading
@@ -428,6 +430,7 @@ int WINAPI mainCRTStartup(void)
 #  define sched_yield l_sched_yield
 
 #  define exitif l_exitif
+#  define getenv l_getenv
 #  define open_read l_open_read
 #  define open_write l_open_write
 #  define open_readwrite l_open_readwrite
@@ -558,6 +561,7 @@ inline int l_strcmp(const char *s1, const char *s2) {
 
 inline char *l_strstr(const char *s1, const char *s2) {
     const size_t len = l_strlen(s2);
+    if (len == 0) return (char *)s1;
     const size_t slen = l_strlen(s1);
     if (len > slen) return (0);
     const char *end = s1 + slen - len;
@@ -1522,6 +1526,50 @@ inline void l_exitif(bool condition, int code, char *message) {
 inline void puts(const char* s) {
   l_write(L_STDOUT, s, strlen(s));
 }
+
+// l_getenv: look up environment variable by name.
+// On Unix: walks envp derived from argv (call l_getenv_init from main first).
+// On Windows: uses GetEnvironmentVariableW API directly.
+
+#ifdef _WIN32
+
+inline void l_getenv_init(int argc, char *argv[]) {
+    (void)argc; (void)argv;
+}
+
+inline char *l_getenv(const char *name) {
+    if (!name) return (char*)0;
+    size_t name_len = l_strlen(name) + 1;
+    wchar_t wname[256];
+    MultiByteToWideChar(CP_UTF8, 0, name, name_len, wname, 256);
+    static char result[4096];
+    wchar_t wresult[4096];
+    DWORD len = GetEnvironmentVariableW(wname, wresult, 4096);
+    if (len == 0) return (char*)0;
+    WideCharToMultiByte(CP_UTF8, 0, wresult, -1, result, 4096, NULL, NULL);
+    return result;
+}
+
+#else
+
+static char **l_envp;
+
+inline void l_getenv_init(int argc, char *argv[]) {
+    l_envp = argv + argc + 1;
+}
+
+inline char *l_getenv(const char *name) {
+    if (!l_envp || !name) return (char*)0;
+    size_t len = l_strlen(name);
+    for (char **ep = l_envp; *ep; ep++) {
+        if (l_strncmp(*ep, name, len) == 0 && (*ep)[len] == '=')
+            return *ep + len + 1;
+    }
+    return (char*)0;
+}
+
+#endif
+
 #endif // L_OSH
 
 // Provide non-inline linker symbols for memset/memcpy/memmove.

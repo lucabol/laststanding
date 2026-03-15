@@ -91,7 +91,7 @@ void test_strstr(void) {
     TEST_ASSERT(l_strstr(hay, "xyz") == NULL, "not found returns NULL");
     TEST_ASSERT(l_strstr(hay, "") == hay, "empty needle matches start");
     char empty[] = "";
-    TEST_ASSERT(l_strstr(empty, "") == NULL, "empty hay + empty needle returns NULL");
+    TEST_ASSERT(l_strstr(empty, "") == empty, "empty hay + empty needle returns haystack (POSIX)");
     TEST_ASSERT(l_strstr("", "a") == NULL, "empty hay, non-empty needle");
     TEST_ASSERT(l_strstr(hay, "Hello World") == hay, "needle equals haystack");
     TEST_ASSERT(l_strstr(hay, "Hello World!") == NULL, "needle longer than haystack");
@@ -670,6 +670,27 @@ void test_system_functions(void) {
     TEST_SECTION_PASS("System functions");
 }
 
+// ===================== l_getenv =====================
+
+void test_getenv(void) {
+    TEST_FUNCTION("l_getenv");
+
+    // PATH should exist on every OS
+    char *path = l_getenv("PATH");
+    TEST_ASSERT(path != NULL, "PATH environment variable exists");
+    TEST_ASSERT(l_strlen(path) > 0, "PATH is not empty");
+
+    // Non-existent variable
+    char *bogus = l_getenv("LASTSTANDING_NONEXISTENT_VAR_XYZ");
+    TEST_ASSERT(bogus == NULL, "non-existent variable returns NULL");
+
+    // NULL name
+    char *null_result = l_getenv(NULL);
+    TEST_ASSERT(null_result == NULL, "NULL name returns NULL");
+
+    TEST_SECTION_PASS("l_getenv");
+}
+
 // ===================== Unix-only: l_lseek =====================
 
 #ifndef _WIN32
@@ -781,6 +802,8 @@ void test_mkdir(void) {
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
+    l_getenv_init(argc, argv);
+
     test_command_line_args(argc, argv);
     test_program_name(argc, argv);
     test_unicode_output();
@@ -815,6 +838,7 @@ int main(int argc, char* argv[]) {
     // File operations
     test_file_operations();
     test_system_functions();
+    test_getenv();
 
 #ifndef _WIN32
     // Unix-only
