@@ -10,7 +10,18 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         // Print all environment variables
 #ifdef _WIN32
-        puts("(printenv --all not supported on Windows, specify variable names)\n");
+        wchar_t *env = GetEnvironmentStringsW();
+        if (env) {
+            char buf[4096];
+            wchar_t *p = env;
+            while (*p) {
+                int len = WideCharToMultiByte(CP_UTF8, 0, p, -1, buf, sizeof(buf), NULL, NULL);
+                if (len > 0) { puts(buf); puts("\n"); }
+                while (*p) p++;
+                p++;
+            }
+            FreeEnvironmentStringsW(env);
+        }
 #else
         for (char **ep = l_envp; *ep; ep++) {
             puts(*ep);
