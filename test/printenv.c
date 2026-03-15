@@ -1,14 +1,22 @@
 #define L_MAINFILE
 #include "l_os.h"
 
-// printenv — prints the value of environment variables
-// Usage: printenv VAR1 [VAR2 ...]
+// printenv — prints environment variables
+// Usage: printenv [VAR1 VAR2 ...]  (no args = print all)
 
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
 
     if (argc < 2) {
-        puts("Usage: printenv VAR1 [VAR2 ...]\n");
+        // Print all environment variables
+#ifdef _WIN32
+        puts("(printenv --all not supported on Windows, specify variable names)\n");
+#else
+        for (char **ep = l_envp; *ep; ep++) {
+            puts(*ep);
+            puts("\n");
+        }
+#endif
         return 0;
     }
 
