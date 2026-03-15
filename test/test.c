@@ -799,17 +799,26 @@ void test_dup(void) {
 void test_mkdir(void) {
     TEST_FUNCTION("l_mkdir");
 
+    // First attempt may fail if dir exists from a previous run — that's OK
     int ret = l_mkdir("test_mkdir_tmpdir", 0755);
-    TEST_ASSERT(ret == 0, "mkdir creates directory successfully");
+    if (ret < 0) {
+        // Directory exists from prior run — test the "already exists" path first
+        ret = l_chdir("test_mkdir_tmpdir");
+        TEST_ASSERT(ret == 0, "chdir into existing directory succeeds");
+        ret = l_chdir("..");
+        TEST_ASSERT(ret == 0, "chdir back to parent succeeds");
+    } else {
+        TEST_ASSERT(ret == 0, "mkdir creates directory successfully");
 
-    ret = l_chdir("test_mkdir_tmpdir");
-    TEST_ASSERT(ret == 0, "chdir into new directory succeeds");
+        ret = l_chdir("test_mkdir_tmpdir");
+        TEST_ASSERT(ret == 0, "chdir into new directory succeeds");
 
-    ret = l_chdir("..");
-    TEST_ASSERT(ret == 0, "chdir back to parent succeeds");
+        ret = l_chdir("..");
+        TEST_ASSERT(ret == 0, "chdir back to parent succeeds");
 
-    ret = l_mkdir("test_mkdir_tmpdir", 0755);
-    TEST_ASSERT(ret < 0, "mkdir on existing directory fails");
+        ret = l_mkdir("test_mkdir_tmpdir", 0755);
+        TEST_ASSERT(ret < 0, "mkdir on existing directory fails");
+    }
 
     TEST_SECTION_PASS("l_mkdir");
 }

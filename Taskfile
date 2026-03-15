@@ -27,7 +27,7 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   for f in test/*; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
+    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
   done
 }
 
@@ -52,7 +52,7 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
   for f in test/*; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -Wl,--gc-sections -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
+    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
   done
 }
 
