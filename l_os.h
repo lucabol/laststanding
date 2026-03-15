@@ -114,7 +114,9 @@ void l_puts(const char* s);
 /// Exits with code and message if condition is true
 void l_exitif(bool condition, int code, char *message);
 /// Returns value of environment variable, or NULL if not found
-char *l_getenv(const char *name);
+static char *l_getenv(const char *name);
+/// Initializes environment variable access (call from main)
+static void l_getenv_init(int argc, char *argv[]);
 
 // Convenience file openers
 /// Opens a file for reading
@@ -1533,11 +1535,11 @@ inline void puts(const char* s) {
 
 #ifdef _WIN32
 
-inline void l_getenv_init(int argc, char *argv[]) {
+static inline void l_getenv_init(int argc, char *argv[]) {
     (void)argc; (void)argv;
 }
 
-inline char *l_getenv(const char *name) {
+static inline char *l_getenv(const char *name) {
     if (!name || !*name) return (char*)0;
     size_t name_len = l_strlen(name) + 1;
     wchar_t wname[256];
@@ -1554,11 +1556,11 @@ inline char *l_getenv(const char *name) {
 
 static char **l_envp;
 
-inline void l_getenv_init(int argc, char *argv[]) {
+static inline void l_getenv_init(int argc, char *argv[]) {
     l_envp = argv + argc + 1;
 }
 
-inline char *l_getenv(const char *name) {
+static inline char *l_getenv(const char *name) {
     if (!l_envp || !name || !*name) return (char*)0;
     size_t len = l_strlen(name);
     for (char **ep = l_envp; *ep; ep++) {
