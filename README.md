@@ -115,6 +115,7 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_puts` | Writes a string to stdout | All |
 | `l_exitif` | Exits with code and message if condition is true | All |
 | `l_getenv` | Returns value of environment variable, or NULL if not found | All |
+| `l_getenv_init` | Initializes environment variable access (call from main) | All |
 | **Convenience file openers** | | |
 | `l_open_read` | Opens a file for reading | All |
 | `l_open_write` | Opens or creates a file for writing | All |
