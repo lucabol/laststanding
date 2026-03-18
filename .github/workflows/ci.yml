@@ -9,6 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check generated docs are up to date
+        run: ./gen-docs.ps1 -Check
+        shell: pwsh
+
   windows:
     runs-on: windows-latest
     steps:
