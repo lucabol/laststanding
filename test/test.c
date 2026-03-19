@@ -824,6 +824,66 @@ void test_mkdir(void) {
 }
 #endif
 
+// ===================== l_open_append =====================
+
+void test_open_append(void) {
+    TEST_FUNCTION("l_open_append");
+
+    // Write initial content, truncating any pre-existing file from prior runs
+    L_FD fd = l_open_trunc("test_append_file");
+    TEST_ASSERT(fd >= 0, "open for initial write");
+    ssize_t w = l_write(fd, "Hello", 5);
+    TEST_ASSERT(w == 5, "write initial 5 bytes");
+    l_close(fd);
+
+    // Append more content
+    fd = l_open_append("test_append_file");
+    TEST_ASSERT(fd >= 0, "open for appending");
+    w = l_write(fd, " World", 6);
+    TEST_ASSERT(w == 6, "append 6 bytes");
+    l_close(fd);
+
+    // Verify the full content was preserved and appended
+    fd = l_open_read("test_append_file");
+    TEST_ASSERT(fd >= 0, "open for read-back");
+    char buf[16];
+    ssize_t n = l_read(fd, buf, sizeof(buf));
+    TEST_ASSERT(n == 11, "total bytes after append is 11");
+    TEST_ASSERT(l_memcmp(buf, "Hello World", 11) == 0, "append did not overwrite existing content");
+    l_close(fd);
+
+    TEST_SECTION_PASS("l_open_append");
+}
+
+// ===================== l_sleep_ms =====================
+
+void test_sleep_ms(void) {
+    TEST_FUNCTION("l_sleep_ms");
+
+    // Smoke-test: a 1 ms sleep should complete without crashing
+    l_sleep_ms(1);
+    TEST_ASSERT(1, "l_sleep_ms(1) completes without error");
+
+    // Zero sleep is also valid
+    l_sleep_ms(0);
+    TEST_ASSERT(1, "l_sleep_ms(0) completes without error");
+
+    TEST_SECTION_PASS("l_sleep_ms");
+}
+
+// ===================== Unix-only: l_sched_yield =====================
+
+#ifndef _WIN32
+void test_sched_yield(void) {
+    TEST_FUNCTION("l_sched_yield");
+
+    int ret = l_sched_yield();
+    TEST_ASSERT(ret == 0, "l_sched_yield returns 0 on success");
+
+    TEST_SECTION_PASS("l_sched_yield");
+}
+#endif
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -862,7 +922,9 @@ int main(int argc, char* argv[]) {
 
     // File operations
     test_file_operations();
+    test_open_append();
     test_system_functions();
+    test_sleep_ms();
     test_getenv();
 
 #ifndef _WIN32
@@ -870,6 +932,7 @@ int main(int argc, char* argv[]) {
     test_lseek();
     test_dup();
     test_mkdir();
+    test_sched_yield();
 #endif
 
     puts("\n");
