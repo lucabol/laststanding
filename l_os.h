@@ -517,7 +517,7 @@ inline char *l_strchr(const char *s, int c)
             return (char *)s;
         s++;
     }
-    return NULL;
+    return (char)c == '\0' ? (char *)s : NULL;
 }
 
 inline char *l_strrchr(const char *s, int c)
@@ -529,7 +529,7 @@ inline char *l_strrchr(const char *s, int c)
             ret = s;
         s++;
     }
-    return (char *)ret;
+    return (char)c == '\0' ? (char *)s : (char *)ret;
 }
 
 inline int l_strncmp(const char *s1, const char *s2, size_t n) {
@@ -624,8 +624,6 @@ inline char* l_itoa(int num, char* str, int base)
 {
     int i = 0;
     char isNegNum = 0;
-    /*Handle 0 explicitly, 
-      otherwise empty string is printed for 0 */
     if (num == 0)
     {
         str[i++] = '0';
@@ -633,29 +631,29 @@ inline char* l_itoa(int num, char* str, int base)
     }
     else
     {
-        // In library itoa function -ve numbers handled only with
-        // base 10. SO here we are also following same concept
+        // Use unsigned arithmetic to handle INT_MIN without overflow
+        unsigned int unum;
         if ((num < 0) && (base == 10))
         {
             isNegNum = 1;
-            num = -num; // make num positive
+            unum = (unsigned int)(-(num + 1)) + 1u;
         }
-        // Process individual digits
+        else
+        {
+            unum = (unsigned int)num;
+        }
         do
         {
-            const int rem = (num % base);
-            str[i++] = (rem > 9)? ((rem-10) + 'a') : (rem + '0');
-            num = num/base;
+            const unsigned int rem = unum % (unsigned int)base;
+            str[i++] = (rem > 9) ? ((int)(rem - 10) + 'a') : ((int)rem + '0');
+            unum = unum / (unsigned int)base;
         }
-        while (num != 0);
-        // If number is negative, append '-'
+        while (unum != 0);
         if (isNegNum)
         {
             str[i++] = '-';
         }
-        // Append string terminator
         str[i] = '\0';
-        // Reverse the string
         l_reverse(str, i);
     }
     return str;

@@ -118,6 +118,10 @@ void test_strchr(void) {
     TEST_ASSERT(l_strchr(dup, 'a') == dup, "finds first of duplicates");
     TEST_ASSERT(l_strchr(dup, 'b') == dup + 2, "finds unique in duplicates");
 
+    // C standard: strchr(s, '\0') must return pointer to null terminator
+    TEST_ASSERT(l_strchr(s, '\0') == s + 6, "null char returns pointer to terminator");
+    TEST_ASSERT(l_strchr("", '\0') != NULL, "null char in empty string returns non-NULL");
+
     TEST_SECTION_PASS("l_strchr");
 }
 
@@ -135,6 +139,10 @@ void test_strrchr(void) {
     char sx[] = "x";
     TEST_ASSERT(l_strrchr(sx, 'x') == sx, "single char match");
     TEST_ASSERT(l_strrchr(sx, 'y') == NULL, "single char no match");
+
+    // C standard: strrchr(s, '\0') must return pointer to null terminator
+    TEST_ASSERT(l_strrchr(s, '\0') == s + 6, "null char returns pointer to terminator");
+    TEST_ASSERT(l_strrchr("", '\0') != NULL, "null char in empty string returns non-NULL");
 
     TEST_SECTION_PASS("l_strrchr");
 }
@@ -371,6 +379,9 @@ void test_itoa(void) {
     TEST_ASSERT(l_strncmp(buf, "-456", 4) == 0, "itoa -456");
     l_itoa(-999, buf, 10);
     TEST_ASSERT(l_strncmp(buf, "-999", 4) == 0, "itoa -999");
+    // INT_MIN must not overflow: -(-2147483648) wraps in signed int
+    l_itoa(-2147483647 - 1, buf, 10);
+    TEST_ASSERT(l_strcmp(buf, "-2147483648") == 0, "itoa INT_MIN");
 
     // Hex
     l_itoa(0, buf, 16);
@@ -411,7 +422,7 @@ void test_itoa_atoi_roundtrip(void) {
     TEST_FUNCTION("itoa/atoi roundtrip");
 
     char buf[32];
-    int values[] = {0, 1, -1, 42, -42, 100, -100, 9999, -9999, 2147483, -2147483};
+    int values[] = {0, 1, -1, 42, -42, 100, -100, 9999, -9999, 2147483, -2147483, -2147483647 - 1};
     int n = sizeof(values) / sizeof(values[0]);
 
     for (int i = 0; i < n; i++) {
