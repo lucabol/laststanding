@@ -1469,7 +1469,7 @@ inline L_FD l_open_append(const char* file) {
 }
 
 inline L_FD l_open_trunc(const char* file) {
-    return l_win_open_gen(file, GENERIC_WRITE, 0, TRUNCATE_EXISTING | OPEN_ALWAYS);
+    return l_win_open_gen(file, GENERIC_WRITE, 0, CREATE_ALWAYS);
 }
 
 inline L_FD l_open(const char *path, int flags, mode_t mode) {
