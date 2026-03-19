@@ -142,10 +142,38 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 ### Not Included (by Design)
 - `printf`/`sprintf` — use direct write syscalls or minimal formatting
 - `malloc`/`free` — no dynamic memory allocation
-- `getenv` — environment variable access
 - `fork`/`exec` — process spawning and execution
 - Networking functions — sockets and network I/O
 - Multithreading primitives — threads, mutexes, condition variables
+
+## Example Programs
+
+The `test/` directory contains example programs that showcase `l_os.h` capabilities. Each compiles to a small, self-contained binary with no libc dependency.
+
+### Utilities
+
+| Program | Description | Source |
+|---------|-------------|--------|
+| **countlines** | Counts lines in a file | [countlines.c](test/countlines.c) |
+| **grep** | Filters lines matching a substring pattern | [grep.c](test/grep.c) |
+| **hexdump** | Displays file contents in hex + ASCII format | [hexdump.c](test/hexdump.c) |
+| **checksum** | Computes XOR and additive checksums of a file | [checksum.c](test/checksum.c) |
+| **upper** | Converts text to uppercase | [upper.c](test/upper.c) |
+| **wc** | Counts lines, words, and bytes | [wc.c](test/wc.c) |
+| **printenv** | Prints environment variables (all or by name) | [printenv.c](test/printenv.c) |
+
+### Interactive Programs
+
+| Program | Description | Source |
+|---------|-------------|--------|
+| **led** | Modal text editor with vim keybindings (hjkl, insert/normal/command modes, :w/:q, search) | [led.c](test/led.c) |
+| **snake** | Playable Snake console game with WASD controls and ANSI rendering | [snake.c](test/snake.c) |
+
+### Test Suite
+
+| Program | Description | Source |
+|---------|-------------|--------|
+| **test** | Comprehensive test suite (200+ assertions covering all `l_` functions) | [test.c](test/test.c) |
 
 ## Directory Structure
 - `l_os.h` — Minimal C/OS abstraction header
