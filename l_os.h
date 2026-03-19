@@ -406,6 +406,7 @@ int WINAPI mainCRTStartup(void)
 #  define strrchr l_strrchr
 #  define strstr l_strstr
 #  define strcmp l_strcmp
+#  define strncmp l_strncmp
 #  define strncpy l_strncpy
 
 #  define isdigit l_isdigit
@@ -425,8 +426,6 @@ int WINAPI mainCRTStartup(void)
 #  define puts l_puts
 #  define lseek l_lseek
 #  define dup l_dup
-#  define execve l_execve
-#  define fork l_fork
 #  define mkdir l_mkdir
 #  define chdir l_chdir
 #  define sched_yield l_sched_yield
