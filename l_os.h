@@ -460,14 +460,19 @@ inline size_t l_strlen(const char *str)
 
 inline void *l_memmove(void *dst, const void *src, size_t len)
 {
-    size_t pos = (dst <= src) ? -1 : (long)len;
-    void *ret = dst;
+    char *d = (char *)dst;
+    const char *s = (const char *)src;
 
-    while (len--) {
-        pos += (dst <= src) ? 1 : -1;
-        ((char *)dst)[pos] = ((char *)src)[pos];
+    if (d <= s) {
+        while (len--)
+            *d++ = *s++;
+    } else {
+        d += len;
+        s += len;
+        while (len--)
+            *--d = *--s;
     }
-    return ret;
+    return dst;
 }
 
 inline void *l_memset(void *dst, int b, size_t len)
@@ -661,7 +666,12 @@ inline char* l_itoa(int num, char* str, int base)
 
 inline void *l_memcpy(void *dst, const void *src, size_t len)
 {
-    return l_memmove(dst, src, len);
+    char *d = (char *)dst;
+    const char *s = (const char *)src;
+
+    while (len--)
+        *d++ = *s++;
+    return dst;
 }
 
 #ifdef __unix__
