@@ -321,6 +321,26 @@ void test_isdigit(void) {
     TEST_SECTION_PASS("l_isdigit");
 }
 
+// ===================== l_isspace =====================
+
+void test_isspace(void) {
+    TEST_FUNCTION("l_isspace");
+
+    TEST_ASSERT(l_isspace(' ')  != 0, "space");
+    TEST_ASSERT(l_isspace('\t') != 0, "tab");
+    TEST_ASSERT(l_isspace('\n') != 0, "newline");
+    TEST_ASSERT(l_isspace('\r') != 0, "carriage return");
+    TEST_ASSERT(l_isspace('\f') != 0, "form feed");
+    TEST_ASSERT(l_isspace('\v') != 0, "vertical tab");
+
+    TEST_ASSERT(l_isspace('a')  == 0, "rejects 'a'");
+    TEST_ASSERT(l_isspace('0')  == 0, "rejects '0'");
+    TEST_ASSERT(l_isspace('\0') == 0, "rejects null");
+    TEST_ASSERT(l_isspace('!')  == 0, "rejects '!'");
+
+    TEST_SECTION_PASS("l_isspace");
+}
+
 // ===================== l_atoi / l_atol =====================
 
 void test_atoi_atol(void) {
@@ -348,6 +368,15 @@ void test_atoi_atol(void) {
     TEST_ASSERT(l_atol("999999") == 999999L, "atol '999999'");
     TEST_ASSERT(l_atol("100000") == 100000L, "atol '100000'");
     TEST_ASSERT(l_atol("999999999") == 999999999L, "atol large value");
+
+    /* whitespace skipping (C standard compliance) */
+    TEST_ASSERT(l_atoi("  42") == 42, "atoi skips leading spaces");
+    TEST_ASSERT(l_atoi("\t-7") == -7, "atoi skips leading tab");
+    TEST_ASSERT(l_atoi("\n 123") == 123, "atoi skips newline+space");
+    TEST_ASSERT(l_atoi("+5") == 5, "atoi handles leading plus");
+    TEST_ASSERT(l_atoi("  +99") == 99, "atoi whitespace then plus");
+    TEST_ASSERT(l_atol("  -456") == -456L, "atol skips leading spaces");
+    TEST_ASSERT(l_atol("  +999") == 999L, "atol handles leading plus");
 
     TEST_SECTION_PASS("l_atoi / l_atol");
 }
@@ -918,6 +947,7 @@ int main(int argc, char* argv[]) {
 
     // Conversion functions
     test_isdigit();
+    test_isspace();
     test_atoi_atol();
     test_itoa();
     test_itoa_atoi_roundtrip();
