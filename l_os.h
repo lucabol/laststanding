@@ -83,9 +83,11 @@ int l_strncmp(const char *s1, const char *s2, size_t n);
 void l_reverse(char str[], int length);
 
 // Conversion functions
+/// Returns non-zero if c is a whitespace character (space, tab, newline, etc.)
+int l_isspace(int c);
 /// Returns non-zero if c is a digit ('0'-'9')
 int l_isdigit(int c);
-/// Converts a string to a long integer
+/// Converts a string to a long integer, skipping leading whitespace
 long l_atol(const char *s);
 /// Converts a string to an integer
 int l_atoi(const char *s);
@@ -416,6 +418,7 @@ int WINAPI mainCRTStartup(void)
 #  define strncat l_strncat
 
 #  define isdigit l_isdigit
+#  define isspace l_isspace
 #  define atol l_atol
 #  define atoi l_atoi
 #  define itoa l_itoa
@@ -608,6 +611,11 @@ inline char *l_strstr(const char *s1, const char *s2) {
     return (0);
 }
 
+inline int l_isspace(int c)
+{
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+}
+
 inline int l_isdigit(int c)
 {
     return (unsigned int)(c - '0') <= 9;
@@ -619,8 +627,13 @@ inline long l_atol(const char *s)
     unsigned long d;
     int neg = 0;
 
+    while (l_isspace((unsigned char)*s))
+        s++;
+
     if (*s == '-') {
         neg = 1;
+        s++;
+    } else if (*s == '+') {
         s++;
     }
 
@@ -632,12 +645,12 @@ inline long l_atol(const char *s)
         ret += d;
     }
 
-    return neg ? -ret : ret;
+    return neg ? -(long)ret : (long)ret;
 }
 
 inline int l_atoi(const char *s)
 {
-    return l_atol(s);
+    return (int)l_atol(s);
 }
 
 //function to reverse a string
