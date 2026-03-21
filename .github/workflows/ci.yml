@@ -6,17 +6,26 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Check generated docs are up to date
-        run: ./gen-docs.ps1 -Check
+      - name: Regenerate README function reference
+        run: ./gen-docs.ps1
         shell: pwsh
+
+      - name: Auto-commit updated README
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: auto-regenerate README function reference"
+          file_pattern: README.md
 
   windows:
     runs-on: windows-latest

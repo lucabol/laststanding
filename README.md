@@ -90,6 +90,8 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_strlen` | Returns the length of a null-terminated string | All |
 | `l_strcpy` | Copies src string to dst, returns dst | All |
 | `l_strncpy` | Copies up to n characters from src to dst, padding with nulls | All |
+| `l_strcat` | Appends src string to dst, returns dst | All |
+| `l_strncat` | Appends at most n characters of src to dst, always null-terminates, returns dst | All |
 | `l_strchr` | Returns pointer to first occurrence of c in s, or NULL | All |
 | `l_strrchr` | Returns pointer to last occurrence of c in s, or NULL | All |
 | `l_strstr` | Returns pointer to first occurrence of s2 in s1, or NULL | All |
@@ -97,8 +99,9 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_strncmp` | Compares up to n characters of two strings | All |
 | `l_reverse` | Reverses a string in place | All |
 | **Conversion functions** | | |
+| `l_isspace` | Returns non-zero if c is a whitespace character (space, tab, newline, etc.) | All |
 | `l_isdigit` | Returns non-zero if c is a digit ('0'-'9') | All |
-| `l_atol` | Converts a string to a long integer | All |
+| `l_atol` | Converts a string to a long integer, skipping leading whitespace | All |
 | `l_atoi` | Converts a string to an integer | All |
 | `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
 | **Memory functions** | | |
