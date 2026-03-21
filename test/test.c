@@ -622,6 +622,28 @@ void test_memset(void) {
     TEST_ASSERT(large[0] == 'Q' && large[127] == 'Q' && large[255] == 'Q',
                 "256-byte memset consistent");
 
+    // Alignment boundary: start at various unaligned offsets to exercise
+    // head/word-at-a-time/tail phases of the optimised implementation.
+    {
+        char abuf[128];
+        int i, j, ok;
+        for (i = 0; i < 8; i++) {
+            l_memset(abuf, 0, sizeof(abuf));
+            l_memset(abuf + i, 'Z', 64);
+            ok = 1;
+            for (j = 0; j < i; j++) {
+                if (abuf[j] != 0) { ok = 0; break; }
+            }
+            for (j = i; j < i + 64; j++) {
+                if (abuf[j] != 'Z') { ok = 0; break; }
+            }
+            for (j = i + 64; j < 128; j++) {
+                if (abuf[j] != 0) { ok = 0; break; }
+            }
+            TEST_ASSERT(ok, "aligned/unaligned memset fills exact range");
+        }
+    }
+
     TEST_SECTION_PASS("l_memset");
 }
 

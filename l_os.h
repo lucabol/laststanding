@@ -486,10 +486,40 @@ inline void *l_memmove(void *dst, const void *src, size_t len)
 
 inline void *l_memset(void *dst, int b, size_t len)
 {
-    char *p = dst;
+    unsigned char *p = (unsigned char *)dst;
+    unsigned char  c = (unsigned char)b;
 
+    /* Byte-fill until naturally word-aligned */
+    while (len && ((uintptr_t)p & (sizeof(uintptr_t) - 1U))) {
+        *p++ = c;
+        len--;
+    }
+
+    /* Word-at-a-time fill for the bulk of the buffer.
+     * The may_alias attribute tells the compiler this type may alias char,
+     * matching how standard memset implementations work in freestanding runtimes. */
+    if (len >= sizeof(uintptr_t)) {
+        typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+        uptr_alias  word = c;
+        size_t      nw;
+
+        word |= word <<  8;
+        word |= word << 16;
+#if UINTPTR_MAX > 0xFFFFFFFFU
+        word |= word << 32;
+#endif
+        nw = len / sizeof(uptr_alias);
+        uptr_alias *wp = (uptr_alias *)(void *)p;
+        while (nw--)
+            *wp++ = word;
+        p   = (unsigned char *)(void *)wp;
+        len &= sizeof(uptr_alias) - 1U;
+    }
+
+    /* Remaining bytes */
     while (len--)
-        *(p++) = b;
+        *p++ = c;
+
     return dst;
 }
 
