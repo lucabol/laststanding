@@ -213,6 +213,58 @@ void test_strncpy(void) {
     TEST_SECTION_PASS("l_strncpy");
 }
 
+// ===================== l_strcat =====================
+
+void test_strcat(void) {
+    TEST_FUNCTION("l_strcat");
+
+    char buf[32];
+    l_strcpy(buf, "Hello");
+    char *result = l_strcat(buf, ", World");
+    TEST_ASSERT(result == buf, "l_strcat returns destination pointer");
+    TEST_ASSERT(l_strcmp(buf, "Hello, World") == 0, "basic concatenation");
+
+    l_strcpy(buf, "");
+    l_strcat(buf, "abc");
+    TEST_ASSERT(l_strcmp(buf, "abc") == 0, "append to empty string");
+
+    l_strcpy(buf, "abc");
+    l_strcat(buf, "");
+    TEST_ASSERT(l_strcmp(buf, "abc") == 0, "append empty string");
+
+    l_strcpy(buf, "");
+    l_strcat(buf, "");
+    TEST_ASSERT(l_strcmp(buf, "") == 0, "both empty");
+
+    TEST_SECTION_PASS("l_strcat");
+}
+
+// ===================== l_strncat =====================
+
+void test_strncat(void) {
+    TEST_FUNCTION("l_strncat");
+
+    char buf[32];
+    l_strcpy(buf, "Hello");
+    char *result = l_strncat(buf, ", World", 7);
+    TEST_ASSERT(result == buf, "l_strncat returns destination pointer");
+    TEST_ASSERT(l_strcmp(buf, "Hello, World") == 0, "full-length append");
+
+    l_strcpy(buf, "Hello");
+    l_strncat(buf, ", World", 2);
+    TEST_ASSERT(l_strcmp(buf, "Hello, ") == 0, "partial append (n=2)");
+
+    l_strcpy(buf, "abc");
+    l_strncat(buf, "xyz", 0);
+    TEST_ASSERT(l_strcmp(buf, "abc") == 0, "n=0 appends nothing");
+
+    l_strcpy(buf, "abc");
+    l_strncat(buf, "defgh", 100);
+    TEST_ASSERT(l_strcmp(buf, "abcdefgh") == 0, "n larger than src always null-terminates");
+
+    TEST_SECTION_PASS("l_strncat");
+}
+
 // ===================== l_strcmp =====================
 
 void test_strcmp(void) {
@@ -912,6 +964,8 @@ int main(int argc, char* argv[]) {
     test_strrchr();
     test_strcpy();
     test_strncpy();
+    test_strcat();
+    test_strncat();
     test_strcmp();
     test_strncmp();
     test_reverse();

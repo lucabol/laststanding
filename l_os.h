@@ -65,6 +65,10 @@ size_t l_strlen(const char *str);
 char *l_strcpy(char *dst, const char *src);
 /// Copies up to n characters from src to dst, padding with nulls
 char *l_strncpy(char *dst, const char *src, size_t n);
+/// Appends src string to dst, returns dst
+char *l_strcat(char *dst, const char *src);
+/// Appends at most n characters of src to dst, always null-terminates, returns dst
+char *l_strncat(char *dst, const char *src, size_t n);
 /// Returns pointer to first occurrence of c in s, or NULL
 char *l_strchr(const char *s, int c);
 /// Returns pointer to last occurrence of c in s, or NULL
@@ -408,6 +412,8 @@ int WINAPI mainCRTStartup(void)
 #  define strcmp l_strcmp
 #  define strncmp l_strncmp
 #  define strncpy l_strncpy
+#  define strcat l_strcat
+#  define strncat l_strncat
 
 #  define isdigit l_isdigit
 #  define atol l_atol
@@ -512,6 +518,28 @@ inline char *l_strncpy(char *dst, const char *src, size_t n)
         dst[i] = src[i];
     for (; i < n; i++)
         dst[i] = '\0';
+    return ret;
+}
+
+inline char *l_strcat(char *dst, const char *src)
+{
+    char *ret = dst;
+
+    while (*dst)
+        dst++;
+    while ((*dst++ = *src++));
+    return ret;
+}
+
+inline char *l_strncat(char *dst, const char *src, size_t n)
+{
+    char *ret = dst;
+
+    while (*dst)
+        dst++;
+    while (n-- && *src)
+        *dst++ = *src++;
+    *dst = '\0';
     return ret;
 }
 
