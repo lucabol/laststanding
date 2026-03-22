@@ -433,6 +433,67 @@ void test_atoi_atol(void) {
     TEST_SECTION_PASS("l_atoi / l_atol");
 }
 
+// ===================== l_strtoul / l_strtol =====================
+
+void test_strtoul_strtol(void) {
+    char *ep;
+
+    TEST_FUNCTION("l_strtoul / l_strtol");
+
+    /* strtoul: basic decimal */
+    TEST_ASSERT(l_strtoul("0",   NULL, 10) == 0UL,  "strtoul '0' base 10");
+    TEST_ASSERT(l_strtoul("123", NULL, 10) == 123UL, "strtoul '123' base 10");
+    TEST_ASSERT(l_strtoul("  42", NULL, 10) == 42UL, "strtoul leading spaces");
+    TEST_ASSERT(l_strtoul("+99", NULL, 10) == 99UL,  "strtoul leading plus");
+
+    /* strtoul: hex */
+    TEST_ASSERT(l_strtoul("ff",   NULL, 16) == 255UL, "strtoul 'ff' base 16");
+    TEST_ASSERT(l_strtoul("FF",   NULL, 16) == 255UL, "strtoul 'FF' base 16");
+    TEST_ASSERT(l_strtoul("0xff", NULL,  0) == 255UL, "strtoul '0xff' base 0");
+    TEST_ASSERT(l_strtoul("0XFF", NULL,  0) == 255UL, "strtoul '0XFF' base 0");
+
+    /* strtoul: octal */
+    TEST_ASSERT(l_strtoul("010",  NULL,  0) == 8UL,  "strtoul '010' base 0 -> octal");
+    TEST_ASSERT(l_strtoul("10",   NULL,  8) == 8UL,  "strtoul '10' base 8");
+
+    /* strtoul: endptr */
+    ep = NULL;
+    l_strtoul("123abc", &ep, 10);
+    TEST_ASSERT(ep != NULL && ep[0] == 'a', "strtoul endptr stops at non-digit");
+
+    ep = NULL;
+    l_strtoul("no-digits", &ep, 10);
+    TEST_ASSERT(ep != NULL && ep[0] == 'n', "strtoul endptr stays at start when no digits");
+
+    /* strtoul: overflow -> ULONG_MAX */
+    TEST_ASSERT(l_strtoul("99999999999999999999999", NULL, 10) == ULONG_MAX, "strtoul overflow -> ULONG_MAX");
+
+    /* strtol: positive */
+    TEST_ASSERT(l_strtol("42",  NULL, 10) == 42L,  "strtol '42'");
+    TEST_ASSERT(l_strtol(" 42", NULL, 10) == 42L,  "strtol leading space");
+    TEST_ASSERT(l_strtol("+7",  NULL, 10) == 7L,   "strtol leading plus");
+
+    /* strtol: negative */
+    TEST_ASSERT(l_strtol("-1",   NULL, 10) == -1L,   "strtol '-1'");
+    TEST_ASSERT(l_strtol("-123", NULL, 10) == -123L, "strtol '-123'");
+
+    /* strtol: hex / octal via base 0 */
+    TEST_ASSERT(l_strtol("0x10", NULL, 0) == 16L,  "strtol '0x10' base 0");
+    TEST_ASSERT(l_strtol("010",  NULL, 0) == 8L,   "strtol '010' base 0 -> octal");
+    TEST_ASSERT(l_strtol("-0x1", NULL, 0) == -1L,  "strtol '-0x1' base 0");
+
+    /* strtol: overflow/underflow */
+    TEST_ASSERT(l_strtol("99999999999999999999999",  NULL, 10) == LONG_MAX, "strtol overflow -> LONG_MAX");
+    TEST_ASSERT(l_strtol("-99999999999999999999999", NULL, 10) == LONG_MIN, "strtol underflow -> LONG_MIN");
+
+    /* strtol: endptr */
+    ep = NULL;
+    l_strtol("-99xyz", &ep, 10);
+    TEST_ASSERT(ep != NULL && ep[0] == 'x', "strtol endptr after digits");
+
+    TEST_SECTION_PASS("l_strtoul / l_strtol");
+}
+
 // ===================== l_itoa =====================
 
 void test_itoa(void) {
@@ -1003,6 +1064,7 @@ int main(int argc, char* argv[]) {
     test_isdigit();
     test_isspace();
     test_atoi_atol();
+    test_strtoul_strtol();
     test_itoa();
     test_itoa_atoi_roundtrip();
 
