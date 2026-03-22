@@ -1,29 +1,8 @@
 {
-  "last_run": "2026-03-21T01:30:06Z",
-  "last_run_id": "23369081938",
-  "comments_made": {},
-  "fix_attempts": {
-    "improve-strcat-strncat": {
-      "branch": "repo-assist/improve-strcat-strncat",
-      "pr": 47,
-      "status": "pr_open",
-      "date": "2026-03-20"
-    },
-    "eng-isspace-atoi-whitespace": {
-      "branch": "repo-assist/eng-isspace-atoi-whitespace-20260321",
-      "pr": 48,
-      "status": "pr_open",
-      "date": "2026-03-21"
-    }
-  },
-  "monthly_activity_issue": {
-    "number": 45,
-    "month": "2026-03",
-    "status": "open"
-  },
-  "backlog_cursor": {
-    "issues": 0,
-    "prs": 0
-  },
-  "notes": "Open PRs: #47 (strcat/strncat), #48 (l_isspace + atoi/atol whitespace fix). Future work: word-at-a-time l_memset, l_strtol/l_strtoul."
+  "last_run": "2026-03-22T01:30:42Z",
+  "last_run_id": "23393018630",
+  "monthly_activity_issue": {"number": 45, "month": "2026-03", "status": "open"},
+  "backlog_cursor": {"issues": 0, "prs": 0},
+  "open_prs": [50, 51, 52],
+  "notes": "PRs: #50 memset perf, #51 strtol/strtoul, #52 CI. Future: word-at-a-time l_strlen."
 }
