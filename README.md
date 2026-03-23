@@ -101,6 +101,12 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | **Conversion functions** | | |
 | `l_isspace` | Returns non-zero if c is a whitespace character (space, tab, newline, etc.) | All |
 | `l_isdigit` | Returns non-zero if c is a digit ('0'-'9') | All |
+| `l_isalpha` | Returns non-zero if c is an alphabetic character ('A'-'Z' or 'a'-'z') | All |
+| `l_isalnum` | Returns non-zero if c is alphanumeric (l_isalpha or l_isdigit) | All |
+| `l_isupper` | Returns non-zero if c is an uppercase letter ('A'-'Z') | All |
+| `l_islower` | Returns non-zero if c is a lowercase letter ('a'-'z') | All |
+| `l_toupper` | Converts c to uppercase; returns c unchanged if not a lowercase letter | All |
+| `l_tolower` | Converts c to lowercase; returns c unchanged if not an uppercase letter | All |
 | `l_atol` | Converts a string to a long integer, skipping leading whitespace | All |
 | `l_atoi` | Converts a string to an integer | All |
 | `l_strtoul` | Converts a string to an unsigned long, auto-detecting base when base==0 (0x=hex, 0=octal, else decimal); sets *endptr past last digit | All |
