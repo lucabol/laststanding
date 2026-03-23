@@ -393,6 +393,67 @@ void test_isspace(void) {
     TEST_SECTION_PASS("l_isspace");
 }
 
+// ===================== l_isalpha / l_isalnum / l_isupper / l_islower / l_toupper / l_tolower =====================
+
+void test_char_classification(void) {
+    TEST_FUNCTION("l_isalpha/l_isalnum/l_isupper/l_islower/l_toupper/l_tolower");
+
+    /* l_isalpha */
+    TEST_ASSERT(l_isalpha('a') != 0, "isalpha 'a'");
+    TEST_ASSERT(l_isalpha('z') != 0, "isalpha 'z'");
+    TEST_ASSERT(l_isalpha('A') != 0, "isalpha 'A'");
+    TEST_ASSERT(l_isalpha('Z') != 0, "isalpha 'Z'");
+    TEST_ASSERT(l_isalpha('m') != 0, "isalpha 'm'");
+    TEST_ASSERT(l_isalpha('0') == 0, "isalpha rejects '0'");
+    TEST_ASSERT(l_isalpha('9') == 0, "isalpha rejects '9'");
+    TEST_ASSERT(l_isalpha(' ') == 0, "isalpha rejects space");
+    TEST_ASSERT(l_isalpha('_') == 0, "isalpha rejects '_'");
+    TEST_ASSERT(l_isalpha('\0') == 0, "isalpha rejects null");
+
+    /* l_isalnum */
+    TEST_ASSERT(l_isalnum('a') != 0, "isalnum 'a'");
+    TEST_ASSERT(l_isalnum('Z') != 0, "isalnum 'Z'");
+    TEST_ASSERT(l_isalnum('5') != 0, "isalnum '5'");
+    TEST_ASSERT(l_isalnum('0') != 0, "isalnum '0'");
+    TEST_ASSERT(l_isalnum(' ') == 0, "isalnum rejects space");
+    TEST_ASSERT(l_isalnum('!') == 0, "isalnum rejects '!'");
+    TEST_ASSERT(l_isalnum('\0') == 0, "isalnum rejects null");
+
+    /* l_isupper */
+    TEST_ASSERT(l_isupper('A') != 0, "isupper 'A'");
+    TEST_ASSERT(l_isupper('Z') != 0, "isupper 'Z'");
+    TEST_ASSERT(l_isupper('M') != 0, "isupper 'M'");
+    TEST_ASSERT(l_isupper('a') == 0, "isupper rejects 'a'");
+    TEST_ASSERT(l_isupper('z') == 0, "isupper rejects 'z'");
+    TEST_ASSERT(l_isupper('0') == 0, "isupper rejects '0'");
+
+    /* l_islower */
+    TEST_ASSERT(l_islower('a') != 0, "islower 'a'");
+    TEST_ASSERT(l_islower('z') != 0, "islower 'z'");
+    TEST_ASSERT(l_islower('m') != 0, "islower 'm'");
+    TEST_ASSERT(l_islower('A') == 0, "islower rejects 'A'");
+    TEST_ASSERT(l_islower('Z') == 0, "islower rejects 'Z'");
+    TEST_ASSERT(l_islower('0') == 0, "islower rejects '0'");
+
+    /* l_toupper */
+    TEST_ASSERT(l_toupper('a') == 'A', "toupper 'a' -> 'A'");
+    TEST_ASSERT(l_toupper('z') == 'Z', "toupper 'z' -> 'Z'");
+    TEST_ASSERT(l_toupper('m') == 'M', "toupper 'm' -> 'M'");
+    TEST_ASSERT(l_toupper('A') == 'A', "toupper 'A' unchanged");
+    TEST_ASSERT(l_toupper('0') == '0', "toupper '0' unchanged");
+    TEST_ASSERT(l_toupper(' ') == ' ', "toupper space unchanged");
+
+    /* l_tolower */
+    TEST_ASSERT(l_tolower('A') == 'a', "tolower 'A' -> 'a'");
+    TEST_ASSERT(l_tolower('Z') == 'z', "tolower 'Z' -> 'z'");
+    TEST_ASSERT(l_tolower('M') == 'm', "tolower 'M' -> 'm'");
+    TEST_ASSERT(l_tolower('a') == 'a', "tolower 'a' unchanged");
+    TEST_ASSERT(l_tolower('0') == '0', "tolower '0' unchanged");
+    TEST_ASSERT(l_tolower(' ') == ' ', "tolower space unchanged");
+
+    TEST_SECTION_PASS("l_char_classification");
+}
+
 // ===================== l_atoi / l_atol =====================
 
 void test_atoi_atol(void) {
@@ -1063,6 +1124,7 @@ int main(int argc, char* argv[]) {
     // Conversion functions
     test_isdigit();
     test_isspace();
+    test_char_classification();
     test_atoi_atol();
     test_strtoul_strtol();
     test_itoa();

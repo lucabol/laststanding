@@ -87,6 +87,18 @@ void l_reverse(char str[], int length);
 int l_isspace(int c);
 /// Returns non-zero if c is a digit ('0'-'9')
 int l_isdigit(int c);
+/// Returns non-zero if c is an alphabetic character ('A'-'Z' or 'a'-'z')
+int l_isalpha(int c);
+/// Returns non-zero if c is alphanumeric (l_isalpha or l_isdigit)
+int l_isalnum(int c);
+/// Returns non-zero if c is an uppercase letter ('A'-'Z')
+int l_isupper(int c);
+/// Returns non-zero if c is a lowercase letter ('a'-'z')
+int l_islower(int c);
+/// Converts c to uppercase; returns c unchanged if not a lowercase letter
+int l_toupper(int c);
+/// Converts c to lowercase; returns c unchanged if not an uppercase letter
+int l_tolower(int c);
 /// Converts a string to a long integer, skipping leading whitespace
 long l_atol(const char *s);
 /// Converts a string to an integer
@@ -423,6 +435,12 @@ int WINAPI mainCRTStartup(void)
 
 #  define isdigit l_isdigit
 #  define isspace l_isspace
+#  define isalpha l_isalpha
+#  define isalnum l_isalnum
+#  define isupper l_isupper
+#  define islower l_islower
+#  define toupper l_toupper
+#  define tolower l_tolower
 #  define atol l_atol
 #  define atoi l_atoi
 #  define strtoul l_strtoul
@@ -625,6 +643,36 @@ inline int l_isspace(int c)
 inline int l_isdigit(int c)
 {
     return (unsigned int)(c - '0') <= 9;
+}
+
+inline int l_isalpha(int c)
+{
+    return (unsigned int)((c | 0x20) - 'a') <= ('z' - 'a');
+}
+
+inline int l_isalnum(int c)
+{
+    return l_isalpha(c) || l_isdigit(c);
+}
+
+inline int l_isupper(int c)
+{
+    return (unsigned int)(c - 'A') <= ('Z' - 'A');
+}
+
+inline int l_islower(int c)
+{
+    return (unsigned int)(c - 'a') <= ('z' - 'a');
+}
+
+inline int l_toupper(int c)
+{
+    return l_islower(c) ? c - ('a' - 'A') : c;
+}
+
+inline int l_tolower(int c)
+{
+    return l_isupper(c) ? c + ('a' - 'A') : c;
 }
 
 inline long l_atol(const char *s)
