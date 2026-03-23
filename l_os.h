@@ -119,6 +119,8 @@ void *l_memset(void *dst, int b, size_t len);
 int l_memcmp(const void *s1, const void *s2, size_t n);
 /// Copies len bytes from src to dst
 void *l_memcpy(void *dst, const void *src, size_t len);
+/// Finds first occurrence of byte c in the first n bytes of s, or NULL
+void *l_memchr(const void *s, int c, size_t n);
 
 // System functions
 /// Terminates the process with the given status code
@@ -451,6 +453,7 @@ int WINAPI mainCRTStartup(void)
 #  define memset l_memset
 #  define memcmp l_memcmp
 #  define memcpy l_memcpy
+#  define memchr l_memchr
 
 #  define exit l_exit
 #  define close l_close
@@ -485,10 +488,35 @@ inline size_t l_wcslen(const wchar_t *s) {
 
 inline size_t l_strlen(const char *str)
 {
-    size_t len;
+    const char *p = str;
 
-    for (len = 0; str[len]; len++);
-    return len;
+    /* Align to word boundary one byte at a time. */
+    while ((uintptr_t)p & (sizeof(uintptr_t) - 1)) {
+        if (!*p)
+            return (size_t)(p - str);
+        p++;
+    }
+
+    /* Word-at-a-time: Hacker's Delight has-zero-byte trick.
+     * LONES = 0x0101...01, HIGHS = 0x8080...80.
+     * (w - LONES) & ~w & HIGHS is non-zero iff w contains a zero byte. */
+    typedef uintptr_t word_alias __attribute__((may_alias));
+    const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;  /* 0x01010101... */
+    const uintptr_t highs = lones << 7;                 /* 0x80808080... */
+    const word_alias *wp = (const word_alias *)(const void *)p;
+    while (1) {
+        uintptr_t w = *wp;
+        if ((w - lones) & ~w & highs)
+            break;
+        wp++;
+    }
+
+    /* Byte scan to find the exact zero byte. */
+    p = (const char *)wp;
+    while (*p)
+        p++;
+
+    return (size_t)(p - str);
 }
 
 inline void *l_memmove(void *dst, const void *src, size_t len)
@@ -859,6 +887,19 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
     while (len--)
         *d++ = *s++;
     return dst;
+}
+
+inline void *l_memchr(const void *s, int c, size_t n)
+{
+    const unsigned char *p = (const unsigned char *)s;
+    const unsigned char uc = (unsigned char)c;
+
+    while (n--) {
+        if (*p == uc)
+            return (void *)p;
+        p++;
+    }
+    return NULL;
 }
 
 #ifdef __unix__

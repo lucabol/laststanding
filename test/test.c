@@ -76,6 +76,23 @@ void test_strlen(void) {
     buf[255] = '\0';
     TEST_ASSERT(l_strlen(buf) == 255, "255-char string has length 255");
 
+    /* Alignment-boundary tests: exercise all phases of word-at-a-time path.
+     * Use a 32-byte buffer with the null terminator placed at each of the
+     * first 16 positions to cover every alignment offset. */
+    char abuf[32];
+    l_memset(abuf, 'A', 31);
+    abuf[31] = '\0';
+    {
+        int ok = 1;
+        int i;
+        for (i = 0; i <= 15; i++) {
+            abuf[i] = '\0';
+            if (l_strlen(abuf) != (size_t)i) { ok = 0; break; }
+            abuf[i] = 'A';
+        }
+        TEST_ASSERT(ok, "word-at-a-time: strlen correct at alignment offsets 0-15");
+    }
+
     TEST_SECTION_PASS("l_strlen");
 }
 
@@ -1098,6 +1115,35 @@ void test_sched_yield(void) {
 }
 #endif
 
+// ===================== l_memchr =====================
+
+void test_memchr(void) {
+    TEST_FUNCTION("l_memchr");
+
+    const char *s = "Hello, World!";
+    TEST_ASSERT(l_memchr(s, 'H', 13) == s,       "find at start");
+    TEST_ASSERT(l_memchr(s, '!', 13) == s + 12,  "find at end");
+    TEST_ASSERT(l_memchr(s, 'o', 13) == s + 4,   "find first of two");
+    TEST_ASSERT(l_memchr(s, 'z', 13) == NULL,     "not found returns NULL");
+    TEST_ASSERT(l_memchr(s, 'H', 0)  == NULL,     "n=0 always returns NULL");
+
+    /* Byte value 0 must be findable (memchr works on raw bytes). */
+    char buf[] = {1, 2, 0, 3, 4};
+    TEST_ASSERT(l_memchr(buf, 0, 5) == buf + 2, "finds embedded null byte");
+    TEST_ASSERT(l_memchr(buf, 0, 2) == NULL,    "null past n not found");
+
+    /* 0xFF / negative value cast to unsigned char */
+    char fbuf[] = {0x01, (char)0xFF, 0x02};
+    TEST_ASSERT(l_memchr(fbuf, 0xFF, 3) == fbuf + 1, "finds 0xFF byte");
+
+    /* Return type is void*: cast back to char* for pointer arithmetic */
+    const char *hay = "abcabc";
+    char *found = (char *)l_memchr(hay, 'b', 6);
+    TEST_ASSERT(found == hay + 1, "returns pointer to first match");
+
+    TEST_SECTION_PASS("l_memchr");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1135,6 +1181,7 @@ int main(int argc, char* argv[]) {
     test_memcpy();
     test_memset();
     test_memmove();
+    test_memchr();
 
     // Wide string
     test_wcslen();
