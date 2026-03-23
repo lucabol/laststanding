@@ -1166,6 +1166,46 @@ void test_memchr(void) {
     TEST_SECTION_PASS("l_memchr");
 }
 
+// ===================== l_memrchr =====================
+
+void test_memrchr(void) {
+    TEST_FUNCTION("l_memrchr");
+
+    const char *s = "Hello, World!";  /* len 13 */
+    TEST_ASSERT(l_memrchr(s, 'l', 13) == s + 10, "find last of three");
+    TEST_ASSERT(l_memrchr(s, 'H', 13) == s,       "only occurrence at start");
+    TEST_ASSERT(l_memrchr(s, '!', 13) == s + 12,  "only occurrence at end");
+    TEST_ASSERT(l_memrchr(s, 'z', 13) == NULL,    "not found returns NULL");
+    TEST_ASSERT(l_memrchr(s, 'H', 0)  == NULL,    "n=0 always returns NULL");
+
+    /* embedded null byte */
+    unsigned char buf[] = { 0xAA, 0xBB, 0x00, 0xCC, 0x00 };
+    TEST_ASSERT(l_memrchr(buf, 0, 5) == (void *)(buf + 4), "finds last null byte");
+    TEST_ASSERT(l_memrchr(buf, 0, 3) == (void *)(buf + 2), "finds first null in limited range");
+
+    TEST_SECTION_PASS("l_memrchr");
+}
+
+// ===================== l_strnlen =====================
+
+void test_strnlen(void) {
+    TEST_FUNCTION("l_strnlen");
+
+    TEST_ASSERT(l_strnlen("", 0)    == 0, "empty string, maxlen 0");
+    TEST_ASSERT(l_strnlen("", 10)   == 0, "empty string, large maxlen");
+    TEST_ASSERT(l_strnlen("Hello", 10) == 5, "short string within maxlen");
+    TEST_ASSERT(l_strnlen("Hello", 5)  == 5, "maxlen equals length");
+    TEST_ASSERT(l_strnlen("Hello", 3)  == 3, "maxlen truncates result");
+    TEST_ASSERT(l_strnlen("Hello", 0)  == 0, "maxlen 0 returns 0");
+
+    /* string with embedded null — should stop at maxlen, not the null beyond maxlen */
+    const char buf[] = { 'a', 'b', 'c', '\0', 'd' };
+    TEST_ASSERT(l_strnlen(buf, 5) == 3, "stops at null before maxlen");
+    TEST_ASSERT(l_strnlen(buf, 2) == 2, "maxlen before null limits result");
+
+    TEST_SECTION_PASS("l_strnlen");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1204,6 +1244,8 @@ int main(int argc, char* argv[]) {
     test_memset();
     test_memmove();
     test_memchr();
+    test_memrchr();
+    test_strnlen();
 
     // Wide string
     test_wcslen();
