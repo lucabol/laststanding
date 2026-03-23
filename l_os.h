@@ -91,6 +91,10 @@ int l_isdigit(int c);
 long l_atol(const char *s);
 /// Converts a string to an integer
 int l_atoi(const char *s);
+/// Converts a string to an unsigned long, auto-detecting base when base==0 (0x=hex, 0=octal, else decimal); sets *endptr past last digit
+unsigned long l_strtoul(const char *nptr, char **endptr, int base);
+/// Converts a string to a long, auto-detecting base when base==0; handles leading sign; sets *endptr past last digit
+long l_strtol(const char *nptr, char **endptr, int base);
 /// Converts an integer to a string in the given radix (2-36)
 char *l_itoa(int in, char* buffer, int radix);
 
@@ -421,6 +425,8 @@ int WINAPI mainCRTStartup(void)
 #  define isspace l_isspace
 #  define atol l_atol
 #  define atoi l_atoi
+#  define strtoul l_strtoul
+#  define strtol l_strtol
 #  define itoa l_itoa
 
 #  define memmove l_memmove
@@ -651,6 +657,98 @@ inline long l_atol(const char *s)
 inline int l_atoi(const char *s)
 {
     return (int)l_atol(s);
+}
+
+inline unsigned long l_strtoul(const char *nptr, char **endptr, int base)
+{
+    const char *s = nptr;
+    unsigned long acc = 0;
+    int overflow = 0;
+    int any = 0;
+
+    while (l_isspace((unsigned char)*s))
+        s++;
+
+    if (*s == '+')
+        s++;
+
+    /* Auto-detect base or consume 0x/0X prefix for hex */
+    if ((base == 0 || base == 16) && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        s += 2;
+        base = 16;
+    } else if (base == 0) {
+        base = (s[0] == '0') ? 8 : 10;
+    }
+
+    if (base < 2 || base > 36) {
+        if (endptr)
+            *endptr = (char *)nptr;
+        return 0;
+    }
+
+    for (;;) {
+        unsigned char c = (unsigned char)*s;
+        int digit;
+        if (c >= '0' && c <= '9')
+            digit = c - '0';
+        else if (c >= 'a' && c <= 'z')
+            digit = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'Z')
+            digit = c - 'A' + 10;
+        else
+            break;
+        if (digit >= base)
+            break;
+        any = 1;
+        if (!overflow) {
+            if (acc > (ULONG_MAX - (unsigned long)digit) / (unsigned long)base) {
+                overflow = 1;
+                acc = ULONG_MAX;
+            } else {
+                acc = acc * (unsigned long)base + (unsigned long)digit;
+            }
+        }
+        s++;
+    }
+
+    if (endptr)
+        *endptr = (char *)(any ? s : nptr);
+    return acc;
+}
+
+inline long l_strtol(const char *nptr, char **endptr, int base)
+{
+    const char *s = nptr;
+    int neg = 0;
+    unsigned long uval;
+    char *ep;
+
+    while (l_isspace((unsigned char)*s))
+        s++;
+
+    if (*s == '-') {
+        neg = 1;
+        s++;
+    } else if (*s == '+') {
+        s++;
+    }
+
+    uval = l_strtoul(s, &ep, base);
+
+    /* If no digits were parsed, reset endptr to nptr */
+    if (ep == s)
+        ep = (char *)nptr;
+    if (endptr)
+        *endptr = ep;
+
+    if (neg) {
+        if (uval > (unsigned long)LONG_MAX + 1UL)
+            return LONG_MIN;
+        return -(long)uval;
+    }
+    if (uval > (unsigned long)LONG_MAX)
+        return LONG_MAX;
+    return (long)uval;
 }
 
 //function to reverse a string
