@@ -164,6 +164,8 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_munmap` | Unmaps a previously mapped region | All |
 | `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
 | `l_chdir` | Changes the current working directory | All |
+| `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
+| `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
 | **Unix-only functions** | | |
 | `l_dup` | Duplicates a file descriptor | Unix |
 | `l_lseek` | Repositions the file offset of fd | Unix |
