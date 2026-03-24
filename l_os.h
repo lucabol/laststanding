@@ -20,9 +20,12 @@
 
 #include <stdnoreturn.h>
 
-// This is not part of the C freestanding definition, but it is available on gcc, mingw & msvc
-// For: mode_t, off_t, ssize_t. If not present on your system, define these types.
-#include <sys/types.h>
+// Portable type definitions (freestanding — no sys/types.h dependency)
+#ifndef _WIN32
+typedef long          ssize_t;
+typedef unsigned int  mode_t;
+typedef long          off_t;
+#endif
 
 #if defined(_MSC_VER)
 #include <BaseTsd.h>
