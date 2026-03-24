@@ -155,6 +155,11 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | **File system functions (cross-platform)** | | |
 | `l_unlink` | Deletes a file, returns 0 on success, -1 on error | All |
 | `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
+| `l_stat` | Gets file metadata by path. Returns 0 on success, -1 on error. | All |
+| `l_fstat` | Gets file metadata by open file descriptor. Returns 0 on success, -1 on error. | All |
+| `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
+| `l_readdir` | Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done. | All |
+| `l_closedir` | Closes a directory handle. | All |
 | **Unix-only functions** | | |
 | `l_chdir` | Changes the current working directory | Unix |
 | `l_dup` | Duplicates a file descriptor | Unix |
