@@ -120,6 +120,9 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_memchr` | Finds first occurrence of byte c in the first n bytes of s, or NULL | All |
 | `l_memrchr` | Finds last occurrence of byte c in the first n bytes of s, or NULL | All |
 | `l_strnlen` | Returns the length of s, but at most maxlen (does not scan past maxlen bytes) | All |
+| **Formatted output** | | |
+| `l_vsnprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
+| `l_snprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
 | **System functions** | | |
 | `l_exit` | Terminates the process with the given status code | All |
 | `l_open` | Opens a file with the given flags and mode, returns file descriptor | All |
