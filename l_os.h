@@ -48,6 +48,7 @@ extern "C" {
 #endif
 
 typedef   ptrdiff_t       L_FD;
+typedef   long long       L_PID;  // pid_t on Linux, process HANDLE on Windows
 #define   L_STDIN         0
 #define   L_STDOUT        1
 #define   L_STDERR        2
@@ -282,6 +283,14 @@ int l_pipe(L_FD fds[2]);
 /// Duplicates oldfd onto newfd. Returns newfd on success, -1 on error.
 int l_dup2(L_FD oldfd, L_FD newfd);
 
+/// Spawns a new process. Returns process ID/handle on success, -1 on error.
+/// path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit).
+L_PID l_spawn(const char *path, char *const argv[], char *const envp[]);
+
+/// Waits for a spawned process to finish. Returns 0 on success, -1 on error.
+/// exitcode receives the process exit code.
+int l_wait(L_PID pid, int *exitcode);
+
 #ifdef __unix__
 // Unix-only functions
 /// Duplicates a file descriptor
@@ -292,6 +301,12 @@ off_t l_lseek(L_FD fd, off_t offset, int whence);
 int l_mkdir(const char *path, mode_t mode);
 /// Yields the processor to other threads
 int l_sched_yield(void);
+/// Fork the current process. Returns child pid to parent, 0 to child, -1 on error.
+L_PID l_fork(void);
+/// Replace the current process image. Does not return on success.
+int l_execve(const char *path, char *const argv[], char *const envp[]);
+/// Wait for a child process. Returns child pid on success, -1 on error.
+L_PID l_waitpid(L_PID pid, int *status, int options);
 #endif
 
 #endif // L_WITHDEFS
@@ -1956,6 +1971,62 @@ inline int l_dup2(L_FD oldfd, L_FD newfd)
 #endif
 }
 
+inline L_PID l_fork(void)
+{
+#if defined(__x86_64__)
+    return (L_PID)my_syscall5(56 /*__NR_clone*/, 17 /*SIGCHLD*/, 0, 0, 0, 0);
+#elif defined(__aarch64__)
+    return (L_PID)my_syscall5(220 /*__NR_clone*/, 17 /*SIGCHLD*/, 0, 0, 0, 0);
+#elif defined(__arm__)
+    return (L_PID)my_syscall5(120 /*__NR_clone*/, 17 /*SIGCHLD*/, 0, 0, 0, 0);
+#endif
+}
+
+inline int l_execve(const char *path, char *const argv[], char *const envp[])
+{
+#if defined(__x86_64__)
+    return (int)my_syscall3(59 /*__NR_execve*/, path, argv, envp);
+#elif defined(__aarch64__)
+    return (int)my_syscall3(221 /*__NR_execve*/, path, argv, envp);
+#elif defined(__arm__)
+    return (int)my_syscall3(11 /*__NR_execve*/, path, argv, envp);
+#endif
+}
+
+inline L_PID l_waitpid(L_PID pid, int *status, int options)
+{
+#if defined(__x86_64__)
+    return (L_PID)my_syscall4(61 /*__NR_wait4*/, pid, status, options, 0);
+#elif defined(__aarch64__)
+    return (L_PID)my_syscall4(260 /*__NR_wait4*/, pid, status, options, 0);
+#elif defined(__arm__)
+    return (L_PID)my_syscall4(114 /*__NR_wait4*/, pid, status, options, 0);
+#endif
+}
+
+inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+{
+    L_PID pid = l_fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        l_execve(path, argv, envp);
+        l_exit(127);
+    }
+    return pid;
+}
+
+inline int l_wait(L_PID pid, int *exitcode)
+{
+    int status = 0;
+    L_PID ret = l_waitpid(pid, &status, 0);
+    if (ret < 0) return -1;
+    if ((status & 0x7f) == 0)
+        *exitcode = (status >> 8) & 0xff;
+    else
+        *exitcode = -1;
+    return 0;
+}
+
 inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
     return my_syscall3(__NR_lseek, fd, offset, whence);
@@ -2437,6 +2508,57 @@ inline int l_dup2(L_FD oldfd, L_FD newfd)
     // Return the new duplicated handle. Caller uses the returned value.
     (void)newfd;
     return (int)(L_FD)dup;
+}
+
+inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+{
+    (void)path;
+    (void)envp;  // Windows CreateProcessW inherits environment
+
+    // Build command line from argv
+    wchar_t cmdline[2048];
+    cmdline[0] = L'\0';
+    int pos = 0;
+    for (int i = 0; argv[i]; i++) {
+        if (i > 0 && pos < 2046) cmdline[pos++] = L' ';
+        wchar_t warg[512];
+        if (!l_utf8_to_wide(argv[i], warg, 512)) return -1;
+        int needs_quote = 0;
+        for (int j = 0; warg[j]; j++) {
+            if (warg[j] == L' ' || warg[j] == L'\t') { needs_quote = 1; break; }
+        }
+        if (needs_quote && pos < 2046) cmdline[pos++] = L'"';
+        for (int j = 0; warg[j] && pos < 2046; j++) cmdline[pos++] = warg[j];
+        if (needs_quote && pos < 2046) cmdline[pos++] = L'"';
+    }
+    cmdline[pos] = L'\0';
+
+    STARTUPINFOW si;
+    l_memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+
+    PROCESS_INFORMATION pi;
+    l_memset(&pi, 0, sizeof(pi));
+
+    if (!CreateProcessW(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
+        return -1;
+
+    CloseHandle(pi.hThread);
+    return (L_PID)pi.hProcess;
+}
+
+inline int l_wait(L_PID pid, int *exitcode)
+{
+    HANDLE proc = (HANDLE)pid;
+    WaitForSingleObject(proc, INFINITE);
+    DWORD code;
+    if (!GetExitCodeProcess(proc, &code)) {
+        CloseHandle(proc);
+        return -1;
+    }
+    *exitcode = (int)code;
+    CloseHandle(proc);
+    return 0;
 }
 
 inline int l_unlink(const char *path) {

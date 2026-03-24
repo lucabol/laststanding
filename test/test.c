@@ -1696,6 +1696,64 @@ void test_pipe_dup2(void) {
     TEST_SECTION_PASS("l_pipe / l_dup2");
 }
 
+// ===================== l_spawn / l_wait =====================
+
+void test_spawn_wait(void) {
+    TEST_FUNCTION("l_spawn / l_wait");
+
+#ifdef _WIN32
+    // Test: spawn cmd.exe with "exit 0"
+    char *args[] = {"cmd.exe", "/c", "exit 0", NULL};
+    L_PID pid = l_spawn("C:\\Windows\\System32\\cmd.exe", args, (char *const *)0);
+    TEST_ASSERT(pid != -1, "spawn cmd.exe succeeds");
+    int exitcode = -1;
+    int ret = l_wait(pid, &exitcode);
+    TEST_ASSERT(ret == 0, "wait succeeds");
+    TEST_ASSERT(exitcode == 0, "exit code is 0");
+
+    // Test non-zero exit code
+    char *args2[] = {"cmd.exe", "/c", "exit 42", NULL};
+    L_PID pid2 = l_spawn("C:\\Windows\\System32\\cmd.exe", args2, (char *const *)0);
+    TEST_ASSERT(pid2 != -1, "spawn cmd.exe (exit 42) succeeds");
+    int exitcode2 = -1;
+    l_wait(pid2, &exitcode2);
+    TEST_ASSERT(exitcode2 == 42, "exit code is 42");
+#else
+    // Test fork + waitpid directly (works under QEMU too)
+    L_PID child = l_fork();
+    if (child == 0) {
+        l_exit(42);
+    }
+    TEST_ASSERT(child > 0, "fork returns positive pid");
+    int status = 0;
+    L_PID waited = l_waitpid(child, &status, 0);
+    TEST_ASSERT(waited == child, "waitpid returns child pid");
+    TEST_ASSERT((status & 0x7f) == 0, "child exited normally");
+    TEST_ASSERT(((status >> 8) & 0xff) == 42, "child exit code is 42");
+
+    // Test l_spawn + l_wait with /bin/true (native Linux only)
+    char *args[] = {"/bin/true", NULL};
+    L_PID pid = l_spawn("/bin/true", args, (char *const *)0);
+    if (pid > 0) {
+        int exitcode = -1;
+        int ret = l_wait(pid, &exitcode);
+        TEST_ASSERT(ret == 0, "wait on /bin/true succeeds");
+        TEST_ASSERT(exitcode == 0, "/bin/true exits 0");
+    }
+
+    // Test non-zero exit with /bin/false
+    char *args2[] = {"/bin/false", NULL};
+    L_PID pid2 = l_spawn("/bin/false", args2, (char *const *)0);
+    if (pid2 > 0) {
+        int exitcode2 = -1;
+        l_wait(pid2, &exitcode2);
+        TEST_ASSERT(exitcode2 != 0, "/bin/false exits non-zero");
+    }
+#endif
+
+    TEST_SECTION_PASS("l_spawn / l_wait");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1759,6 +1817,7 @@ int main(int argc, char* argv[]) {
     test_mmap();
     test_getcwd_chdir();
     test_pipe_dup2();
+    test_spawn_wait();
 
 #ifndef _WIN32
     // Unix-only
