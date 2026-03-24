@@ -1486,6 +1486,92 @@ void test_unlink_rmdir(void) {
     TEST_SECTION_PASS("l_unlink / l_rmdir");
 }
 
+// ===================== l_stat / l_fstat =====================
+
+void test_stat(void) {
+    TEST_FUNCTION("l_stat / l_fstat");
+
+    // stat a known file
+    L_Stat st;
+    int ret = l_stat("test_file", &st);
+    TEST_ASSERT(ret == 0, "stat test_file succeeds");
+    TEST_ASSERT(st.st_size > 0, "test_file has size > 0");
+    TEST_ASSERT(L_S_ISREG(st.st_mode), "test_file is a regular file");
+    TEST_ASSERT(!L_S_ISDIR(st.st_mode), "test_file is not a directory");
+
+    // stat a directory
+    L_Stat dst;
+    ret = l_stat(".", &dst);
+    TEST_ASSERT(ret == 0, "stat '.' succeeds");
+    TEST_ASSERT(L_S_ISDIR(dst.st_mode), "'.' is a directory");
+    TEST_ASSERT(!L_S_ISREG(dst.st_mode), "'.' is not a regular file");
+
+    // stat nonexistent
+    ret = l_stat("nonexistent_file_stat_xyz", &st);
+    TEST_ASSERT(ret == -1, "stat nonexistent returns -1");
+
+    // fstat an open file
+    const char *tmpfstat = "test_fstat_tmpfile";
+    L_FD fd = l_open_write(tmpfstat);
+    TEST_ASSERT(fd >= 0, "create temp file for fstat");
+    const char *data = "hello fstat";
+    l_write(fd, data, l_strlen(data));
+    l_close(fd);
+
+    fd = l_open_read(tmpfstat);
+    TEST_ASSERT(fd >= 0, "open temp file for fstat");
+    L_Stat fst;
+    ret = l_fstat(fd, &fst);
+    TEST_ASSERT(ret == 0, "fstat succeeds");
+    TEST_ASSERT(fst.st_size == (long long)l_strlen(data), "fstat size matches written data");
+    TEST_ASSERT(L_S_ISREG(fst.st_mode), "fstat file is regular");
+    l_close(fd);
+    l_unlink(tmpfstat);
+
+    TEST_SECTION_PASS("l_stat / l_fstat");
+}
+
+// ===================== l_opendir / l_readdir / l_closedir =====================
+
+void test_opendir_readdir(void) {
+    TEST_FUNCTION("l_opendir / l_readdir / l_closedir");
+
+    // Create a test file to look for
+    const char *marker = "test_readdir_marker";
+    L_FD fd = l_open_write(marker);
+    TEST_ASSERT(fd >= 0, "create marker file for readdir");
+    l_write(fd, "x", 1);
+    l_close(fd);
+
+    L_Dir dir;
+    int ret = l_opendir(".", &dir);
+    TEST_ASSERT(ret == 0, "opendir '.' succeeds");
+
+    int found_dot = 0;
+    int found_dotdot = 0;
+    int found_marker = 0;
+    L_DirEntry *ent;
+    while ((ent = l_readdir(&dir)) != (L_DirEntry *)0) {
+        if (l_strcmp(ent->d_name, ".") == 0) found_dot = 1;
+        if (l_strcmp(ent->d_name, "..") == 0) found_dotdot = 1;
+        if (l_strcmp(ent->d_name, marker) == 0) found_marker = 1;
+    }
+    l_closedir(&dir);
+
+    TEST_ASSERT(found_dot, "readdir found '.'");
+    TEST_ASSERT(found_dotdot, "readdir found '..'");
+    TEST_ASSERT(found_marker, "readdir found marker file");
+
+    // opendir nonexistent
+    L_Dir bad;
+    ret = l_opendir("nonexistent_dir_readdir_xyz", &bad);
+    TEST_ASSERT(ret == -1, "opendir nonexistent returns -1");
+
+    l_unlink(marker);
+
+    TEST_SECTION_PASS("l_opendir / l_readdir / l_closedir");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1544,6 +1630,8 @@ int main(int argc, char* argv[]) {
     test_sleep_ms();
     test_getenv();
     test_unlink_rmdir();
+    test_stat();
+    test_opendir_readdir();
 
 #ifndef _WIN32
     // Unix-only

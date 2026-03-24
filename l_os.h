@@ -49,6 +49,49 @@ typedef   ptrdiff_t       L_FD;
 #define   L_STDOUT        1
 #define   L_STDERR        2
 
+// Portable stat struct
+#ifndef L_STAT_TYPES_DEFINED
+#define L_STAT_TYPES_DEFINED
+typedef struct {
+    long long st_size;    // file size in bytes
+    int       st_mode;    // file type and permissions
+    long long st_mtime;   // modification time (Unix timestamp)
+} L_Stat;
+
+// Directory entry
+typedef struct {
+    char d_name[256];   // filename (null-terminated)
+    int  d_type;        // L_DT_REG, L_DT_DIR, L_DT_UNKNOWN
+} L_DirEntry;
+
+// Directory handle (platform-specific)
+#ifdef _WIN32
+typedef struct {
+    void *handle;         // HANDLE from FindFirstFileW
+    L_DirEntry current;   // current entry
+    int first;            // 1 = first call returns current, then FindNextFileW
+    int done;             // 1 = no more entries
+} L_Dir;
+#else
+typedef struct {
+    L_FD fd;
+    char buf[1024];     // getdents buffer
+    int  pos;           // current position in buffer
+    int  len;           // bytes read into buffer
+} L_Dir;
+#endif
+#endif // L_STAT_TYPES_DEFINED
+
+// Mode flag constants
+#define L_S_IFDIR  0040000
+#define L_S_IFREG  0100000
+#define L_S_ISDIR(m)  (((m) & 0170000) == L_S_IFDIR)
+#define L_S_ISREG(m)  (((m) & 0170000) == L_S_IFREG)
+
+#define L_DT_UNKNOWN 0
+#define L_DT_REG     8
+#define L_DT_DIR     4
+
 // CLang warns for 'asm'
 #ifdef __clang__
 #pragma GCC diagnostic ignored "-Wlanguage-extension-token"
@@ -197,6 +240,16 @@ void l_term_size(int *rows, int *cols);
 int l_unlink(const char *path);
 /// Removes an empty directory, returns 0 on success, -1 on error
 int l_rmdir(const char *path);
+/// Gets file metadata by path. Returns 0 on success, -1 on error.
+int l_stat(const char *path, L_Stat *st);
+/// Gets file metadata by open file descriptor. Returns 0 on success, -1 on error.
+int l_fstat(L_FD fd, L_Stat *st);
+/// Opens a directory for reading. Returns 0 on success, -1 on error.
+int l_opendir(const char *path, L_Dir *dir);
+/// Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done.
+L_DirEntry *l_readdir(L_Dir *dir);
+/// Closes a directory handle.
+void l_closedir(L_Dir *dir);
 
 #ifdef __unix__
 // Unix-only functions
@@ -511,6 +564,11 @@ int WINAPI mainCRTStartup(void)
 #  define sched_yield l_sched_yield
 #  define unlink l_unlink
 #  define rmdir l_rmdir
+#  define stat l_stat
+#  define fstat l_fstat
+#  define opendir l_opendir
+#  define readdir l_readdir
+#  define closedir l_closedir
 
 #  define exitif l_exitif
 #  define getenv l_getenv
@@ -1866,6 +1924,123 @@ inline int l_rmdir(const char *path)
 #endif
 }
 
+inline int l_stat(const char *path, L_Stat *st)
+{
+#if defined(__x86_64__)
+    char buf[144];
+    l_memset(buf, 0, sizeof(buf));
+    long ret = my_syscall4(262 /*__NR_newfstatat*/, AT_FDCWD, path, buf, 0);
+    if (ret < 0) return -1;
+    st->st_mode  = *(int *)(buf + 24);
+    st->st_size  = *(long long *)(buf + 48);
+    st->st_mtime = *(long long *)(buf + 88);
+    return 0;
+#elif defined(__aarch64__)
+    char buf[144];
+    l_memset(buf, 0, sizeof(buf));
+    long ret = my_syscall4(79 /*__NR_newfstatat*/, AT_FDCWD, path, buf, 0);
+    if (ret < 0) return -1;
+    st->st_mode  = *(int *)(buf + 24);
+    st->st_size  = *(long long *)(buf + 48);
+    st->st_mtime = *(long long *)(buf + 88);
+    return 0;
+#elif defined(__arm__)
+    char buf[104];
+    l_memset(buf, 0, sizeof(buf));
+    long ret = my_syscall4(327 /*__NR_fstatat64*/, AT_FDCWD, path, buf, 0);
+    if (ret < 0) return -1;
+    st->st_mode  = *(int *)(buf + 16);
+    st->st_size  = *(long long *)(buf + 48);
+    st->st_mtime = *(long *)(buf + 72);
+    return 0;
+#else
+#error Unsupported architecture for l_stat
+#endif
+}
+
+inline int l_fstat(L_FD fd, L_Stat *st)
+{
+#if defined(__x86_64__)
+    char buf[144];
+    l_memset(buf, 0, sizeof(buf));
+    long ret = my_syscall2(5 /*__NR_fstat*/, fd, buf);
+    if (ret < 0) return -1;
+    st->st_mode  = *(int *)(buf + 24);
+    st->st_size  = *(long long *)(buf + 48);
+    st->st_mtime = *(long long *)(buf + 88);
+    return 0;
+#elif defined(__aarch64__)
+    char buf[144];
+    l_memset(buf, 0, sizeof(buf));
+    long ret = my_syscall2(80 /*__NR_fstat*/, fd, buf);
+    if (ret < 0) return -1;
+    st->st_mode  = *(int *)(buf + 24);
+    st->st_size  = *(long long *)(buf + 48);
+    st->st_mtime = *(long long *)(buf + 88);
+    return 0;
+#elif defined(__arm__)
+    char buf[104];
+    l_memset(buf, 0, sizeof(buf));
+    long ret = my_syscall2(197 /*__NR_fstat64*/, fd, buf);
+    if (ret < 0) return -1;
+    st->st_mode  = *(int *)(buf + 16);
+    st->st_size  = *(long long *)(buf + 48);
+    st->st_mtime = *(long *)(buf + 72);
+    return 0;
+#else
+#error Unsupported architecture for l_fstat
+#endif
+}
+
+inline int l_opendir(const char *path, L_Dir *dir)
+{
+    L_FD fd = l_open(path, O_RDONLY | O_DIRECTORY, 0);
+    if (fd < 0) return -1;
+    dir->fd  = fd;
+    dir->pos = 0;
+    dir->len = 0;
+    return 0;
+}
+
+inline L_DirEntry *l_readdir(L_Dir *dir)
+{
+    static L_DirEntry entry;
+    for (;;) {
+        if (dir->pos >= dir->len) {
+#if defined(__x86_64__)
+            long ret = my_syscall3(217 /*__NR_getdents64*/, dir->fd, dir->buf, sizeof(dir->buf));
+#elif defined(__aarch64__)
+            long ret = my_syscall3(61 /*__NR_getdents64*/, dir->fd, dir->buf, sizeof(dir->buf));
+#elif defined(__arm__)
+            long ret = my_syscall3(217 /*__NR_getdents64*/, dir->fd, dir->buf, sizeof(dir->buf));
+#else
+#error Unsupported architecture for l_readdir
+#endif
+            if (ret <= 0) return (L_DirEntry *)0;
+            dir->pos = 0;
+            dir->len = (int)ret;
+        }
+        // Parse linux_dirent64: d_ino(8), d_off(8), d_reclen(2), d_type(1), d_name(variable)
+        char *dp = dir->buf + dir->pos;
+        unsigned short reclen = *(unsigned short *)(dp + 16);
+        unsigned char d_type  = *(unsigned char *)(dp + 18);
+        char *name = dp + 19;
+        dir->pos += reclen;
+
+        l_strncpy(entry.d_name, name, 255);
+        entry.d_name[255] = '\0';
+        if (d_type == 4)      entry.d_type = L_DT_DIR;
+        else if (d_type == 8) entry.d_type = L_DT_REG;
+        else                  entry.d_type = L_DT_UNKNOWN;
+        return &entry;
+    }
+}
+
+inline void l_closedir(L_Dir *dir)
+{
+    l_close(dir->fd);
+}
+
 inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
 #ifdef __NR_openat
@@ -2110,6 +2285,85 @@ inline int l_rmdir(const char *path) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     return RemoveDirectoryW(wpath) ? 0 : -1;
+}
+
+inline int l_stat(const char *path, L_Stat *st) {
+    wchar_t wpath[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (!GetFileAttributesExW(wpath, GetFileExInfoStandard, &fad)) return -1;
+    st->st_size = ((long long)fad.nFileSizeHigh << 32) | fad.nFileSizeLow;
+    if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        st->st_mode = L_S_IFDIR | 0755;
+    else
+        st->st_mode = L_S_IFREG | 0644;
+    // Convert FILETIME to Unix timestamp (seconds since 1970-01-01)
+    long long ft = ((long long)fad.ftLastWriteTime.dwHighDateTime << 32) | fad.ftLastWriteTime.dwLowDateTime;
+    st->st_mtime = (ft - 116444736000000000LL) / 10000000LL;
+    return 0;
+}
+
+inline int l_fstat(L_FD fd, L_Stat *st) {
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformationByHandle((HANDLE)fd, &info)) return -1;
+    st->st_size = ((long long)info.nFileSizeHigh << 32) | info.nFileSizeLow;
+    if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        st->st_mode = L_S_IFDIR | 0755;
+    else
+        st->st_mode = L_S_IFREG | 0644;
+    long long ft = ((long long)info.ftLastWriteTime.dwHighDateTime << 32) | info.ftLastWriteTime.dwLowDateTime;
+    st->st_mtime = (ft - 116444736000000000LL) / 10000000LL;
+    return 0;
+}
+
+inline int l_opendir(const char *path, L_Dir *dir) {
+    wchar_t wpath[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    // Append \* for FindFirstFileW
+    size_t len = l_wcslen(wpath);
+    if (len > 0 && wpath[len - 1] != L'\\' && wpath[len - 1] != L'/') {
+        wpath[len] = L'\\';
+        len++;
+    }
+    wpath[len] = L'*';
+    wpath[len + 1] = L'\0';
+
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW(wpath, &fd);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    dir->handle = (void *)h;
+    dir->first = 1;
+    dir->done = 0;
+    // Convert first entry name to UTF-8
+    WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, dir->current.d_name, 256, NULL, NULL);
+    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        dir->current.d_type = L_DT_DIR;
+    else
+        dir->current.d_type = L_DT_REG;
+    return 0;
+}
+
+inline L_DirEntry *l_readdir(L_Dir *dir) {
+    if (dir->done) return (L_DirEntry *)0;
+    if (dir->first) {
+        dir->first = 0;
+        return &dir->current;
+    }
+    WIN32_FIND_DATAW fd;
+    if (!FindNextFileW((HANDLE)dir->handle, &fd)) {
+        dir->done = 1;
+        return (L_DirEntry *)0;
+    }
+    WideCharToMultiByte(CP_UTF8, 0, fd.cFileName, -1, dir->current.d_name, 256, NULL, NULL);
+    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        dir->current.d_type = L_DT_DIR;
+    else
+        dir->current.d_type = L_DT_REG;
+    return &dir->current;
+}
+
+inline void l_closedir(L_Dir *dir) {
+    FindClose((HANDLE)dir->handle);
 }
 
 static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD dispo) {
