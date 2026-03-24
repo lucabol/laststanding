@@ -1572,6 +1572,55 @@ void test_opendir_readdir(void) {
     TEST_SECTION_PASS("l_opendir / l_readdir / l_closedir");
 }
 
+// ===================== mmap / munmap =====================
+
+void test_mmap(void) {
+    TEST_FUNCTION("l_mmap / l_munmap");
+
+    // Test 1: Anonymous mmap - allocate a page, write, read back
+    size_t page_sz = 4096;
+    void *p = l_mmap((void *)0, page_sz, L_PROT_READ | L_PROT_WRITE,
+                     L_MAP_PRIVATE | L_MAP_ANONYMOUS, (L_FD)-1, 0);
+    TEST_ASSERT(p != L_MAP_FAILED, "anonymous mmap succeeds");
+    TEST_ASSERT(p != (void *)0, "anonymous mmap returns non-NULL");
+
+    // Write a pattern and read it back
+    unsigned char *bytes = (unsigned char *)p;
+    bytes[0] = 0xAB;
+    bytes[1] = 0xCD;
+    bytes[page_sz - 1] = 0xEF;
+    TEST_ASSERT(bytes[0] == 0xAB, "anonymous mmap write/read byte 0");
+    TEST_ASSERT(bytes[1] == 0xCD, "anonymous mmap write/read byte 1");
+    TEST_ASSERT(bytes[page_sz - 1] == 0xEF, "anonymous mmap write/read last byte");
+
+    int ret = l_munmap(p, page_sz);
+    TEST_ASSERT(ret == 0, "anonymous munmap succeeds");
+
+    // Test 2: File mmap - create a file, write data, mmap read-only, verify
+    const char *fname = "test_mmap_file";
+    const char *msg = "Hello from mmap!";
+    size_t msg_len = l_strlen(msg);
+
+    L_FD fd = l_open_write(fname);
+    TEST_ASSERT(fd >= 0, "create file for mmap test");
+    l_write(fd, msg, msg_len);
+    l_close(fd);
+
+    fd = l_open_read(fname);
+    TEST_ASSERT(fd >= 0, "open file for mmap read");
+
+    void *fm = l_mmap((void *)0, msg_len, L_PROT_READ, L_MAP_PRIVATE, fd, 0);
+    TEST_ASSERT(fm != L_MAP_FAILED, "file mmap succeeds");
+    TEST_ASSERT(l_memcmp(fm, msg, msg_len) == 0, "file mmap contents match");
+
+    ret = l_munmap(fm, msg_len);
+    TEST_ASSERT(ret == 0, "file munmap succeeds");
+    l_close(fd);
+    l_unlink(fname);
+
+    TEST_SECTION_PASS("l_mmap / l_munmap");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1632,6 +1681,7 @@ int main(int argc, char* argv[]) {
     test_unlink_rmdir();
     test_stat();
     test_opendir_readdir();
+    test_mmap();
 
 #ifndef _WIN32
     // Unix-only

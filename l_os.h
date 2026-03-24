@@ -92,6 +92,18 @@ typedef struct {
 #define L_DT_REG     8
 #define L_DT_DIR     4
 
+// Memory protection flags for l_mmap
+#define L_PROT_READ   1
+#define L_PROT_WRITE  2
+#define L_PROT_EXEC   4
+
+// Mapping flags for l_mmap
+#define L_MAP_SHARED    1
+#define L_MAP_PRIVATE   2
+#define L_MAP_ANONYMOUS 0x20
+
+#define L_MAP_FAILED ((void *)-1)
+
 // CLang warns for 'asm'
 #ifdef __clang__
 #pragma GCC diagnostic ignored "-Wlanguage-extension-token"
@@ -250,6 +262,11 @@ int l_opendir(const char *path, L_Dir *dir);
 L_DirEntry *l_readdir(L_Dir *dir);
 /// Closes a directory handle.
 void l_closedir(L_Dir *dir);
+
+/// Maps a file or anonymous memory into the process address space
+void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset);
+/// Unmaps a previously mapped region
+int l_munmap(void *addr, size_t length);
 
 #ifdef __unix__
 // Unix-only functions
@@ -569,6 +586,8 @@ int WINAPI mainCRTStartup(void)
 #  define opendir l_opendir
 #  define readdir l_readdir
 #  define closedir l_closedir
+#  define mmap l_mmap
+#  define munmap l_munmap
 
 #  define exitif l_exitif
 #  define getenv l_getenv
@@ -2041,6 +2060,34 @@ inline void l_closedir(L_Dir *dir)
     l_close(dir->fd);
 }
 
+inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall6(9 /*__NR_mmap*/, addr, length, prot, flags, fd, offset);
+#elif defined(__aarch64__)
+    long ret = my_syscall6(222 /*__NR_mmap*/, addr, length, prot, flags, fd, offset);
+#elif defined(__arm__)
+    long ret = my_syscall6(192 /*__NR_mmap2*/, addr, length, prot, flags, fd, (long)(offset >> 12));
+#else
+#error Unsupported architecture for l_mmap
+#endif
+    if (ret < 0 && ret > -4096) return L_MAP_FAILED;
+    return (void *)ret;
+}
+
+inline int l_munmap(void *addr, size_t length)
+{
+#if defined(__x86_64__)
+    return (int)my_syscall2(11 /*__NR_munmap*/, addr, length);
+#elif defined(__aarch64__)
+    return (int)my_syscall2(215 /*__NR_munmap*/, addr, length);
+#elif defined(__arm__)
+    return (int)my_syscall2(91 /*__NR_munmap*/, addr, length);
+#else
+#error Unsupported architecture for l_munmap
+#endif
+}
+
 inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
 #ifdef __NR_openat
@@ -2364,6 +2411,54 @@ inline L_DirEntry *l_readdir(L_Dir *dir) {
 
 inline void l_closedir(L_Dir *dir) {
     FindClose((HANDLE)dir->handle);
+}
+
+inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset)
+{
+    (void)addr;
+    // Anonymous mapping: use VirtualAlloc
+    if (flags & L_MAP_ANONYMOUS) {
+        DWORD flProtect = PAGE_READWRITE;
+        if (prot & L_PROT_EXEC) flProtect = PAGE_EXECUTE_READWRITE;
+        void *p = VirtualAlloc(NULL, length, MEM_COMMIT | MEM_RESERVE, flProtect);
+        return p ? p : L_MAP_FAILED;
+    }
+    // File mapping
+    DWORD flProtect;
+    DWORD dwAccess;
+    if (prot & L_PROT_WRITE) {
+        flProtect = PAGE_READWRITE;
+        dwAccess = FILE_MAP_WRITE;
+    } else {
+        flProtect = PAGE_READONLY;
+        dwAccess = FILE_MAP_READ;
+    }
+    if (prot & L_PROT_EXEC) {
+        flProtect = (prot & L_PROT_WRITE) ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
+        dwAccess |= FILE_MAP_EXECUTE;
+    }
+    DWORD sizeHi = 0;
+    DWORD sizeLo = 0;
+    if (prot & L_PROT_WRITE) {
+        sizeHi = (DWORD)((unsigned long long)(offset + length) >> 32);
+        sizeLo = (DWORD)((unsigned long long)(offset + length) & 0xFFFFFFFF);
+    }
+    HANDLE hMap = CreateFileMappingW((HANDLE)fd, NULL, flProtect, sizeHi, sizeLo, NULL);
+    if (!hMap) return L_MAP_FAILED;
+    DWORD offHi = (DWORD)((unsigned long long)offset >> 32);
+    DWORD offLo = (DWORD)((unsigned long long)offset & 0xFFFFFFFF);
+    void *p = MapViewOfFile(hMap, dwAccess, offHi, offLo, length);
+    CloseHandle(hMap);
+    return p ? p : L_MAP_FAILED;
+}
+
+inline int l_munmap(void *addr, size_t length)
+{
+    (void)length;
+    // Try UnmapViewOfFile first (for file mappings), then VirtualFree (for anonymous)
+    if (UnmapViewOfFile(addr)) return 0;
+    if (VirtualFree(addr, 0, MEM_RELEASE)) return 0;
+    return -1;
 }
 
 static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD dispo) {
