@@ -1,11 +1,12 @@
-#define L_WITHSNPRINTF
 #define L_MAINFILE
 #include "l_os.h"
 
-// Minimal ls: lists directory entries with type, size, and name
-// Usage: ls [directory]
+// ls: lists directory contents like the default Linux ls
+// Usage: ls [-a] [-l] [directory]
+//   -a  show hidden files (starting with '.')
+//   -l  long format (type, size, name)
 
-#define MAX_ENTRIES 256
+#define MAX_ENTRIES 512
 
 typedef struct {
     char name[256];
@@ -21,19 +22,39 @@ static void swap_entries(Entry *a, Entry *b) {
 }
 
 static void sort_entries(Entry *entries, int count) {
+    // Case-insensitive sort, skip leading '.'
     for (int i = 0; i < count - 1; i++)
-        for (int j = 0; j < count - 1 - i; j++)
-            if (l_strcmp(entries[j].name, entries[j + 1].name) > 0)
+        for (int j = 0; j < count - 1 - i; j++) {
+            const char *a = entries[j].name;
+            const char *b = entries[j+1].name;
+            if (*a == '.') a++;
+            if (*b == '.') b++;
+            if (l_strcasecmp(a, b) > 0)
                 swap_entries(&entries[j], &entries[j + 1]);
+        }
 }
 
 int main(int argc, char *argv[]) {
-    const char *path = (argc > 1) ? argv[1] : ".";
+    int show_all = 0, long_fmt = 0;
+    const char *path = ".";
+
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-') {
+            for (int j = 1; argv[i][j]; j++) {
+                if (argv[i][j] == 'a') show_all = 1;
+                else if (argv[i][j] == 'l') long_fmt = 1;
+            }
+        } else {
+            path = argv[i];
+        }
+    }
 
     L_Dir dir;
     if (l_opendir(path, &dir) != 0) {
-        l_puts("ls: cannot open directory\n");
-        return 1;
+        l_puts("ls: cannot access '");
+        l_puts(path);
+        l_puts("': No such file or directory\n");
+        return 2;
     }
 
     Entry entries[MAX_ENTRIES];
@@ -41,36 +62,33 @@ int main(int argc, char *argv[]) {
     L_DirEntry *ent;
 
     while ((ent = l_readdir(&dir)) != (L_DirEntry *)0 && count < MAX_ENTRIES) {
+        // Skip hidden files unless -a
+        if (!show_all && ent->d_name[0] == '.') continue;
+
         l_strncpy(entries[count].name, ent->d_name, 255);
         entries[count].name[255] = '\0';
 
-        // Build full path for stat
-        char fullpath[512];
-        if (l_strcmp(path, ".") == 0) {
-            l_strncpy(fullpath, ent->d_name, 511);
-        } else {
+        if (long_fmt) {
+            // Build full path for stat
+            char fullpath[512];
+            size_t plen = l_strlen(path);
             l_strncpy(fullpath, path, 400);
             fullpath[400] = '\0';
-            size_t plen = l_strlen(fullpath);
-            if (plen > 0 && fullpath[plen - 1] != '/' && fullpath[plen - 1] != '\\') {
+            if (plen > 0 && path[plen-1] != '/' && path[plen-1] != '\\') {
                 fullpath[plen] = '/';
                 fullpath[plen + 1] = '\0';
             }
             l_strncat(fullpath, ent->d_name, 511 - l_strlen(fullpath));
-        }
-        fullpath[511] = '\0';
+            fullpath[511] = '\0';
 
-        L_Stat st;
-        if (l_stat(fullpath, &st) == 0) {
-            entries[count].size = st.st_size;
-            if (L_S_ISDIR(st.st_mode))      entries[count].type = 'd';
-            else if (L_S_ISREG(st.st_mode)) entries[count].type = '-';
-            else                             entries[count].type = '?';
-        } else {
-            entries[count].size = 0;
-            if (ent->d_type == L_DT_DIR)      entries[count].type = 'd';
-            else if (ent->d_type == L_DT_REG) entries[count].type = '-';
-            else                               entries[count].type = '?';
+            L_Stat st;
+            if (l_stat(fullpath, &st) == 0) {
+                entries[count].size = st.st_size;
+                entries[count].type = L_S_ISDIR(st.st_mode) ? 'd' : L_S_ISREG(st.st_mode) ? '-' : '?';
+            } else {
+                entries[count].size = 0;
+                entries[count].type = (ent->d_type == L_DT_DIR) ? 'd' : (ent->d_type == L_DT_REG) ? '-' : '?';
+            }
         }
         count++;
     }
@@ -78,11 +96,29 @@ int main(int argc, char *argv[]) {
 
     sort_entries(entries, count);
 
-    for (int i = 0; i < count; i++) {
-        char line[512];
-        l_snprintf(line, sizeof(line), "%c %8lld %s\n",
-                   entries[i].type, entries[i].size, entries[i].name);
-        l_puts(line);
+    if (long_fmt) {
+        for (int i = 0; i < count; i++) {
+            char t[2] = {entries[i].type, 0};
+            l_puts(t);
+            // Right-align size in 10 chars — use 32-bit math (files < 4GB)
+            unsigned int sz = (unsigned int)entries[i].size;
+            char sbuf[20];
+            int slen = 0;
+            if (sz == 0) { sbuf[slen++] = '0'; }
+            else { unsigned int v = sz; while (v > 0) { sbuf[slen++] = '0' + (v % 10); v /= 10; } }
+            for (int p = 0; p < 10 - slen; p++) l_puts(" ");
+            for (int p = slen - 1; p >= 0; p--) { char c[2] = {sbuf[p], 0}; l_puts(c); }
+            l_puts(" ");
+            l_puts(entries[i].name);
+            l_puts("\n");
+        }
+    } else {
+        // Default: names only, space-separated
+        for (int i = 0; i < count; i++) {
+            if (i > 0) l_puts("  ");
+            l_puts(entries[i].name);
+        }
+        if (count > 0) l_puts("\n");
     }
 
     return 0;

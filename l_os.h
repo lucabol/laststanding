@@ -2016,7 +2016,19 @@ inline int l_fstat(L_FD fd, L_Stat *st)
 
 inline int l_opendir(const char *path, L_Dir *dir)
 {
-    L_FD fd = l_open(path, O_RDONLY | O_DIRECTORY, 0);
+    // Use openat syscall directly to avoid forward-declaration issues
+#define L_O_RDONLY    0
+#define L_O_DIRECTORY 0200000
+#define L_AT_FDCWD    (-100)
+#if defined(__x86_64__)
+    L_FD fd = (L_FD)my_syscall4(257 /*__NR_openat*/, L_AT_FDCWD, path, L_O_RDONLY | L_O_DIRECTORY, 0);
+#elif defined(__aarch64__)
+    L_FD fd = (L_FD)my_syscall4(56 /*__NR_openat*/, L_AT_FDCWD, path, L_O_RDONLY | L_O_DIRECTORY, 0);
+#elif defined(__arm__)
+    L_FD fd = (L_FD)my_syscall4(322 /*__NR_openat*/, L_AT_FDCWD, path, L_O_RDONLY | L_O_DIRECTORY, 0);
+#else
+#error Unsupported architecture for l_opendir
+#endif
     if (fd < 0) return -1;
     dir->fd  = fd;
     dir->pos = 0;
