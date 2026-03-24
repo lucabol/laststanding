@@ -28,3 +28,7 @@ Fixed ERRORLEVEL bug in PR #27 Windows CI workflow (per Ripley's review). Applie
 - **Platform availability of l_* functions.** `l_lseek`, `l_dup`, `l_mkdir`, `l_chdir` are Linux-only (syscall wrappers, no Windows implementations). `l_wcslen` is cross-platform (defined in common section of l_os.h). Tests for Linux-only functions must be guarded with `#ifndef _WIN32`.
 - **l_wcslen works fine on Windows.** The old comment "causes issues" in test.c was stale. `l_wcslen` with `L"..."` wide string literals compiles and runs correctly on Windows with clang/freestanding. Added 5 passing tests.
 - **Expanded test coverage for l_lseek, l_dup, l_mkdir, l_wcslen.** Added to `test/test_extended.c`: l_wcslen (5 tests, cross-platform), l_lseek (11 tests, Linux-only guard), l_dup (7 tests, Linux-only guard), l_mkdir (4 tests, Linux-only guard). All pass on Windows build. Linux-guarded tests compile-skip cleanly.
+
+## Note — 2026-03-24
+
+Dallas delivered two new showcase programs: base64 encoder/decoder (RFC 4648, buffered I/O, streaming) and sort utility (shell sort with Knuth gaps, supports -r/-f/-n/-u flags). Also fixed test_all.bat to use `test*.exe` pattern to avoid hanging on stdin-reading tools. All 15 CI tests pass.

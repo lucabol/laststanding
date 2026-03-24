@@ -204,3 +204,26 @@ Added two new `l_*` functions to `l_os.h` with full test coverage.
 4. **Tests:** Added `test_strcmp` (12 assertions) and `test_strncpy` (7 assertions) to `test/test_extended.c` following existing patterns.
 
 Verified: Windows build + all tests pass (build.bat && test_all.bat).
+
+## Work Session — 2026-03-17 (showcase programs)
+
+Created two new showcase programs: `test/base64.c` (RFC 4648 base64 encoder/decoder) and `test/sort.c` (line-based sort with shell sort).
+
+**test/base64.c:** Streams via buffered I/O (4KB read/write buffers). Encodes 3 bytes → 4 base64 chars with 76-char line wrapping. Decodes skipping whitespace, handles `=` padding. Round-trip verified on l_os.h (binary-safe, `fc /b` confirmed no differences).
+
+**test/sort.c:** Reads up to 64KB into static buffer, splits into lines (max 4096), sorts with shell sort (Knuth's gap sequence). Supports `-r` (reverse), `-f` (fold case via `l_strcasecmp`), `-n` (numeric via `l_atoi`), `-u` (unique — uses sort comparison for dedup).
+
+Both follow the `test/ls.c` pattern: `#define L_MAINFILE`, `--help` support, `l_open_read` for file input, `L_STDIN` for stdin.
+
+Verified: Windows clang build clean (no warnings), all core tests pass, base64 round-trip confirmed, sort tested with all flag combinations.
+
+## Learnings
+
+- Shell sort with Knuth's gap sequence (`gap = gap * 3 + 1`, shrink by `/3`) is a good default for freestanding tools — O(n^1.25) average, no worst case on sorted input, and `/3` is a constant divisor that compilers optimize to multiply-shift (ARM-safe).
+- Buffered I/O pattern (static 4KB read/write buffers with `ibuf_get`/`obuf_put` helpers) is clean for streaming tools like base64. Avoids per-byte syscalls without reading entire input into memory.
+- Line splitting with `l_strchr(p, '\n')` naturally treats `\n` as a terminator: after the last `\n`, the pointer advances to the buffer's null terminator and the loop exits. No special trailing-newline logic needed.
+- `test_all.bat` runs all `bin\*.exe` — hangs on stdin-reading tools (base64, sort, grep, hexdump, wc, upper, countlines). The Taskfile's `bin/test*` glob avoids this. This is a pre-existing issue.
+
+## Work Session — 2026-03-24T17:04:00Z
+
+Completed showcase program delivery: committed base64 encoder/decoder and sort utility. Fixed test_all.bat to use `test*.exe` pattern matching (prevents hang on stdin-reading tools). 15/15 tests pass. Commit: 15bdf74.

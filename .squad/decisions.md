@@ -21,6 +21,25 @@ The build loop now uses `for %%f in (test\*.c)` instead of a hard-coded file lis
 
 ---
 
+### Showcase Programs: base64 and sort
+
+**Author:** Dallas  
+**Date:** 2026-03-24  
+**Status:** Implemented
+
+Delivered two reference implementations demonstrating freestanding I/O patterns:
+
+- **base64.c** — RFC 4648 encoder/decoder with buffered I/O (4KB read/write buffers). Encodes with 76-char line wrapping. Decodes while skipping whitespace. Round-trip verified on binary data.
+- **sort.c** — Shell sort with Knuth gap sequence. Supports `-r` (reverse), `-f` (fold case), `-n` (numeric), `-u` (unique). 64KB input buffer, 4096 line max.
+
+**Design notes:**
+- Shell sort avoids O(n²) worst case; Knuth gap sequence gives ~O(n^1.25) average
+- Buffered I/O in base64 keeps memory constant regardless of file size
+- Numeric sort delegates to `l_atoi` for leading whitespace/sign handling
+- Test suite pattern fixed: `test_all.bat` now uses `test*.exe` glob to exclude stdin-reading tools (base64, sort, grep, hexdump, wc)
+
+---
+
 ### l_strstr empty-string behavior
 
 **From:** Lambert (Tester)  
