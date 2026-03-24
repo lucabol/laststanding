@@ -1356,6 +1356,136 @@ void test_snprintf(void) {
     TEST_SECTION_PASS("l_snprintf");
 }
 
+// ===================== l_strcasecmp / l_strncasecmp =====================
+
+void test_strcasecmp(void) {
+    TEST_FUNCTION("l_strcasecmp / l_strncasecmp");
+
+    TEST_ASSERT(l_strcasecmp("hello", "hello") == 0, "identical lowercase");
+    TEST_ASSERT(l_strcasecmp("Hello", "hello") == 0, "mixed case equal");
+    TEST_ASSERT(l_strcasecmp("HELLO", "hello") == 0, "all upper vs lower");
+    TEST_ASSERT(l_strcasecmp("", "") == 0, "empty strings");
+    TEST_ASSERT(l_strcasecmp("a", "b") < 0, "a < b");
+    TEST_ASSERT(l_strcasecmp("b", "a") > 0, "b > a");
+    TEST_ASSERT(l_strcasecmp("abc", "abd") < 0, "abc < abd");
+    TEST_ASSERT(l_strcasecmp("abc", "ab") > 0, "longer > shorter prefix");
+    TEST_ASSERT(l_strcasecmp("ab", "abc") < 0, "shorter prefix < longer");
+    TEST_ASSERT(l_strcasecmp("123", "123") == 0, "digits equal");
+    TEST_ASSERT(l_strcasecmp("Hello!", "hello!") == 0, "with punctuation");
+
+    // l_strncasecmp
+    TEST_ASSERT(l_strncasecmp("Hello", "hello", 5) == 0, "n=len equal");
+    TEST_ASSERT(l_strncasecmp("Hello", "Help", 3) == 0, "n=3 first 3 match");
+    TEST_ASSERT(l_strncasecmp("Hello", "Help", 4) != 0, "n=4 differ at 4th");
+    TEST_ASSERT(l_strncasecmp("abc", "abd", 2) == 0, "n=2 first 2 match");
+    TEST_ASSERT(l_strncasecmp("abc", "abd", 3) < 0, "n=3 c < d");
+    TEST_ASSERT(l_strncasecmp("ABC", "abd", 0) == 0, "n=0 always equal");
+    TEST_ASSERT(l_strncasecmp("", "", 5) == 0, "empty n=5");
+
+    TEST_SECTION_PASS("l_strcasecmp / l_strncasecmp");
+}
+
+// ===================== l_strspn / l_strcspn =====================
+
+void test_strspn(void) {
+    TEST_FUNCTION("l_strspn / l_strcspn");
+
+    // l_strspn
+    TEST_ASSERT(l_strspn("abcdef", "abc") == 3, "first 3 in accept");
+    TEST_ASSERT(l_strspn("abcdef", "fed") == 0, "first char not in accept");
+    TEST_ASSERT(l_strspn("abcabc", "abc") == 6, "all chars in accept");
+    TEST_ASSERT(l_strspn("", "abc") == 0, "empty string");
+    TEST_ASSERT(l_strspn("abc", "") == 0, "empty accept");
+    TEST_ASSERT(l_strspn("123abc", "321") == 3, "digits in accept");
+    TEST_ASSERT(l_strspn("aaa", "a") == 3, "repeated single accept");
+
+    // l_strcspn
+    TEST_ASSERT(l_strcspn("abcdef", "de") == 3, "first reject at pos 3");
+    TEST_ASSERT(l_strcspn("abcdef", "abc") == 0, "first char in reject");
+    TEST_ASSERT(l_strcspn("abcdef", "xyz") == 6, "no reject chars found");
+    TEST_ASSERT(l_strcspn("", "abc") == 0, "empty string");
+    TEST_ASSERT(l_strcspn("abc", "") == 3, "empty reject");
+    TEST_ASSERT(l_strcspn("hello world", " ") == 5, "space as reject");
+
+    TEST_SECTION_PASS("l_strspn / l_strcspn");
+}
+
+// ===================== l_basename / l_dirname =====================
+
+void test_basename_dirname(void) {
+    TEST_FUNCTION("l_basename / l_dirname");
+    char buf[256];
+
+    // l_basename
+    TEST_ASSERT(l_strcmp(l_basename("/usr/bin/test"), "test") == 0, "unix path");
+    TEST_ASSERT(l_strcmp(l_basename("C:\\Users\\file.txt"), "file.txt") == 0, "windows path");
+    TEST_ASSERT(l_strcmp(l_basename("nodir"), "nodir") == 0, "no separator");
+    TEST_ASSERT(l_strcmp(l_basename("/"), "") == 0, "root trailing slash");
+    TEST_ASSERT(l_strcmp(l_basename("a/b/c"), "c") == 0, "relative unix path");
+    TEST_ASSERT(l_strcmp(l_basename("a\\b\\c"), "c") == 0, "relative windows path");
+    TEST_ASSERT(l_basename("") != (const char*)0 && l_basename("")[0] == '\0', "empty string returns empty");
+    TEST_ASSERT(l_basename((const char*)0) == (const char*)0, "NULL returns NULL");
+
+    // l_dirname
+    l_dirname("/usr/bin/test", buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, "/usr/bin") == 0, "unix dir");
+    l_dirname("C:\\Users\\file.txt", buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, "C:\\Users") == 0, "windows dir");
+    l_dirname("nodir", buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, ".") == 0, "no separator gives dot");
+    l_dirname("/file", buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, "/") == 0, "root dir");
+    l_dirname("", buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, ".") == 0, "empty gives dot");
+    l_dirname((const char*)0, buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, ".") == 0, "NULL gives dot");
+    l_dirname("a/b/c", buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, "a/b") == 0, "relative unix dir");
+    l_dirname("a\\b\\c", buf, sizeof(buf));
+    TEST_ASSERT(l_strcmp(buf, "a\\b") == 0, "relative windows dir");
+
+    // small buffer
+    l_dirname("/usr/bin/test", buf, 4);
+    TEST_ASSERT(l_strcmp(buf, "/us") == 0, "truncated dir in small buf");
+
+    TEST_SECTION_PASS("l_basename / l_dirname");
+}
+
+// ===================== l_unlink / l_rmdir =====================
+
+void test_unlink_rmdir(void) {
+    TEST_FUNCTION("l_unlink / l_rmdir");
+
+    // Create a temp file and unlink it
+    const char *tmpfile = "test_unlink_tmpfile";
+    L_FD fd = l_open_write(tmpfile);
+    TEST_ASSERT(fd >= 0, "create temp file for unlink");
+    l_write(fd, "data", 4);
+    l_close(fd);
+
+    TEST_ASSERT(l_unlink(tmpfile) == 0, "unlink existing file");
+    // Verify it's gone by trying to open for read
+    fd = l_open_read(tmpfile);
+    TEST_ASSERT(fd < 0, "file gone after unlink");
+
+    // unlink non-existent should fail
+    TEST_ASSERT(l_unlink("nonexistent_file_xyz") != 0, "unlink non-existent fails");
+
+    // Create a dir and rmdir it
+    const char *tmpdir = "test_rmdir_tmpdir";
+#ifdef _WIN32
+    CreateDirectoryA(tmpdir, NULL);
+#else
+    l_mkdir(tmpdir, 0755);
+#endif
+    TEST_ASSERT(l_rmdir(tmpdir) == 0, "rmdir empty directory");
+
+    // rmdir non-existent should fail
+    TEST_ASSERT(l_rmdir("nonexistent_dir_xyz") != 0, "rmdir non-existent fails");
+
+    TEST_SECTION_PASS("l_unlink / l_rmdir");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1378,6 +1508,9 @@ int main(int argc, char* argv[]) {
     test_strcmp();
     test_strncmp();
     test_reverse();
+    test_strcasecmp();
+    test_strspn();
+    test_basename_dirname();
 
     // Conversion functions
     test_isdigit();
@@ -1410,6 +1543,7 @@ int main(int argc, char* argv[]) {
     test_system_functions();
     test_sleep_ms();
     test_getenv();
+    test_unlink_rmdir();
 
 #ifndef _WIN32
     // Unix-only

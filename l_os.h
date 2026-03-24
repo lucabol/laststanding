@@ -79,6 +79,18 @@ char *l_strstr(const char *s1, const char *s2);
 int l_strcmp(const char *s1, const char *s2);
 /// Compares up to n characters of two strings
 int l_strncmp(const char *s1, const char *s2, size_t n);
+/// Case-insensitive string comparison
+int l_strcasecmp(const char *s1, const char *s2);
+/// Case-insensitive comparison of up to n characters
+int l_strncasecmp(const char *s1, const char *s2, size_t n);
+/// Returns length of initial segment of s consisting entirely of bytes in accept
+size_t l_strspn(const char *s, const char *accept);
+/// Returns length of initial segment of s consisting entirely of bytes NOT in reject
+size_t l_strcspn(const char *s, const char *reject);
+/// Returns pointer to the filename component of path (after last '/' or '\')
+const char *l_basename(const char *path);
+/// Writes the directory component of path into buf (up to bufsize), returns buf
+char *l_dirname(const char *path, char *buf, size_t bufsize);
 /// Reverses a string in place
 void l_reverse(char str[], int length);
 
@@ -179,6 +191,12 @@ static void l_term_restore(unsigned long old_mode);
 ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
 /// Gets terminal size in rows and columns
 void l_term_size(int *rows, int *cols);
+
+// File system functions (cross-platform)
+/// Deletes a file, returns 0 on success, -1 on error
+int l_unlink(const char *path);
+/// Removes an empty directory, returns 0 on success, -1 on error
+int l_rmdir(const char *path);
 
 #ifdef __unix__
 // Unix-only functions
@@ -448,6 +466,12 @@ int WINAPI mainCRTStartup(void)
 #  define strncpy l_strncpy
 #  define strcat l_strcat
 #  define strncat l_strncat
+#  define strcasecmp l_strcasecmp
+#  define strncasecmp l_strncasecmp
+#  define strspn l_strspn
+#  define strcspn l_strcspn
+#  define basename l_basename
+#  define dirname l_dirname
 
 #  define isdigit l_isdigit
 #  define isspace l_isspace
@@ -485,6 +509,8 @@ int WINAPI mainCRTStartup(void)
 #  define mkdir l_mkdir
 #  define chdir l_chdir
 #  define sched_yield l_sched_yield
+#  define unlink l_unlink
+#  define rmdir l_rmdir
 
 #  define exitif l_exitif
 #  define getenv l_getenv
@@ -1191,6 +1217,101 @@ static inline int l_snprintf(char *buf, size_t n, const char *fmt, ...)
 }
 #endif // L_WITHSNPRINTF
 
+inline int l_strcasecmp(const char *s1, const char *s2) {
+    for (;;) {
+        unsigned char c1 = (unsigned char)l_tolower((unsigned char)*s1);
+        unsigned char c2 = (unsigned char)l_tolower((unsigned char)*s2);
+        if (c1 != c2)
+            return (int)c1 - (int)c2;
+        if (c1 == '\0')
+            return 0;
+        s1++;
+        s2++;
+    }
+}
+
+inline int l_strncasecmp(const char *s1, const char *s2, size_t n) {
+    while (n-- > 0) {
+        unsigned char c1 = (unsigned char)l_tolower((unsigned char)*s1);
+        unsigned char c2 = (unsigned char)l_tolower((unsigned char)*s2);
+        if (c1 != c2)
+            return (int)c1 - (int)c2;
+        if (c1 == '\0')
+            return 0;
+        s1++;
+        s2++;
+    }
+    return 0;
+}
+
+inline size_t l_strspn(const char *s, const char *accept) {
+    size_t count = 0;
+    for (; *s; s++) {
+        const char *a = accept;
+        int found = 0;
+        for (; *a; a++) {
+            if (*s == *a) { found = 1; break; }
+        }
+        if (!found) break;
+        count++;
+    }
+    return count;
+}
+
+inline size_t l_strcspn(const char *s, const char *reject) {
+    size_t count = 0;
+    for (; *s; s++) {
+        const char *r = reject;
+        for (; *r; r++) {
+            if (*s == *r) return count;
+        }
+        count++;
+    }
+    return count;
+}
+
+inline const char *l_basename(const char *path) {
+    if (!path || !*path) return path;
+    const char *last = path;
+    const char *p = path;
+    while (*p) {
+        if (*p == '/' || *p == '\\')
+            last = p + 1;
+        p++;
+    }
+    return last;
+}
+
+inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
+    if (!buf || bufsize == 0) return buf;
+    if (!path || !*path) {
+        buf[0] = '.';
+        if (bufsize > 1) buf[1] = '\0'; else buf[0] = '\0';
+        return buf;
+    }
+    // Find last separator
+    const char *last_sep = (const char *)0;
+    const char *p = path;
+    while (*p) {
+        if (*p == '/' || *p == '\\')
+            last_sep = p;
+        p++;
+    }
+    if (!last_sep) {
+        // No separator: directory is "."
+        buf[0] = '.';
+        if (bufsize > 1) buf[1] = '\0'; else buf[0] = '\0';
+        return buf;
+    }
+    // Root path: separator is the first character
+    size_t len = (size_t)(last_sep - path);
+    if (len == 0) len = 1; // keep the root separator
+    if (len >= bufsize) len = bufsize - 1;
+    l_memcpy(buf, path, len);
+    buf[len] = '\0';
+    return buf;
+}
+
 #ifdef __unix__
 
 #include <asm/unistd.h>
@@ -1719,6 +1840,32 @@ inline int l_mkdir(const char *path, mode_t mode)
 #endif
 }
 
+#ifndef AT_REMOVEDIR
+#define AT_REMOVEDIR 0x200
+#endif
+
+inline int l_unlink(const char *path)
+{
+#ifdef __NR_unlinkat
+    return my_syscall3(__NR_unlinkat, AT_FDCWD, path, 0);
+#elif defined(__NR_unlink)
+    return my_syscall1(__NR_unlink, path);
+#else
+#error Neither __NR_unlinkat nor __NR_unlink defined, cannot implement l_unlink()
+#endif
+}
+
+inline int l_rmdir(const char *path)
+{
+#ifdef __NR_unlinkat
+    return my_syscall3(__NR_unlinkat, AT_FDCWD, path, AT_REMOVEDIR);
+#elif defined(__NR_rmdir)
+    return my_syscall1(__NR_rmdir, path);
+#else
+#error Neither __NR_unlinkat nor __NR_rmdir defined, cannot implement l_rmdir()
+#endif
+}
+
 inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
 #ifdef __NR_openat
@@ -1946,6 +2093,24 @@ inline void l_term_size(int *rows, int *cols)
     }
 }
 
+
+static inline int l_utf8_to_wide(const char *path, wchar_t *wbuf, size_t wbuf_len) {
+    size_t utf8Len = l_strlen(path) + 1;
+    if (utf8Len * 2 > wbuf_len * sizeof(wchar_t)) return 0;
+    return MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, (int)utf8Len, wbuf, (int)wbuf_len);
+}
+
+inline int l_unlink(const char *path) {
+    wchar_t wpath[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    return DeleteFileW(wpath) ? 0 : -1;
+}
+
+inline int l_rmdir(const char *path) {
+    wchar_t wpath[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    return RemoveDirectoryW(wpath) ? 0 : -1;
+}
 
 static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared, DWORD dispo) {
 
