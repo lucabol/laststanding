@@ -162,8 +162,9 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_closedir` | Closes a directory handle. | All |
 | `l_mmap` | Maps a file or anonymous memory into the process address space | All |
 | `l_munmap` | Unmaps a previously mapped region | All |
+| `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
+| `l_chdir` | Changes the current working directory | All |
 | **Unix-only functions** | | |
-| `l_chdir` | Changes the current working directory | Unix |
 | `l_dup` | Duplicates a file descriptor | Unix |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
