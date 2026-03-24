@@ -121,6 +121,10 @@ int l_memcmp(const void *s1, const void *s2, size_t n);
 void *l_memcpy(void *dst, const void *src, size_t len);
 /// Finds first occurrence of byte c in the first n bytes of s, or NULL
 void *l_memchr(const void *s, int c, size_t n);
+/// Finds last occurrence of byte c in the first n bytes of s, or NULL
+void *l_memrchr(const void *s, int c, size_t n);
+/// Returns the length of s, but at most maxlen (does not scan past maxlen bytes)
+size_t l_strnlen(const char *s, size_t maxlen);
 
 // System functions
 /// Terminates the process with the given status code
@@ -454,6 +458,8 @@ int WINAPI mainCRTStartup(void)
 #  define memcmp l_memcmp
 #  define memcpy l_memcpy
 #  define memchr l_memchr
+#  define memrchr l_memrchr
+#  define strnlen l_strnlen
 
 #  define exit l_exit
 #  define close l_close
@@ -930,6 +936,26 @@ inline void *l_memchr(const void *s, int c, size_t n)
         p++;
     }
     return NULL;
+}
+
+inline void *l_memrchr(const void *s, int c, size_t n)
+{
+    const unsigned char *p = (const unsigned char *)s + n;
+    const unsigned char uc = (unsigned char)c;
+
+    while (n--) {
+        if (*--p == uc)
+            return (void *)p;
+    }
+    return NULL;
+}
+
+inline size_t l_strnlen(const char *s, size_t maxlen)
+{
+    size_t len = 0;
+    while (len < maxlen && s[len] != '\0')
+        len++;
+    return len;
 }
 
 #ifdef __unix__
