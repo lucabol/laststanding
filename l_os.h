@@ -968,6 +968,26 @@ inline size_t l_strnlen(const char *s, size_t maxlen)
 }
 
 #ifdef L_WITHSNPRINTF
+/* 64-bit divmod that avoids __aeabi_uldivmod on 32-bit ARM.
+   Uses 32-bit division when the value fits in 32 bits. */
+static inline unsigned long long l__divmod64(unsigned long long val, unsigned int base, unsigned int *rem)
+{
+    if (val <= 0xFFFFFFFFULL) {
+        unsigned int v32 = (unsigned int)val;
+        *rem = v32 % base;
+        return v32 / base;
+    }
+    /* Manual long division for values > 32 bits */
+    unsigned long long q = 0;
+    unsigned int r = 0;
+    for (int i = 63; i >= 0; i--) {
+        r = (r << 1) | (unsigned int)((val >> i) & 1);
+        if (r >= base) { r -= base; q |= (1ULL << i); }
+    }
+    *rem = r;
+    return q;
+}
+
 inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
 {
     size_t pos = 0;
@@ -1078,11 +1098,11 @@ inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
         } else {
             unsigned long long v = uval;
             while (v) {
-                unsigned int digit = (unsigned int)(v % (unsigned long long)base);
+                unsigned int digit;
+                v = l__divmod64(v, (unsigned int)base, &digit);
                 if (digit < 10) nbuf[nlen++] = (char)('0' + digit);
                 else if (upper) nbuf[nlen++] = (char)('A' + digit - 10);
                 else            nbuf[nlen++] = (char)('a' + digit - 10);
-                v /= (unsigned long long)base;
             }
             for (int a = 0, b = nlen - 1; a < b; a++, b--) {
                 char tmp = nbuf[a]; nbuf[a] = nbuf[b]; nbuf[b] = tmp;
