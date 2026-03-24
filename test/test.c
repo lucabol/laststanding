@@ -1,4 +1,5 @@
 // This tests multiple files including the library with just one of them defined as L_MAINFILE
+#define L_WITHSNPRINTF
 #include "l_os.h"
 #include "l_os.h"
 
@@ -1206,6 +1207,106 @@ void test_strnlen(void) {
     TEST_SECTION_PASS("l_strnlen");
 }
 
+// ===================== l_snprintf =====================
+
+void test_snprintf(void) {
+    TEST_FUNCTION("l_snprintf");
+    char buf[128];
+
+    /* Basic string output */
+    l_snprintf(buf, sizeof(buf), "hello");
+    TEST_ASSERT(l_strcmp(buf, "hello") == 0, "plain string");
+
+    /* %s */
+    l_snprintf(buf, sizeof(buf), "<%s>", "world");
+    TEST_ASSERT(l_strcmp(buf, "<world>") == 0, "%s basic");
+
+    /* %s with NULL */
+    l_snprintf(buf, sizeof(buf), "%s", (char *)NULL);
+    TEST_ASSERT(l_strcmp(buf, "(null)") == 0, "%s null");
+
+    /* %s with width (right-align) */
+    l_snprintf(buf, sizeof(buf), "%8s", "abc");
+    TEST_ASSERT(l_strcmp(buf, "     abc") == 0, "%8s right-align");
+
+    /* %s with width (left-align) */
+    l_snprintf(buf, sizeof(buf), "%-8s|", "abc");
+    TEST_ASSERT(l_strcmp(buf, "abc     |") == 0, "%-8s left-align");
+
+    /* %s with precision */
+    l_snprintf(buf, sizeof(buf), "%.3s", "hello");
+    TEST_ASSERT(l_strcmp(buf, "hel") == 0, "%.3s truncation");
+
+    /* %c */
+    l_snprintf(buf, sizeof(buf), "%c", 'A');
+    TEST_ASSERT(l_strcmp(buf, "A") == 0, "%c basic");
+
+    /* %d basic */
+    l_snprintf(buf, sizeof(buf), "%d", 42);
+    TEST_ASSERT(l_strcmp(buf, "42") == 0, "%d positive");
+
+    l_snprintf(buf, sizeof(buf), "%d", -7);
+    TEST_ASSERT(l_strcmp(buf, "-7") == 0, "%d negative");
+
+    l_snprintf(buf, sizeof(buf), "%d", 0);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%d zero");
+
+    /* %d with width */
+    l_snprintf(buf, sizeof(buf), "%5d", 42);
+    TEST_ASSERT(l_strcmp(buf, "   42") == 0, "%5d right-align");
+
+    /* %d left-align */
+    l_snprintf(buf, sizeof(buf), "%-5d|", 42);
+    TEST_ASSERT(l_strcmp(buf, "42   |") == 0, "%-5d left-align");
+
+    /* %d zero-pad */
+    l_snprintf(buf, sizeof(buf), "%05d", 42);
+    TEST_ASSERT(l_strcmp(buf, "00042") == 0, "%05d zero-pad");
+
+    /* %u */
+    l_snprintf(buf, sizeof(buf), "%u", 255u);
+    TEST_ASSERT(l_strcmp(buf, "255") == 0, "%u basic");
+
+    /* %x lower hex */
+    l_snprintf(buf, sizeof(buf), "%x", 255u);
+    TEST_ASSERT(l_strcmp(buf, "ff") == 0, "%x lower hex");
+
+    /* %X upper hex */
+    l_snprintf(buf, sizeof(buf), "%X", 255u);
+    TEST_ASSERT(l_strcmp(buf, "FF") == 0, "%X upper hex");
+
+    /* %08x */
+    l_snprintf(buf, sizeof(buf), "%08x", 0xABu);
+    TEST_ASSERT(l_strcmp(buf, "000000ab") == 0, "%08x zero-pad hex");
+
+    /* %% literal percent */
+    l_snprintf(buf, sizeof(buf), "100%%");
+    TEST_ASSERT(l_strcmp(buf, "100%") == 0, "%% literal");
+
+    /* %ld long */
+    l_snprintf(buf, sizeof(buf), "%ld", (long)-100000L);
+    TEST_ASSERT(l_strcmp(buf, "-100000") == 0, "%ld long negative");
+
+    /* %lu unsigned long */
+    l_snprintf(buf, sizeof(buf), "%lu", (unsigned long)999999UL);
+    TEST_ASSERT(l_strcmp(buf, "999999") == 0, "%lu unsigned long");
+
+    /* buffer truncation: return value = total chars that would be written */
+    int ret = l_snprintf(buf, 4, "hello");
+    TEST_ASSERT(ret == 5, "truncation: return value is full length");
+    TEST_ASSERT(l_strcmp(buf, "hel") == 0, "truncation: buf holds first n-1 chars");
+
+    /* n=0: no write, return value still correct */
+    ret = l_snprintf(NULL, 0, "hi");
+    TEST_ASSERT(ret == 2, "n=0: return value correct");
+
+    /* Multiple format specifiers in one call */
+    l_snprintf(buf, sizeof(buf), "%d + %d = %d", 1, 2, 3);
+    TEST_ASSERT(l_strcmp(buf, "1 + 2 = 3") == 0, "multiple specifiers");
+
+    TEST_SECTION_PASS("l_snprintf");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1246,6 +1347,9 @@ int main(int argc, char* argv[]) {
     test_memchr();
     test_memrchr();
     test_strnlen();
+
+    // Formatted output
+    test_snprintf();
 
     // Wide string
     test_wcslen();

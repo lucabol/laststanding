@@ -126,6 +126,12 @@ void *l_memrchr(const void *s, int c, size_t n);
 /// Returns the length of s, but at most maxlen (does not scan past maxlen bytes)
 size_t l_strnlen(const char *s, size_t maxlen);
 
+// Formatted output
+/// Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written
+int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap);
+/// Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written
+int l_snprintf(char *buf, size_t n, const char *fmt, ...);
+
 // System functions
 /// Terminates the process with the given status code
 noreturn void l_exit(int status);
@@ -460,6 +466,9 @@ int WINAPI mainCRTStartup(void)
 #  define memchr l_memchr
 #  define memrchr l_memrchr
 #  define strnlen l_strnlen
+
+#  define vsnprintf l_vsnprintf
+#  define snprintf  l_snprintf
 
 #  define exit l_exit
 #  define close l_close
@@ -957,6 +966,164 @@ inline size_t l_strnlen(const char *s, size_t maxlen)
         len++;
     return len;
 }
+
+#ifdef L_WITHSNPRINTF
+inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
+{
+    size_t pos = 0;
+    int total = 0;
+
+#define L_SNPRINTF_EMIT(c) do { \
+    if (pos + 1 < n) buf[pos] = (char)(c); \
+    pos++; total++; \
+} while(0)
+
+    while (*fmt) {
+        if (*fmt != '%') {
+            unsigned char ch = (unsigned char)*fmt++;
+            L_SNPRINTF_EMIT(ch);
+            continue;
+        }
+        fmt++;
+
+        int flag_minus = 0, flag_zero = 0;
+        for (;;) {
+            if      (*fmt == '-') { flag_minus = 1; fmt++; }
+            else if (*fmt == '0') { flag_zero  = 1; fmt++; }
+            else break;
+        }
+
+        int width = 0;
+        while (*fmt >= '0' && *fmt <= '9') width = width * 10 + (*fmt++ - '0');
+
+        int prec = -1;
+        if (*fmt == '.') {
+            fmt++; prec = 0;
+            while (*fmt >= '0' && *fmt <= '9') prec = prec * 10 + (*fmt++ - '0');
+        }
+
+        int is_long = 0, is_ll = 0;
+        if (*fmt == 'l') {
+            is_long = 1; fmt++;
+            if (*fmt == 'l') { is_ll = 1; fmt++; }
+        } else if (*fmt == 'h') {
+            fmt++; if (*fmt == 'h') fmt++;
+        } else if (*fmt == 'z' || *fmt == 't') {
+            is_long = (sizeof(size_t) > sizeof(int)); fmt++;
+        }
+
+        char spec = *fmt++;
+        if (spec == '\0') break;
+
+        if (spec == '%') { L_SNPRINTF_EMIT('%'); continue; }
+
+        if (spec == 'c') {
+            int cv = va_arg(ap, int);
+            int pad = width - 1; if (pad < 0) pad = 0;
+            if (!flag_minus) for (int i = 0; i < pad; i++) L_SNPRINTF_EMIT(' ');
+            L_SNPRINTF_EMIT(cv);
+            if ( flag_minus) for (int i = 0; i < pad; i++) L_SNPRINTF_EMIT(' ');
+            continue;
+        }
+
+        if (spec == 's') {
+            const char *sv = va_arg(ap, const char *);
+            if (!sv) sv = "(null)";
+            int slen = (int)l_strlen(sv);
+            if (prec >= 0 && prec < slen) slen = prec;
+            int pad = width - slen; if (pad < 0) pad = 0;
+            if (!flag_minus) for (int i = 0; i < pad; i++) L_SNPRINTF_EMIT(' ');
+            for (int i = 0; i < slen; i++) L_SNPRINTF_EMIT(sv[i]);
+            if ( flag_minus) for (int i = 0; i < pad; i++) L_SNPRINTF_EMIT(' ');
+            continue;
+        }
+
+        /* Numeric specifiers: d i u x X p */
+        unsigned long long uval = 0;
+        int neg = 0, base = 10, upper = 0, is_ptr = 0;
+
+        if (spec == 'd' || spec == 'i') {
+            long long sv;
+            if (is_ll)        sv = va_arg(ap, long long);
+            else if (is_long) sv = va_arg(ap, long);
+            else               sv = va_arg(ap, int);
+            if (sv < 0) {
+                neg = 1;
+                uval = (sv == (long long)(-9223372036854775807LL - 1))
+                    ? (unsigned long long)9223372036854775808ULL
+                    : (unsigned long long)(-sv);
+            } else {
+                uval = (unsigned long long)sv;
+            }
+        } else if (spec == 'u') {
+            if (is_ll)        uval = va_arg(ap, unsigned long long);
+            else if (is_long) uval = va_arg(ap, unsigned long);
+            else               uval = (unsigned int)va_arg(ap, unsigned int);
+        } else if (spec == 'x' || spec == 'X') {
+            base = 16; upper = (spec == 'X');
+            if (is_ll)        uval = va_arg(ap, unsigned long long);
+            else if (is_long) uval = va_arg(ap, unsigned long);
+            else               uval = (unsigned int)va_arg(ap, unsigned int);
+        } else if (spec == 'p') {
+            base = 16; is_ptr = 1;
+            uval = (unsigned long long)(uintptr_t)va_arg(ap, void *);
+        } else {
+            L_SNPRINTF_EMIT(spec); continue;
+        }
+
+        /* Convert to digit chars (reverse order first) */
+        char nbuf[24]; int nlen = 0;
+        if (uval == 0 && prec != 0) {
+            nbuf[nlen++] = '0';
+        } else {
+            unsigned long long v = uval;
+            while (v) {
+                unsigned int digit = (unsigned int)(v % (unsigned long long)base);
+                if (digit < 10) nbuf[nlen++] = (char)('0' + digit);
+                else if (upper) nbuf[nlen++] = (char)('A' + digit - 10);
+                else            nbuf[nlen++] = (char)('a' + digit - 10);
+                v /= (unsigned long long)base;
+            }
+            for (int a = 0, b = nlen - 1; a < b; a++, b--) {
+                char tmp = nbuf[a]; nbuf[a] = nbuf[b]; nbuf[b] = tmp;
+            }
+        }
+
+        /* prefix: "-", "+", or "0x" for pointers */
+        const char *prefix = ""; int preflen = 0;
+        if (neg)    { prefix = "-";  preflen = 1; }
+        if (is_ptr) { prefix = "0x"; preflen = 2; }
+
+        /* precision zero-padding (separate from flag_zero) */
+        int prec_pad = (prec > nlen) ? prec - nlen : 0;
+
+        /* total content width */
+        int content = preflen + prec_pad + nlen;
+        int pad = width - content; if (pad < 0) pad = 0;
+        char padchar = (!flag_minus && flag_zero && prec < 0) ? '0' : ' ';
+
+        if (!flag_minus && padchar == ' ') for (int i=0; i<pad; i++) L_SNPRINTF_EMIT(' ');
+        for (int i = 0; i < preflen; i++) L_SNPRINTF_EMIT(prefix[i]);
+        if (!flag_minus && padchar == '0') for (int i=0; i<pad; i++) L_SNPRINTF_EMIT('0');
+        for (int i = 0; i < prec_pad; i++) L_SNPRINTF_EMIT('0');
+        for (int i = 0; i < nlen; i++) L_SNPRINTF_EMIT(nbuf[i]);
+        if ( flag_minus)                   for (int i=0; i<pad; i++) L_SNPRINTF_EMIT(' ');
+    }
+
+    if (n > 0) buf[pos < n ? pos : n - 1] = '\0';
+    return total;
+#undef L_SNPRINTF_EMIT
+}
+
+inline int l_snprintf(char *buf, size_t n, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int ret = l_vsnprintf(buf, n, fmt, ap);
+    va_end(ap);
+    return ret;
+}
+#endif // L_WITHSNPRINTF
 
 #ifdef __unix__
 
