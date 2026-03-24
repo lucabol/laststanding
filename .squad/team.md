@@ -18,6 +18,12 @@
 | Scribe | Session Logger | .squad/agents/scribe/charter.md | 📋 Scribe |
 | Ralph | Work Monitor | — | 🔄 Monitor |
 
+## Issue Source
+
+- **Repository:** lucabol/laststanding
+- **Connected:** 2026-03-11
+- **Filters:** Exclude `report`, `daily-status` labels
+
 ## Project Context
 
 - **Owner:** Luca Bolognese
