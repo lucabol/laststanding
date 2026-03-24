@@ -126,11 +126,13 @@ void *l_memrchr(const void *s, int c, size_t n);
 /// Returns the length of s, but at most maxlen (does not scan past maxlen bytes)
 size_t l_strnlen(const char *s, size_t maxlen);
 
-// Formatted output
+// Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)
+#ifdef L_WITHSNPRINTF
 /// Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written
-int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap);
+static int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap);
 /// Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written
-int l_snprintf(char *buf, size_t n, const char *fmt, ...);
+static int l_snprintf(char *buf, size_t n, const char *fmt, ...);
+#endif
 
 // System functions
 /// Terminates the process with the given status code
@@ -968,16 +970,10 @@ inline size_t l_strnlen(const char *s, size_t maxlen)
 }
 
 #ifdef L_WITHSNPRINTF
-/* 64-bit divmod that avoids __aeabi_uldivmod on 32-bit ARM.
-   Uses 32-bit division when the value fits in 32 bits. */
+/* 64-bit divmod without hardware division — avoids __aeabi_uldivmod
+   and __aeabi_uidiv on 32-bit ARM. Bit-by-bit long division. */
 static inline unsigned long long l__divmod64(unsigned long long val, unsigned int base, unsigned int *rem)
 {
-    if (val <= 0xFFFFFFFFULL) {
-        unsigned int v32 = (unsigned int)val;
-        *rem = v32 % base;
-        return v32 / base;
-    }
-    /* Manual long division for values > 32 bits */
     unsigned long long q = 0;
     unsigned int r = 0;
     for (int i = 63; i >= 0; i--) {
@@ -988,7 +984,7 @@ static inline unsigned long long l__divmod64(unsigned long long val, unsigned in
     return q;
 }
 
-inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
+static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
 {
     size_t pos = 0;
     int total = 0;
@@ -1135,7 +1131,7 @@ inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
 #undef L_SNPRINTF_EMIT
 }
 
-inline int l_snprintf(char *buf, size_t n, const char *fmt, ...)
+static inline int l_snprintf(char *buf, size_t n, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
