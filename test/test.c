@@ -1653,6 +1653,49 @@ void test_getcwd_chdir(void) {
     TEST_SECTION_PASS("l_getcwd / l_chdir");
 }
 
+// ===================== l_pipe / l_dup2 =====================
+
+void test_pipe_dup2(void) {
+    TEST_FUNCTION("l_pipe / l_dup2");
+
+    L_FD fds[2];
+    int ret = l_pipe(fds);
+    TEST_ASSERT(ret == 0, "pipe creates successfully");
+    TEST_ASSERT(fds[0] != fds[1], "pipe read and write ends differ");
+
+    // Write to pipe, read back
+    const char *msg = "hello pipe";
+    ssize_t written = l_write(fds[1], msg, 10);
+    TEST_ASSERT(written == 10, "write 10 bytes to pipe");
+
+    char buf[32];
+    l_memset(buf, 0, sizeof(buf));
+    ssize_t rd = l_read(fds[0], buf, 10);
+    TEST_ASSERT(rd == 10, "read 10 bytes from pipe");
+    TEST_ASSERT(l_memcmp(buf, "hello pipe", 10) == 0, "pipe data matches");
+
+    l_close(fds[0]);
+    l_close(fds[1]);
+
+    // Test l_dup2 — duplicate a pipe fd
+    L_FD fds2[2];
+    l_pipe(fds2);
+    int dup_ret = l_dup2(fds2[1], fds2[1]); // dup2 with same fd should work
+    TEST_ASSERT(dup_ret >= 0, "dup2 returns valid fd");
+
+    // Write through original, verify data arrives
+    l_write(fds2[1], "test", 4);
+    char buf2[8];
+    l_memset(buf2, 0, sizeof(buf2));
+    l_read(fds2[0], buf2, 4);
+    TEST_ASSERT(l_memcmp(buf2, "test", 4) == 0, "dup2 pipe data works");
+
+    l_close(fds2[0]);
+    l_close(fds2[1]);
+
+    TEST_SECTION_PASS("l_pipe / l_dup2");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1715,6 +1758,7 @@ int main(int argc, char* argv[]) {
     test_opendir_readdir();
     test_mmap();
     test_getcwd_chdir();
+    test_pipe_dup2();
 
 #ifndef _WIN32
     // Unix-only

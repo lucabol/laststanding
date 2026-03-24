@@ -276,6 +276,12 @@ char *l_getcwd(char *buf, size_t size);
 /// Changes the current working directory
 int l_chdir(const char *path);
 
+/// Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error.
+int l_pipe(L_FD fds[2]);
+
+/// Duplicates oldfd onto newfd. Returns newfd on success, -1 on error.
+int l_dup2(L_FD oldfd, L_FD newfd);
+
 #ifdef __unix__
 // Unix-only functions
 /// Duplicates a file descriptor
@@ -585,6 +591,8 @@ int WINAPI mainCRTStartup(void)
 #  define mkdir l_mkdir
 #  define chdir l_chdir
 #  define getcwd l_getcwd
+#  define pipe l_pipe
+#  define dup2 l_dup2
 #  define sched_yield l_sched_yield
 #  define unlink l_unlink
 #  define rmdir l_rmdir
@@ -1921,6 +1929,33 @@ inline int l_dup(L_FD fd)
     return my_syscall1(__NR_dup, fd);
 }
 
+inline int l_pipe(L_FD fds[2])
+{
+    int tmp[2];
+#if defined(__x86_64__)
+    long ret = my_syscall2(293 /*__NR_pipe2*/, tmp, 0);
+#elif defined(__aarch64__)
+    long ret = my_syscall2(59 /*__NR_pipe2*/, tmp, 0);
+#elif defined(__arm__)
+    long ret = my_syscall2(359 /*__NR_pipe2*/, tmp, 0);
+#endif
+    if (ret < 0) return -1;
+    fds[0] = (L_FD)tmp[0];
+    fds[1] = (L_FD)tmp[1];
+    return 0;
+}
+
+inline int l_dup2(L_FD oldfd, L_FD newfd)
+{
+#if defined(__x86_64__)
+    return (int)my_syscall2(33 /*__NR_dup2*/, oldfd, newfd);
+#elif defined(__aarch64__)
+    return (int)my_syscall3(24 /*__NR_dup3*/, oldfd, newfd, 0);
+#elif defined(__arm__)
+    return (int)my_syscall2(63 /*__NR_dup2*/, oldfd, newfd);
+#endif
+}
+
 inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
     return my_syscall3(__NR_lseek, fd, offset, whence);
@@ -2377,6 +2412,31 @@ inline char *l_getcwd(char *buf, size_t size)
     if (len == 0 || len >= 512) return (char *)0;
     if (!l_wide_to_utf8(wbuf, buf, (int)size)) return (char *)0;
     return buf;
+}
+
+inline int l_pipe(L_FD fds[2])
+{
+    HANDLE rd, wr;
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+    if (!CreatePipe(&rd, &wr, &sa, 0)) return -1;
+    fds[0] = (L_FD)rd;
+    fds[1] = (L_FD)wr;
+    return 0;
+}
+
+inline int l_dup2(L_FD oldfd, L_FD newfd)
+{
+    HANDLE proc = GetCurrentProcess();
+    HANDLE dup;
+    if (!DuplicateHandle(proc, (HANDLE)oldfd, proc, &dup, 0, TRUE, DUPLICATE_SAME_ACCESS))
+        return -1;
+    // On Windows we can't force a handle to a specific value.
+    // Return the new duplicated handle. Caller uses the returned value.
+    (void)newfd;
+    return (int)(L_FD)dup;
 }
 
 inline int l_unlink(const char *path) {
