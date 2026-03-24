@@ -1621,6 +1621,38 @@ void test_mmap(void) {
     TEST_SECTION_PASS("l_mmap / l_munmap");
 }
 
+void test_getcwd_chdir(void) {
+    TEST_FUNCTION("l_getcwd / l_chdir");
+
+    char cwd[512];
+    char *ret = l_getcwd(cwd, sizeof(cwd));
+    TEST_ASSERT(ret != 0, "getcwd returns non-null");
+    TEST_ASSERT(l_strlen(cwd) > 0, "getcwd returns non-empty string");
+
+    // Save cwd, chdir to known location, verify, chdir back
+    char saved[512];
+    l_getcwd(saved, sizeof(saved));
+
+#ifdef _WIN32
+    // On Windows, chdir to C:\ (always exists)
+    int cd_ret = l_chdir("C:\\");
+    TEST_ASSERT(cd_ret == 0, "chdir to C:\\ succeeds");
+    l_getcwd(cwd, sizeof(cwd));
+    TEST_ASSERT(cwd[0] == 'C', "getcwd after chdir starts with C");
+#else
+    // On Unix, chdir to / (always exists)
+    int cd_ret = l_chdir("/");
+    TEST_ASSERT(cd_ret == 0, "chdir to / succeeds");
+    l_getcwd(cwd, sizeof(cwd));
+    TEST_ASSERT(cwd[0] == '/' && cwd[1] == '\0', "getcwd after chdir is /");
+#endif
+
+    // Restore original cwd
+    l_chdir(saved);
+
+    TEST_SECTION_PASS("l_getcwd / l_chdir");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -1682,6 +1714,7 @@ int main(int argc, char* argv[]) {
     test_stat();
     test_opendir_readdir();
     test_mmap();
+    test_getcwd_chdir();
 
 #ifndef _WIN32
     // Unix-only

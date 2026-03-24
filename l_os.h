@@ -271,10 +271,13 @@ void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long 
 /// Unmaps a previously mapped region
 int l_munmap(void *addr, size_t length);
 
-#ifdef __unix__
-// Unix-only functions
+/// Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error.
+char *l_getcwd(char *buf, size_t size);
 /// Changes the current working directory
 int l_chdir(const char *path);
+
+#ifdef __unix__
+// Unix-only functions
 /// Duplicates a file descriptor
 int l_dup(L_FD fd);
 /// Repositions the file offset of fd
@@ -581,6 +584,7 @@ int WINAPI mainCRTStartup(void)
 #  define dup l_dup
 #  define mkdir l_mkdir
 #  define chdir l_chdir
+#  define getcwd l_getcwd
 #  define sched_yield l_sched_yield
 #  define unlink l_unlink
 #  define rmdir l_rmdir
@@ -1894,6 +1898,19 @@ inline int l_chdir(const char *path)
     return my_syscall1(__NR_chdir, path);
 }
 
+inline char *l_getcwd(char *buf, size_t size)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall2(79 /*__NR_getcwd*/, buf, size);
+#elif defined(__aarch64__)
+    long ret = my_syscall2(17 /*__NR_getcwd*/, buf, size);
+#elif defined(__arm__)
+    long ret = my_syscall2(183 /*__NR_getcwd*/, buf, size);
+#endif
+    if (ret < 0) return (char *)0;
+    return buf;
+}
+
 inline int l_close(L_FD fd)
 {
     return my_syscall1(__NR_close, fd);
@@ -2340,6 +2357,26 @@ static inline int l_utf8_to_wide(const char *path, wchar_t *wbuf, size_t wbuf_le
     size_t utf8Len = l_strlen(path) + 1;
     if (utf8Len * 2 > wbuf_len * sizeof(wchar_t)) return 0;
     return MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, (int)utf8Len, wbuf, (int)wbuf_len);
+}
+
+static inline int l_wide_to_utf8(const wchar_t *wbuf, char *buf, int buf_len) {
+    return WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, buf_len, NULL, NULL);
+}
+
+inline int l_chdir(const char *path)
+{
+    wchar_t wpath[512];
+    if (!l_utf8_to_wide(path, wpath, 512)) return -1;
+    return SetCurrentDirectoryW(wpath) ? 0 : -1;
+}
+
+inline char *l_getcwd(char *buf, size_t size)
+{
+    wchar_t wbuf[512];
+    DWORD len = GetCurrentDirectoryW(512, wbuf);
+    if (len == 0 || len >= 512) return (char *)0;
+    if (!l_wide_to_utf8(wbuf, buf, (int)size)) return (char *)0;
+    return buf;
 }
 
 inline int l_unlink(const char *path) {
