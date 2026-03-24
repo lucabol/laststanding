@@ -716,6 +716,22 @@ void test_memcpy(void) {
     l_memcpy(&out, &one, 1);
     TEST_ASSERT(out == 'Z', "single byte copy");
 
+    // Alignment boundary: vary start offset of both src and dst to exercise
+    // the word-at-a-time and tail phases of the optimised implementation.
+    {
+        char abuf_src[256];
+        char abuf_dst[256];
+        int i, ok;
+        l_memset(abuf_src, 0, sizeof(abuf_src));
+        for (i = 0; i < 128; i++) abuf_src[i] = (char)(i + 1);
+        for (i = 0; i < 8; i++) {
+            l_memset(abuf_dst, 0, sizeof(abuf_dst));
+            l_memcpy(abuf_dst + i, abuf_src + i, 128);
+            ok = (l_memcmp(abuf_dst + i, abuf_src + i, 128) == 0);
+            TEST_ASSERT(ok, "word-at-a-time: memcpy correct at alignment offsets");
+        }
+    }
+
     TEST_SECTION_PASS("l_memcpy");
 }
 
@@ -1207,7 +1223,40 @@ void test_strnlen(void) {
     TEST_SECTION_PASS("l_strnlen");
 }
 
-// ===================== l_snprintf =====================
+// ===================== l_memmem =====================
+
+void test_memmem(void) {
+    TEST_FUNCTION("l_memmem");
+
+    /* Basic found case */
+    const char hay[] = "Hello, World!";
+    TEST_ASSERT(l_memmem(hay, 13, "World", 5) == hay + 7, "finds needle in haystack");
+    TEST_ASSERT(l_memmem(hay, 13, "Hello", 5) == hay,     "finds needle at start");
+    TEST_ASSERT(l_memmem(hay, 13, "!",    1) == hay + 12, "finds single byte at end");
+
+    /* Not found */
+    TEST_ASSERT(l_memmem(hay, 13, "xyz", 3) == NULL, "needle not present returns NULL");
+
+    /* Empty needle returns haystack */
+    TEST_ASSERT(l_memmem(hay, 13, "", 0) == hay, "empty needle returns haystack pointer");
+
+    /* Needle longer than haystack */
+    TEST_ASSERT(l_memmem("ab", 2, "abc", 3) == NULL, "needle longer than haystack returns NULL");
+
+    /* Binary data with embedded nulls */
+    const char bin[] = {0x01, 0x00, 0x02, 0x03, 0x00, 0x04};
+    TEST_ASSERT(l_memmem(bin, 6, "\x02\x03", 2) == bin + 2, "finds binary sequence");
+    TEST_ASSERT(l_memmem(bin, 6, "\x00\x04", 2) == bin + 4, "finds sequence ending with last byte");
+
+    /* Multiple occurrences: first one is returned */
+    const char multi[] = "abcabc";
+    TEST_ASSERT(l_memmem(multi, 6, "abc", 3) == multi, "returns first of multiple occurrences");
+
+    /* Haystack length of 0 */
+    TEST_ASSERT(l_memmem("x", 0, "x", 1) == NULL, "haystacklen=0 returns NULL");
+
+    TEST_SECTION_PASS("l_memmem");
+}
 
 void test_snprintf(void) {
     TEST_FUNCTION("l_snprintf");
@@ -1347,6 +1396,7 @@ int main(int argc, char* argv[]) {
     test_memchr();
     test_memrchr();
     test_strnlen();
+    test_memmem();
 
     // Formatted output
     test_snprintf();

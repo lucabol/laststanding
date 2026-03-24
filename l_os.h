@@ -125,6 +125,8 @@ void *l_memchr(const void *s, int c, size_t n);
 void *l_memrchr(const void *s, int c, size_t n);
 /// Returns the length of s, but at most maxlen (does not scan past maxlen bytes)
 size_t l_strnlen(const char *s, size_t maxlen);
+/// Finds first occurrence of needle (needlelen bytes) in haystack (haystacklen bytes), or NULL
+void *l_memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen);
 
 // Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)
 #ifdef L_WITHSNPRINTF
@@ -468,6 +470,7 @@ int WINAPI mainCRTStartup(void)
 #  define memchr l_memchr
 #  define memrchr l_memrchr
 #  define strnlen l_strnlen
+#  define memmem  l_memmem
 
 #  define vsnprintf l_vsnprintf
 #  define snprintf  l_snprintf
@@ -931,6 +934,28 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
     char *d = (char *)dst;
     const char *s = (const char *)src;
 
+    /* Byte-copy until dst is word-aligned. */
+    while (len && ((uintptr_t)d & (sizeof(uintptr_t) - 1U))) {
+        *d++ = *s++;
+        len--;
+    }
+
+    /* Word-at-a-time copy when src is also word-aligned.
+     * The may_alias attribute lets the compiler know these pointers may alias
+     * char *, matching how freestanding memcpy implementations work. */
+    if (len >= sizeof(uintptr_t) && !((uintptr_t)s & (sizeof(uintptr_t) - 1U))) {
+        typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+        uptr_alias       *dp = (uptr_alias *)(void *)d;
+        const uptr_alias *sp = (const uptr_alias *)(const void *)s;
+        size_t nw = len / sizeof(uptr_alias);
+        while (nw--)
+            *dp++ = *sp++;
+        d   = (char *)(void *)dp;
+        s   = (const char *)(const void *)sp;
+        len &= sizeof(uptr_alias) - 1U;
+    }
+
+    /* Remaining bytes (or full copy when pointers have different alignment). */
     while (len--)
         *d++ = *s++;
     return dst;
@@ -967,6 +992,31 @@ inline size_t l_strnlen(const char *s, size_t maxlen)
     while (len < maxlen && s[len] != '\0')
         len++;
     return len;
+}
+
+inline void *l_memmem(const void *haystack, size_t haystacklen,
+                      const void *needle,   size_t needlelen)
+{
+    const unsigned char *h = (const unsigned char *)haystack;
+    const unsigned char *n = (const unsigned char *)needle;
+
+    if (needlelen == 0)
+        return (void *)haystack;
+    if (needlelen > haystacklen)
+        return NULL;
+
+    const unsigned char *end   = h + haystacklen - needlelen;
+    const unsigned char  first = n[0];
+
+    while (h <= end) {
+        h = (const unsigned char *)l_memchr(h, first, (size_t)(end - h + 1));
+        if (!h)
+            return NULL;
+        if (l_memcmp(h, n, needlelen) == 0)
+            return (void *)h;
+        h++;
+    }
+    return NULL;
 }
 
 #ifdef L_WITHSNPRINTF
