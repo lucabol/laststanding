@@ -97,6 +97,12 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_strstr` | Returns pointer to first occurrence of s2 in s1, or NULL | All |
 | `l_strcmp` | Compares two strings, returns <0, 0, or >0 | All |
 | `l_strncmp` | Compares up to n characters of two strings | All |
+| `l_strcasecmp` | Case-insensitive string comparison | All |
+| `l_strncasecmp` | Case-insensitive comparison of up to n characters | All |
+| `l_strspn` | Returns length of initial segment of s consisting entirely of bytes in accept | All |
+| `l_strcspn` | Returns length of initial segment of s consisting entirely of bytes NOT in reject | All |
+| `l_basename` | Returns pointer to the filename component of path (after last '/' or '\') | All |
+| `l_dirname` | Writes the directory component of path into buf (up to bufsize), returns buf | All |
 | `l_reverse` | Reverses a string in place | All |
 | **Conversion functions** | | |
 | `l_isspace` | Returns non-zero if c is a whitespace character (space, tab, newline, etc.) | All |
@@ -146,6 +152,9 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_term_restore` | Restores terminal mode from value returned by l_term_raw | All |
 | `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | All |
 | `l_term_size` | Gets terminal size in rows and columns | All |
+| **File system functions (cross-platform)** | | |
+| `l_unlink` | Deletes a file, returns 0 on success, -1 on error | All |
+| `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
 | **Unix-only functions** | | |
 | `l_chdir` | Changes the current working directory | Unix |
 | `l_dup` | Duplicates a file descriptor | Unix |
