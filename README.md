@@ -160,6 +160,8 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
 | `l_readdir` | Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done. | All |
 | `l_closedir` | Closes a directory handle. | All |
+| `l_mmap` | Maps a file or anonymous memory into the process address space | All |
+| `l_munmap` | Unmaps a previously mapped region | All |
 | **Unix-only functions** | | |
 | `l_chdir` | Changes the current working directory | Unix |
 | `l_dup` | Duplicates a file descriptor | Unix |
