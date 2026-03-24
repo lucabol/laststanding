@@ -118,6 +118,8 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_memcmp` | Compares n bytes of s1 and s2, returns <0, 0, or >0 | All |
 | `l_memcpy` | Copies len bytes from src to dst | All |
 | `l_memchr` | Finds first occurrence of byte c in the first n bytes of s, or NULL | All |
+| `l_memrchr` | Finds last occurrence of byte c in the first n bytes of s, or NULL | All |
+| `l_strnlen` | Returns the length of s, but at most maxlen (does not scan past maxlen bytes) | All |
 | **System functions** | | |
 | `l_exit` | Terminates the process with the given status code | All |
 | `l_open` | Opens a file with the given flags and mode, returns file descriptor | All |
