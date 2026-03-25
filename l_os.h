@@ -96,6 +96,12 @@ typedef struct {
 #define L_DT_REG     8
 #define L_DT_DIR     4
 
+// Access mode flags for l_access
+#define L_F_OK 0  // test existence
+#define L_R_OK 4  // test read permission
+#define L_W_OK 2  // test write permission
+#define L_X_OK 1  // test execute permission
+
 // Memory protection flags for l_mmap
 #define L_PROT_READ   1
 #define L_PROT_WRITE  2
@@ -256,6 +262,10 @@ void l_term_size(int *rows, int *cols);
 int l_unlink(const char *path);
 /// Removes an empty directory, returns 0 on success, -1 on error
 int l_rmdir(const char *path);
+/// Renames (or moves) a file or directory. Returns 0 on success, -1 on error.
+int l_rename(const char *oldpath, const char *newpath);
+/// Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error.
+int l_access(const char *path, int mode);
 /// Gets file metadata by path. Returns 0 on success, -1 on error.
 int l_stat(const char *path, L_Stat *st);
 /// Gets file metadata by open file descriptor. Returns 0 on success, -1 on error.
@@ -611,6 +621,12 @@ int WINAPI mainCRTStartup(void)
 #  define sched_yield l_sched_yield
 #  define unlink l_unlink
 #  define rmdir l_rmdir
+#  define rename l_rename
+#  define access l_access
+#  define F_OK L_F_OK
+#  define R_OK L_R_OK
+#  define W_OK L_W_OK
+#  define X_OK L_X_OK
 #  define stat l_stat
 #  define fstat l_fstat
 #  define opendir l_opendir
@@ -2069,6 +2085,32 @@ inline int l_rmdir(const char *path)
 #endif
 }
 
+inline int l_rename(const char *oldpath, const char *newpath)
+{
+#if defined(__x86_64__)
+    return (int)my_syscall4(264 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
+#elif defined(__aarch64__)
+    return (int)my_syscall4(38 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
+#elif defined(__arm__)
+    return (int)my_syscall4(329 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
+#else
+#error Unsupported architecture for l_rename
+#endif
+}
+
+inline int l_access(const char *path, int mode)
+{
+#if defined(__x86_64__)
+    return (int)my_syscall4(269 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
+#elif defined(__aarch64__)
+    return (int)my_syscall4(48 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
+#elif defined(__arm__)
+    return (int)my_syscall4(334 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
+#else
+#error Unsupported architecture for l_access
+#endif
+}
+
 inline int l_stat(const char *path, L_Stat *st)
 {
 #if defined(__x86_64__)
@@ -2571,6 +2613,22 @@ inline int l_rmdir(const char *path) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     return RemoveDirectoryW(wpath) ? 0 : -1;
+}
+
+inline int l_rename(const char *oldpath, const char *newpath) {
+    wchar_t wold[1024], wnew[1024];
+    if (!l_utf8_to_wide(oldpath, wold, 1024)) return -1;
+    if (!l_utf8_to_wide(newpath, wnew, 1024)) return -1;
+    return MoveFileExW(wold, wnew, 1 /*MOVEFILE_REPLACE_EXISTING*/) ? 0 : -1;
+}
+
+inline int l_access(const char *path, int mode) {
+    wchar_t wpath[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    DWORD attr = GetFileAttributesW(wpath);
+    if (attr == (DWORD)-1) return -1;
+    if ((mode & L_W_OK) && (attr & 1 /*FILE_ATTRIBUTE_READONLY*/)) return -1;
+    return 0;
 }
 
 inline int l_stat(const char *path, L_Stat *st) {

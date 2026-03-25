@@ -1486,10 +1486,44 @@ void test_unlink_rmdir(void) {
     TEST_SECTION_PASS("l_unlink / l_rmdir");
 }
 
+// ===================== l_rename / l_access =====================
+
+void test_rename_access(void) {
+    TEST_FUNCTION("l_rename / l_access");
+
+    // Create a temp file
+    const char *src = "test_rename_src";
+    const char *dst = "test_rename_dst";
+    L_FD fd = l_open_write(src);
+    TEST_ASSERT(fd >= 0, "create source file for rename");
+    l_write(fd, "hello", 5);
+    l_close(fd);
+
+    // l_access: file exists (F_OK)
+    TEST_ASSERT(l_access(src, L_F_OK) == 0, "access src F_OK");
+    TEST_ASSERT(l_access("nonexistent_xyz_abc", L_F_OK) != 0, "access nonexistent F_OK fails");
+
+    // l_rename: move src to dst
+    TEST_ASSERT(l_rename(src, dst) == 0, "rename src to dst");
+
+    // src gone, dst present
+    TEST_ASSERT(l_access(src, L_F_OK) != 0, "src gone after rename");
+    TEST_ASSERT(l_access(dst, L_F_OK) == 0, "dst present after rename");
+
+    // l_access: check read permission on dst
+    TEST_ASSERT(l_access(dst, L_R_OK) == 0, "access dst R_OK");
+
+    // cleanup
+    l_unlink(dst);
+
+    TEST_SECTION_PASS("l_rename / l_access");
+}
+
 // ===================== l_stat / l_fstat =====================
 
 void test_stat(void) {
     TEST_FUNCTION("l_stat / l_fstat");
+
 
     // stat a known file
     L_Stat st;
@@ -1812,6 +1846,7 @@ int main(int argc, char* argv[]) {
     test_sleep_ms();
     test_getenv();
     test_unlink_rmdir();
+    test_rename_access();
     test_stat();
     test_opendir_readdir();
     test_mmap();
