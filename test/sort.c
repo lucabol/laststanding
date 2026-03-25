@@ -4,10 +4,10 @@
 // sort: line-based text sort
 // Usage: sort [-r] [-f] [-n] [-u] [-h/--help] [file]
 
-#define MAX_INPUT (64 * 1024)
+#define SORT_MAX_INPUT (64 * 1024)
 #define MAX_LINES 4096
 
-static char buf[MAX_INPUT];
+static char buf[SORT_MAX_INPUT];
 static char *lines[MAX_LINES];
 static int opt_reverse, opt_fold, opt_numeric, opt_unique;
 
@@ -97,8 +97,8 @@ int main(int argc, char *argv[]) {
 
     /* Read all input */
     int total = 0;
-    while (total < MAX_INPUT - 1) {
-        ssize_t r = l_read(fd, buf + total, (size_t)(MAX_INPUT - 1 - total));
+    while (total < SORT_MAX_INPUT - 1) {
+        ssize_t r = l_read(fd, buf + total, (size_t)(SORT_MAX_INPUT - 1 - total));
         if (r <= 0) break;
         total += (int)r;
     }

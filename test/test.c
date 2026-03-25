@@ -129,6 +129,7 @@ static int fd_ready_now(L_FD fd) {
     struct test_fdset readfds;
     struct test_timespec timeout;
     size_t word = (size_t)fd / (8 * sizeof(readfds.words[0]));
+    int result;
 
     if (fd < 0 || word >= sizeof(readfds.words) / sizeof(readfds.words[0]))
         return -1;
@@ -138,13 +139,17 @@ static int fd_ready_now(L_FD fd) {
     timeout.tv_sec = 0;
     timeout.tv_nsec = 0;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #if defined(__x86_64__)
-    return (int)my_syscall6(270 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
+    result = (int)my_syscall6(270 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
 #elif defined(__arm__)
-    return (int)my_syscall6(335 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
+    result = (int)my_syscall6(335 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
 #elif defined(__aarch64__)
-    return (int)my_syscall6(72 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
+    result = (int)my_syscall6(72 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
 #endif
+#pragma GCC diagnostic pop
+    return result;
 }
 #endif
 
