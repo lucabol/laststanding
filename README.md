@@ -148,6 +148,10 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_exitif` | Exits with code and message if condition is true | All |
 | `l_getenv` | Returns value of environment variable, or NULL if not found | All |
 | `l_getenv_init` | Initializes environment variable access (call from main) | All |
+| `l_env_start` | Begin iterating environment variables. Returns opaque handle (pass to l_env_end). | All |
+| `l_env_next` | Returns NULL when done. Caller must not free the returned pointer. | All |
+| `l_env_end` | End iteration and free resources. | All |
+| `l_find_executable` | Returns 1 if found (writes full path to out), 0 if not found. | All |
 | **Convenience file openers** | | |
 | `l_open_read` | Opens a file for reading | All |
 | `l_open_write` | Opens or creates a file for writing | All |
@@ -179,10 +183,6 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
 | `l_spawn` | path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit). | All |
 | `l_wait` | exitcode receives the process exit code. | All |
-| `l_env_start` | Begin iterating environment variables. Returns opaque handle. | All |
-| `l_env_next` | Get next `KEY=VALUE` string during iteration. Returns NULL when done. | All |
-| `l_env_end` | End environment iteration and free resources. | All |
-| `l_find_executable` | Search PATH for an executable. Handles platform separators and Windows extensions. Returns 1 if found, 0 otherwise. | All |
 | **Unix-only functions** | | |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
