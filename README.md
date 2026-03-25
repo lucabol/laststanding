@@ -154,9 +154,9 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_term_size` | Gets terminal size in rows and columns | All |
 | **File system functions (cross-platform)** | | |
 | `l_unlink` | Deletes a file, returns 0 on success, -1 on error | All |
+| `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
 | `l_rename` | Renames (or moves) a file or directory. Returns 0 on success, -1 on error. | All |
 | `l_access` | Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error. | All |
-| `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
 | `l_stat` | Gets file metadata by path. Returns 0 on success, -1 on error. | All |
 | `l_fstat` | Gets file metadata by open file descriptor. Returns 0 on success, -1 on error. | All |
 | `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
