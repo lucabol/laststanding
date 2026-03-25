@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Unified CI script for laststanding. Builds, tests, and verifies across Windows, Linux, and ARM.
+    Unified CI script for laststanding. Builds, tests, and verifies across Windows, Linux, ARM32, and AArch64.
 .PARAMETER Target
     Build target: windows, linux, arm, all (default: all)
 .PARAMETER Action
     Action to perform: build, test, verify, all (default: all)
 .PARAMETER Compiler
-    Compiler for Linux/ARM targets: gcc, clang, all (default: all — runs both gcc and clang)
+    Compiler for Linux and ARM targets: gcc, clang, all (default: all — runs both gcc and clang)
 .PARAMETER OptLevel
     Optimization level: 0, 1, 2, 3, s, or z (default: z — optimize for size)
 .PARAMETER ShowAll
@@ -112,6 +112,8 @@ function Get-BuildSummary {
     if (-not $cc) {
         if ($TargetName -match 'Linux') {
             $cc = if ($TargetName -match 'clang') { 'clang' } else { 'gcc' }
+        } elseif ($TargetName -match 'AArch64') {
+            $cc = if ($TargetName -match 'clang') { 'clang' } else { 'aarch64-linux-gnu-gcc' }
         } elseif ($TargetName -match 'ARM') {
             $cc = if ($TargetName -match 'clang') { 'clang' } else { 'arm-linux-gnueabihf-gcc' }
         }
@@ -120,6 +122,8 @@ function Get-BuildSummary {
     $cmd = if ($TargetName -eq 'Windows') {
         "$cc -I. -O$OptLevel -lkernel32 -ffreestanding"
     } elseif ($TargetName -match 'Linux') {
+        "$cc -I. -O$OptLevel -ffreestanding -nostdlib"
+    } elseif ($TargetName -match 'AArch64') {
         "$cc -I. -O$OptLevel -ffreestanding -nostdlib"
     } elseif ($TargetName -match 'ARM') {
         "$cc -I. -O$OptLevel -ffreestanding -nostdlib"
@@ -155,7 +159,7 @@ function Get-TestSummary {
     $parts = @()
     if ($runCount -gt 0) { $parts += "$runCount binaries" }
     if ($okCount -gt 0) { $parts += "$okCount assertions" }
-    if ($TargetName -match 'ARM') { $parts += "(QEMU)" }
+    if ($TargetName -match 'ARM' -or $TargetName -match 'AArch64') { $parts += "(QEMU)" }
 
     return ($parts -join ", ")
 }
@@ -258,6 +262,8 @@ function Write-BinarySizeTable {
         'Linux (clang)' = 'Lin/clang'
         'ARM (gcc)'     = 'ARM/gcc'
         'ARM (clang)'   = 'ARM/clang'
+        'AArch64 (gcc)'   = 'A64/gcc'
+        'AArch64 (clang)' = 'A64/clang'
     }
 
     # Collect all binary names across targets
@@ -354,6 +360,24 @@ function Test-ArmCompiler {
     return $script:ArmAvailable
 }
 
+$script:Aarch64Available = $null
+function Test-Aarch64Compiler {
+    if ($null -ne $script:Aarch64Available) { return $script:Aarch64Available }
+    if ($RunningOnLinux) {
+        try {
+            bash -c "command -v aarch64-linux-gnu-gcc" 2>&1 | Out-Null
+            $script:Aarch64Available = ($LASTEXITCODE -eq 0)
+        } catch { $script:Aarch64Available = $false }
+    } else {
+        if (-not (Test-WslAvailable)) { $script:Aarch64Available = $false; return $false }
+        try {
+            $out = wsl bash -c "command -v aarch64-linux-gnu-gcc" 2>&1
+            $script:Aarch64Available = ($LASTEXITCODE -eq 0)
+        } catch { $script:Aarch64Available = $false }
+    }
+    return $script:Aarch64Available
+}
+
 # --- QEMU emulator checks (cached) ---
 $script:QemuArmAvailable = $null
 function Test-QemuArm {
@@ -401,7 +425,7 @@ function Invoke-Step {
 
     # Safety-net patterns: if any of these appear in test output, treat as FAIL
     # regardless of exit code (catches cases where shell loops swallow failures)
-    $FailurePatterns = @('Segmentation fault', 'core dumped', 'FAILED', 'SOME TESTS FAILED', 'SOME ARM TESTS FAILED')
+    $FailurePatterns = @('Segmentation fault', 'core dumped', 'FAILED', 'SOME TESTS FAILED', 'SOME ARM TESTS FAILED', 'SOME AARCH64 TESTS FAILED')
 
     if ($ShowAll) {
         # Verbose: capture + stream, then check for failure indicators
@@ -501,7 +525,11 @@ function Invoke-CrlfFix {
     if ($ShowAll) { Write-Host "  Stripping CRLF for WSL..." -ForegroundColor DarkGray }
     $targets = Get-ChildItem -Path $RepoRoot -Include '*.c','*.h' -Recurse -File
     $taskfile = Join-Path $RepoRoot 'Taskfile'
+    $showcaseSmokeScript = Join-Path $RepoRoot 'test\showcase_smoke.sh'
+    $showcaseSmokeDir = Join-Path $RepoRoot 'test\showcase_smoke'
     if (Test-Path $taskfile) { $targets += Get-Item $taskfile }
+    if (Test-Path $showcaseSmokeScript) { $targets += Get-Item $showcaseSmokeScript }
+    if (Test-Path $showcaseSmokeDir) { $targets += Get-ChildItem -Path $showcaseSmokeDir -Recurse -File }
     foreach ($f in $targets) {
         $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
         $hasCR = $false
@@ -565,6 +593,51 @@ function Invoke-ArmBuildWith {
         } else {
             Invoke-CrlfFix
             wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_arm $CC $OptLevel"
+        }
+    }
+}
+
+# ============================================================
+#  AArch64 actions — native on Linux, via WSL + QEMU on Windows
+# ============================================================
+function Invoke-Aarch64BuildWith {
+    param([string]$CC, [string]$Label)
+    Invoke-Step $Label "Build" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel"
+        }
+    }
+}
+
+function Invoke-Aarch64TestWith {
+    param([string]$CC, [string]$Label)
+    if (-not (Test-QemuAarch64)) {
+        $hint = if ($RunningOnLinux) { "sudo apt-get install qemu-user" } else { "sudo apt-get install qemu-user (in WSL)" }
+        Write-Host "SKIP [install qemu-user: $hint]" -ForegroundColor Yellow
+        Add-Result $Label "Test" "SKIP"
+        return
+    }
+    Invoke-Step $Label "Test" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile test_aarch64 $CC $OptLevel"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test_aarch64 $CC $OptLevel"
+        }
+    }
+}
+
+function Invoke-Aarch64VerifyWith {
+    param([string]$CC, [string]$Label)
+    Invoke-Step $Label "Verify" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile verify_aarch64 $CC $OptLevel"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_aarch64 $CC $OptLevel"
         }
     }
 }
@@ -659,31 +732,56 @@ function Invoke-Target {
             if ($RunningOnWindows -and -not (Test-WslAvailable)) {
                 Write-Host "SKIP: WSL not available -- skipping ARM target." -ForegroundColor Yellow
                 foreach ($cc in (Get-ArmCompilers)) {
-                    $label = "ARM ($cc)"
+                    $labels = @("ARM ($cc)", "AArch64 ($cc)")
                     $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
-                    foreach ($act in $actions) { Add-Result $label $act "SKIP" }
+                    foreach ($label in $labels) {
+                        foreach ($act in $actions) { Add-Result $label $act "SKIP" }
+                    }
                 }
                 return
             }
             if (-not (Test-ArmCompiler)) {
                 $hint = if ($RunningOnLinux) { "sudo apt-get install gcc-arm-linux-gnueabihf" } else { "install in WSL" }
-                Write-Host "SKIP: arm-linux-gnueabihf-gcc not found -- skipping ARM target. ($hint)" -ForegroundColor Yellow
+                Write-Host "SKIP: arm-linux-gnueabihf-gcc not found -- skipping ARM32 target. ($hint)" -ForegroundColor Yellow
                 foreach ($cc in (Get-ArmCompilers)) {
                     $label = "ARM ($cc)"
                     $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
                     foreach ($act in $actions) { Add-Result $label $act "SKIP" }
                 }
-                return
+            } else {
+                foreach ($cc in (Get-ArmCompilers)) {
+                    $armCC = if ($cc -eq 'gcc') { 'arm-linux-gnueabihf-gcc' } else { 'clang' }
+                    $label = "ARM ($cc)"
+                    $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                    foreach ($act in $actions) {
+                        switch ($act) {
+                            'build'  { Invoke-ArmBuildWith  $armCC $label }
+                            'test'   { Invoke-ArmTestWith   $armCC $label }
+                            'verify' { Invoke-ArmVerifyWith $armCC $label }
+                        }
+                    }
+                }
             }
-            foreach ($cc in (Get-ArmCompilers)) {
-                $armCC = if ($cc -eq 'gcc') { 'arm-linux-gnueabihf-gcc' } else { 'clang' }
-                $label = "ARM ($cc)"
-                $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
-                foreach ($act in $actions) {
-                    switch ($act) {
-                        'build'  { Invoke-ArmBuildWith  $armCC $label }
-                        'test'   { Invoke-ArmTestWith   $armCC $label }
-                        'verify' { Invoke-ArmVerifyWith $armCC $label }
+
+            if (-not (Test-Aarch64Compiler)) {
+                $hint = if ($RunningOnLinux) { "sudo apt-get install gcc-aarch64-linux-gnu" } else { "install in WSL" }
+                Write-Host "SKIP: aarch64-linux-gnu-gcc not found -- skipping AArch64 target. ($hint)" -ForegroundColor Yellow
+                foreach ($cc in (Get-ArmCompilers)) {
+                    $label = "AArch64 ($cc)"
+                    $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                    foreach ($act in $actions) { Add-Result $label $act "SKIP" }
+                }
+            } else {
+                foreach ($cc in (Get-ArmCompilers)) {
+                    $aarch64CC = if ($cc -eq 'gcc') { 'aarch64-linux-gnu-gcc' } else { 'clang' }
+                    $label = "AArch64 ($cc)"
+                    $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                    foreach ($act in $actions) {
+                        switch ($act) {
+                            'build'  { Invoke-Aarch64BuildWith  $aarch64CC $label }
+                            'test'   { Invoke-Aarch64TestWith   $aarch64CC $label }
+                            'verify' { Invoke-Aarch64VerifyWith $aarch64CC $label }
+                        }
                     }
                 }
             }

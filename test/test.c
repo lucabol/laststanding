@@ -30,6 +30,136 @@ static int passed_count = 0;
     puts("  " name " tests: PASSED\n"); \
 } while(0)
 
+static void build_bin_path(const char *name, char *buf, size_t size) {
+#ifdef _WIN32
+    l_snprintf(buf, size, "bin\\%s.exe", name);
+#elif defined(__arm__)
+    l_snprintf(buf, size, "bin/%s.armhf", name);
+#elif defined(__aarch64__)
+    l_snprintf(buf, size, "bin/%s.aarch64", name);
+#else
+    l_snprintf(buf, size, "bin/%s", name);
+#endif
+}
+
+static int read_fd_all(L_FD fd, char *buf, int max) {
+    int total = 0;
+    while (total < max - 1) {
+        ssize_t n = l_read(fd, buf + total, (size_t)(max - 1 - total));
+        if (n <= 0) break;
+        total += (int)n;
+    }
+    buf[total] = '\0';
+    return total;
+}
+
+static int redirect_std_fd(L_FD target_fd, L_FD source_fd, L_FD *saved_fd) {
+    *saved_fd = -1;
+    if (source_fd == L_SPAWN_INHERIT || source_fd == target_fd)
+        return 0;
+
+    *saved_fd = l_dup(target_fd);
+    if (*saved_fd < 0)
+        return -1;
+
+    if (l_dup2(source_fd, target_fd) != target_fd) {
+        l_close(*saved_fd);
+        *saved_fd = -1;
+        return -1;
+    }
+    return 0;
+}
+
+static int restore_std_fd(L_FD target_fd, L_FD saved_fd) {
+    int ok = 1;
+    if (saved_fd < 0)
+        return 0;
+    if (l_dup2(saved_fd, target_fd) != target_fd)
+        ok = 0;
+    if (l_close(saved_fd) < 0)
+        ok = 0;
+    return ok ? 0 : -1;
+}
+
+static L_PID spawn_with_redirects(const char *path, char *const argv[], char *const envp[],
+                                  L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd,
+                                  int *restore_ok) {
+    L_FD saved_in = -1;
+    L_FD saved_out = -1;
+    L_FD saved_err = -1;
+    int ok = 1;
+    L_PID pid = -1;
+
+    if (restore_ok)
+        *restore_ok = 1;
+
+    if (redirect_std_fd(L_STDIN, stdin_fd, &saved_in) < 0)
+        goto done;
+    if (redirect_std_fd(L_STDOUT, stdout_fd, &saved_out) < 0)
+        goto done;
+    if (redirect_std_fd(L_STDERR, stderr_fd, &saved_err) < 0)
+        goto done;
+
+    pid = l_spawn(path, argv, envp);
+
+done:
+    if (restore_std_fd(L_STDERR, saved_err) < 0)
+        ok = 0;
+    if (restore_std_fd(L_STDOUT, saved_out) < 0)
+        ok = 0;
+    if (restore_std_fd(L_STDIN, saved_in) < 0)
+        ok = 0;
+
+    if (restore_ok)
+        *restore_ok = ok;
+    return pid;
+}
+
+#ifndef _WIN32
+struct test_fdset {
+    unsigned long words[16];
+};
+
+struct test_timespec {
+    long tv_sec;
+    long tv_nsec;
+};
+
+static int fd_ready_now(L_FD fd) {
+    struct test_fdset readfds;
+    struct test_timespec timeout;
+    size_t word = (size_t)fd / (8 * sizeof(readfds.words[0]));
+
+    if (fd < 0 || word >= sizeof(readfds.words) / sizeof(readfds.words[0]))
+        return -1;
+
+    l_memset(&readfds, 0, sizeof(readfds));
+    readfds.words[word] = 1ul << ((size_t)fd % (8 * sizeof(readfds.words[0])));
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = 0;
+
+#if defined(__x86_64__)
+    return (int)my_syscall6(270 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
+#elif defined(__arm__)
+    return (int)my_syscall6(335 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
+#elif defined(__aarch64__)
+    return (int)my_syscall6(72 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
+#endif
+}
+#endif
+
+static int maybe_run_spawn_stdio_helper(int argc, char *argv[]) {
+    if (argc > 1 && l_strcmp(argv[1], "--spawn-stdio-close-stdout-helper") == 0) {
+        char drain[16];
+        if (l_write(L_STDOUT, "hold", 4) != 4)
+            return 2;
+        l_close(L_STDOUT);
+        while (l_read(L_STDIN, drain, sizeof(drain)) > 0) {}
+        return 0;
+    }
+    return -1;
+}
+
 // ===================== Command line & program name =====================
 
 void test_command_line_args(int argc, char* argv[]) {
@@ -977,9 +1107,8 @@ void test_getenv(void) {
     TEST_SECTION_PASS("l_getenv");
 }
 
-// ===================== Unix-only: l_lseek =====================
+// ===================== l_lseek =====================
 
-#ifndef _WIN32
 void test_lseek(void) {
     TEST_FUNCTION("l_lseek");
 
@@ -1025,11 +1154,9 @@ void test_lseek(void) {
 
     TEST_SECTION_PASS("l_lseek");
 }
-#endif
 
-// ===================== Unix-only: l_dup =====================
+// ===================== l_dup =====================
 
-#ifndef _WIN32
 void test_dup(void) {
     TEST_FUNCTION("l_dup");
 
@@ -1061,11 +1188,9 @@ void test_dup(void) {
 
     TEST_SECTION_PASS("l_dup");
 }
-#endif
 
-// ===================== Unix-only: l_mkdir =====================
+// ===================== l_mkdir =====================
 
-#ifndef _WIN32
 void test_mkdir(void) {
     TEST_FUNCTION("l_mkdir");
 
@@ -1092,7 +1217,6 @@ void test_mkdir(void) {
 
     TEST_SECTION_PASS("l_mkdir");
 }
-#endif
 
 // ===================== l_open_append =====================
 
@@ -1141,9 +1265,8 @@ void test_sleep_ms(void) {
     TEST_SECTION_PASS("l_sleep_ms");
 }
 
-// ===================== Unix-only: l_sched_yield =====================
+// ===================== l_sched_yield =====================
 
-#ifndef _WIN32
 void test_sched_yield(void) {
     TEST_FUNCTION("l_sched_yield");
 
@@ -1152,7 +1275,6 @@ void test_sched_yield(void) {
 
     TEST_SECTION_PASS("l_sched_yield");
 }
-#endif
 
 // ===================== l_memchr =====================
 
@@ -1473,11 +1595,8 @@ void test_unlink_rmdir(void) {
 
     // Create a dir and rmdir it
     const char *tmpdir = "test_rmdir_tmpdir";
-#ifdef _WIN32
-    CreateDirectoryA(tmpdir, NULL);
-#else
-    l_mkdir(tmpdir, 0755);
-#endif
+    l_rmdir(tmpdir);
+    TEST_ASSERT(l_mkdir(tmpdir, 0755) == 0, "create temp dir for rmdir");
     TEST_ASSERT(l_rmdir(tmpdir) == 0, "rmdir empty directory");
 
     // rmdir non-existent should fail
@@ -1727,6 +1846,21 @@ void test_pipe_dup2(void) {
     l_close(fds2[0]);
     l_close(fds2[1]);
 
+    L_FD fds3[2];
+    L_FD dup_fd = 64;
+    TEST_ASSERT(l_pipe(fds3) == 0, "second pipe creates successfully");
+    TEST_ASSERT(l_dup2(fds3[1], dup_fd) == dup_fd, "dup2 duplicates into arbitrary fd slot");
+    l_close(fds3[1]);
+
+    TEST_ASSERT(l_write(dup_fd, "slot", 4) == 4, "write through arbitrary duped fd");
+    char buf3[8];
+    l_memset(buf3, 0, sizeof(buf3));
+    TEST_ASSERT(l_read(fds3[0], buf3, 4) == 4, "read through arbitrary duped fd");
+    TEST_ASSERT(l_memcmp(buf3, "slot", 4) == 0, "arbitrary duped fd data matches");
+
+    l_close(dup_fd);
+    l_close(fds3[0]);
+
     TEST_SECTION_PASS("l_pipe / l_dup2");
 }
 
@@ -1788,10 +1922,235 @@ void test_spawn_wait(void) {
     TEST_SECTION_PASS("l_spawn / l_wait");
 }
 
+void test_spawn_inherits_dup2(void) {
+    TEST_FUNCTION("l_spawn inherits dup2");
+
+    L_FD cap_pipe[2];
+    L_FD saved_stderr = -1;
+    int redir_ret = -1;
+    int restore_ret = -1;
+    int wait_ret;
+    int child_exit = -1;
+    int cap_len;
+    char cap_buf[64];
+    L_PID pid = -1;
+
+    TEST_ASSERT(l_pipe(cap_pipe) == 0, "capture pipe creates successfully");
+
+    saved_stderr = l_dup(L_STDERR);
+    if (saved_stderr >= 0)
+        redir_ret = l_dup2(cap_pipe[1], L_STDERR);
+    l_close(cap_pipe[1]);
+
+    if (saved_stderr >= 0 && redir_ret == L_STDERR) {
+#ifdef _WIN32
+        char *args[] = {"cmd.exe", "/c", "echo spawndup 1>&2", NULL};
+        pid = l_spawn("C:\\Windows\\System32\\cmd.exe", args, (char *const *)0);
+#else
+        char *args[] = {"/bin/sh", "-c", "printf spawndup >&2", NULL};
+        pid = l_spawn("/bin/sh", args, (char *const *)0);
+#endif
+        restore_ret = l_dup2(saved_stderr, L_STDERR);
+    }
+    if (saved_stderr >= 0)
+        l_close(saved_stderr);
+
+    TEST_ASSERT(saved_stderr >= 0, "dup saves stderr");
+    TEST_ASSERT(redir_ret == L_STDERR, "dup2 redirects stderr");
+    TEST_ASSERT(pid != -1, "spawn inherits redirected stderr");
+    TEST_ASSERT(restore_ret == L_STDERR, "dup2 restores stderr");
+
+    wait_ret = l_wait(pid, &child_exit);
+    TEST_ASSERT(wait_ret == 0, "wait on inherited-stderr child succeeds");
+
+    cap_len = read_fd_all(cap_pipe[0], cap_buf, sizeof(cap_buf));
+    l_close(cap_pipe[0]);
+
+    TEST_ASSERT(child_exit == 0, "inherited-stderr child exits 0");
+#ifdef _WIN32
+    TEST_ASSERT(cap_len == 11, "captured inherited stderr length matches");
+    TEST_ASSERT(l_memcmp(cap_buf, "spawndup \r\n", 11) == 0, "captured inherited stderr matches payload");
+#else
+    TEST_ASSERT(cap_len == 8, "captured inherited stderr length matches");
+    TEST_ASSERT(l_strcmp(cap_buf, "spawndup") == 0, "captured inherited stderr matches");
+#endif
+
+    TEST_SECTION_PASS("l_spawn inherits dup2");
+}
+
+void test_spawn_pipeline_via_dup2(void) {
+    TEST_FUNCTION("l_spawn pipeline via dup2");
+
+    char sort_path[64];
+    char printenv_path[64];
+    int left_restore_ok = 0;
+    int right_restore_ok = 0;
+    build_bin_path("sort", sort_path, sizeof(sort_path));
+    build_bin_path("printenv", printenv_path, sizeof(printenv_path));
+
+    L_FD mid_pipe[2];
+    L_FD cap_pipe[2];
+    TEST_ASSERT(l_pipe(mid_pipe) == 0, "pipeline dup2 creates first pipe");
+    TEST_ASSERT(l_pipe(cap_pipe) == 0, "pipeline dup2 creates capture pipe");
+
+    char *envp[] = {"LS_CHILD_PIPE=banana", NULL};
+    char *left_args[] = {"printenv", "LS_CHILD_PIPE", NULL};
+    char *right_args[] = {"sort", NULL};
+
+    L_PID left_pid = spawn_with_redirects(printenv_path, left_args, envp,
+                                          L_SPAWN_INHERIT, mid_pipe[1], L_SPAWN_INHERIT,
+                                          &left_restore_ok);
+    TEST_ASSERT(left_pid != -1, "spawn left via l_spawn succeeds");
+    TEST_ASSERT(left_restore_ok, "left l_spawn restores parent stdio");
+    l_close(mid_pipe[1]);
+
+    L_PID right_pid = spawn_with_redirects(sort_path, right_args, (char *const *)0,
+                                           mid_pipe[0], cap_pipe[1], L_SPAWN_INHERIT,
+                                           &right_restore_ok);
+    TEST_ASSERT(right_pid != -1, "spawn right via l_spawn succeeds");
+    TEST_ASSERT(right_restore_ok, "right l_spawn restores parent stdio");
+    l_close(mid_pipe[0]);
+    l_close(cap_pipe[1]);
+
+    char pipe_buf[64];
+    int pipe_len = read_fd_all(cap_pipe[0], pipe_buf, sizeof(pipe_buf));
+    l_close(cap_pipe[0]);
+
+    int left_exit = -1;
+    int right_exit = -1;
+    TEST_ASSERT(l_wait(left_pid, &left_exit) == 0, "wait on left l_spawn child succeeds");
+    TEST_ASSERT(l_wait(right_pid, &right_exit) == 0, "wait on right l_spawn child succeeds");
+    TEST_ASSERT(left_exit == 0, "left l_spawn child exits 0");
+    TEST_ASSERT(right_exit == 0, "right l_spawn child exits 0");
+    TEST_ASSERT(pipe_len == 21, "captured dup2 pipeline stdout length matches");
+    TEST_ASSERT(l_strcmp(pipe_buf, "LS_CHILD_PIPE=banana\n") == 0, "captured dup2 pipeline stdout matches");
+
+    TEST_SECTION_PASS("l_spawn pipeline via dup2");
+}
+
+// ===================== l_spawn_stdio =====================
+
+void test_spawn_stdio(void) {
+    TEST_FUNCTION("l_spawn_stdio");
+
+    char sort_path[64];
+    char printenv_path[64];
+    build_bin_path("sort", sort_path, sizeof(sort_path));
+    build_bin_path("printenv", printenv_path, sizeof(printenv_path));
+
+    L_FD in_pipe[2];
+    L_FD out_pipe[2];
+    TEST_ASSERT(l_pipe(in_pipe) == 0, "stdin pipe creates successfully");
+    TEST_ASSERT(l_pipe(out_pipe) == 0, "stdout pipe creates successfully");
+
+    char *sort_args[] = {"sort", NULL};
+    L_PID sort_pid = l_spawn_stdio(sort_path, sort_args, (char *const *)0,
+                                   in_pipe[0], out_pipe[1], L_SPAWN_INHERIT);
+    TEST_ASSERT(sort_pid != -1, "spawn_stdio sort succeeds");
+
+    l_close(in_pipe[0]);
+    l_close(out_pipe[1]);
+    TEST_ASSERT(l_write(in_pipe[1], "b\na\n", 4) == 4, "writes redirected stdin");
+    l_close(in_pipe[1]);
+
+    char sort_buf[64];
+    int sort_len = read_fd_all(out_pipe[0], sort_buf, sizeof(sort_buf));
+    l_close(out_pipe[0]);
+
+    int sort_exit = -1;
+    TEST_ASSERT(l_wait(sort_pid, &sort_exit) == 0, "wait on redirected sort succeeds");
+    TEST_ASSERT(sort_exit == 0, "redirected sort exits 0");
+    TEST_ASSERT(sort_len == 4, "captured sort stdout length matches");
+    TEST_ASSERT(l_strcmp(sort_buf, "a\nb\n") == 0, "captured sort stdout matches");
+
+    L_FD mid_pipe[2];
+    L_FD cap_pipe[2];
+    TEST_ASSERT(l_pipe(mid_pipe) == 0, "pipeline creates first pipe");
+    TEST_ASSERT(l_pipe(cap_pipe) == 0, "pipeline creates capture pipe");
+
+    char *envp[] = {"LS_CHILD_PIPE=banana", NULL};
+    char *left_args[] = {"printenv", "LS_CHILD_PIPE", NULL};
+    char *right_args[] = {"sort", NULL};
+
+    L_PID left_pid = l_spawn_stdio(printenv_path, left_args, envp,
+                                   L_SPAWN_INHERIT, mid_pipe[1], L_SPAWN_INHERIT);
+    TEST_ASSERT(left_pid != -1, "spawn_stdio left side succeeds");
+    l_close(mid_pipe[1]);
+
+    L_PID right_pid = l_spawn_stdio(sort_path, right_args, (char *const *)0,
+                                    mid_pipe[0], cap_pipe[1], L_SPAWN_INHERIT);
+    TEST_ASSERT(right_pid != -1, "spawn_stdio right side succeeds");
+    l_close(mid_pipe[0]);
+    l_close(cap_pipe[1]);
+
+    char pipe_buf[64];
+    int pipe_len = read_fd_all(cap_pipe[0], pipe_buf, sizeof(pipe_buf));
+    l_close(cap_pipe[0]);
+
+    int left_exit = -1;
+    int right_exit = -1;
+    TEST_ASSERT(l_wait(left_pid, &left_exit) == 0, "wait on left child succeeds");
+    TEST_ASSERT(l_wait(right_pid, &right_exit) == 0, "wait on right child succeeds");
+    TEST_ASSERT(left_exit == 0, "left child exits 0");
+    TEST_ASSERT(right_exit == 0, "right child exits 0");
+    TEST_ASSERT(pipe_len == 21, "captured pipeline stdout length matches");
+    TEST_ASSERT(l_strcmp(pipe_buf, "LS_CHILD_PIPE=banana\n") == 0, "captured pipeline stdout matches");
+
+    TEST_SECTION_PASS("l_spawn_stdio");
+}
+
+void test_spawn_stdio_child_fd_cleanup(void) {
+    TEST_FUNCTION("l_spawn_stdio child fd cleanup");
+
+#ifdef _WIN32
+    TEST_ASSERT(1, "child fd cleanup coverage is Unix-specific");
+#else
+    char test_path[64];
+    char hold_buf[8];
+    int status = 0;
+    int exitcode = -1;
+    L_FD in_pipe[2];
+    L_FD out_pipe[2];
+    char *args[] = {"test", "--spawn-stdio-close-stdout-helper", NULL};
+
+    build_bin_path("test", test_path, sizeof(test_path));
+    TEST_ASSERT(l_pipe(in_pipe) == 0, "helper stdin pipe creates successfully");
+    TEST_ASSERT(l_pipe(out_pipe) == 0, "helper stdout pipe creates successfully");
+
+    L_PID pid = l_spawn_stdio(test_path, args, (char *const *)0,
+                              in_pipe[0], out_pipe[1], L_SPAWN_INHERIT);
+    TEST_ASSERT(pid != -1, "spawn_stdio helper succeeds");
+
+    l_close(in_pipe[0]);
+    l_close(out_pipe[1]);
+
+    l_memset(hold_buf, 0, sizeof(hold_buf));
+    TEST_ASSERT(l_read(out_pipe[0], hold_buf, 4) == 4, "reads helper stdout payload");
+    TEST_ASSERT(l_memcmp(hold_buf, "hold", 4) == 0, "helper stdout payload matches");
+    TEST_ASSERT(l_waitpid(pid, &status, 1 /* WNOHANG */) == 0, "helper remains blocked after closing stdout");
+    TEST_ASSERT(fd_ready_now(out_pipe[0]) > 0, "stdout pipe reaches EOF while child is still alive");
+    TEST_ASSERT(l_read(out_pipe[0], hold_buf, 1) == 0, "stdout pipe reports EOF before child exits");
+
+    l_close(out_pipe[0]);
+    l_close(in_pipe[1]);
+
+    TEST_ASSERT(l_wait(pid, &exitcode) == 0, "wait on helper succeeds");
+    TEST_ASSERT(exitcode == 0, "helper exits 0 after stdin closes");
+#endif
+
+    TEST_SECTION_PASS("l_spawn_stdio child fd cleanup");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
+
+    {
+        int helper_exit = maybe_run_spawn_stdio_helper(argc, argv);
+        if (helper_exit >= 0)
+            return helper_exit;
+    }
 
     test_command_line_args(argc, argv);
     test_program_name(argc, argv);
@@ -1852,15 +2211,16 @@ int main(int argc, char* argv[]) {
     test_mmap();
     test_getcwd_chdir();
     test_pipe_dup2();
-    test_spawn_wait();
-
-#ifndef _WIN32
-    // Unix-only
-    test_lseek();
     test_dup();
+    test_spawn_wait();
+    test_spawn_inherits_dup2();
+    test_spawn_pipeline_via_dup2();
+    test_spawn_stdio();
+    test_spawn_stdio_child_fd_cleanup();
+
+    test_lseek();
     test_mkdir();
     test_sched_yield();
-#endif
 
     puts("\n");
     puts("=====================================\n");

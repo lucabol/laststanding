@@ -28,6 +28,8 @@ Fixed ERRORLEVEL bug in PR #27 Windows CI workflow (per Ripley's review). Applie
 - **Platform availability of l_* functions.** `l_lseek`, `l_dup`, `l_mkdir`, `l_chdir` are Linux-only (syscall wrappers, no Windows implementations). `l_wcslen` is cross-platform (defined in common section of l_os.h). Tests for Linux-only functions must be guarded with `#ifndef _WIN32`.
 - **l_wcslen works fine on Windows.** The old comment "causes issues" in test.c was stale. `l_wcslen` with `L"..."` wide string literals compiles and runs correctly on Windows with clang/freestanding. Added 5 passing tests.
 - **Expanded test coverage for l_lseek, l_dup, l_mkdir, l_wcslen.** Added to `test/test_extended.c`: l_wcslen (5 tests, cross-platform), l_lseek (11 tests, Linux-only guard), l_dup (7 tests, Linux-only guard), l_mkdir (4 tests, Linux-only guard). All pass on Windows build. Linux-guarded tests compile-skip cleanly.
+- **2026-03-25 — Showcase smoke fixtures.** All 10 non-interactive showcase utilities can be smoke-tested deterministically if CI uses `test/fixtures` and the matching `*.out` snapshots. Run path-reporting tools (`checksum`, `wc`) from the fixture directory so filenames stay basename-only across Windows and Unix.
+- **Showcase smoke gotchas.** `countlines` returns the line count as its exit code, so keep the fixture tiny (<255 lines) and assert stdout too. Compare showcase stdout byte-for-byte: `countlines` has no trailing newline, and `hexdump` keeps a trailing space on its final offset line.
 
 ## Note — 2026-03-24
 

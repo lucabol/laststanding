@@ -227,3 +227,123 @@ Verified: Windows clang build clean (no warnings), all core tests pass, base64 r
 ## Work Session — 2026-03-24T17:04:00Z
 
 Completed showcase program delivery: committed base64 encoder/decoder and sort utility. Fixed test_all.bat to use `test*.exe` pattern matching (prevents hang on stdin-reading tools). 15/15 tests pass. Commit: 15bdf74.
+
+## Work Session — 2026-07-25
+
+Added `l_getcwd` (new cross-platform function) and made `l_chdir` cross-platform (was Unix-only). Changes:
+
+- **l_os.h declarations:** Moved `l_chdir` declaration out of `#ifdef __unix__` to the cross-platform section. Added `l_getcwd` declaration there too.
+- **l_os.h Unix implementation:** Added `l_getcwd` using direct syscall numbers per architecture (x86_64: 79, aarch64: 17, arm: 183).
+- **l_os.h Windows implementation:** Added `l_chdir` (via `SetCurrentDirectoryW`) and `l_getcwd` (via `GetCurrentDirectoryW`). Also added `l_wide_to_utf8` helper (counterpart to existing `l_utf8_to_wide`).
+- **Override macros:** Added `#define getcwd l_getcwd` (chdir was already present).
+- **test/test.c:** Added `test_getcwd_chdir()` — verifies getcwd returns non-null/non-empty, chdir to known root works, and round-trip restore. All Windows tests pass.
+
+## Work Session — 2026-07-25 (Step 3)
+
+Added cross-platform process execution: `l_spawn`, `l_wait`, and Linux-only `l_fork`/`l_execve`/`l_waitpid`.
+
+- **New type:** `L_PID` (`long long`) added next to `L_FD` for process ID/handle portability.
+- **Cross-platform declarations:** `l_spawn` and `l_wait` in the main declaration block.
+- **Linux-only declarations:** `l_fork`, `l_execve`, `l_waitpid` inside `#ifdef __unix__`.
+- **Linux implementations:** `l_fork` via clone syscall (SIGCHLD flag), `l_execve` via execve syscall, `l_waitpid` via wait4 syscall — all with per-arch syscall numbers (x86_64, aarch64, arm). `l_spawn` = fork+exec, `l_wait` = waitpid + WIFEXITED/WEXITSTATUS extraction.
+- **Windows implementations:** `l_spawn` via `CreateProcessW` with UTF-8→wide command line building and quoting. `l_wait` via `WaitForSingleObject` + `GetExitCodeProcess`.
+- **Tests:** Windows spawns `cmd.exe /c exit N` (exit codes 0 and 42). Linux tests fork+exit pattern directly (works under QEMU), plus l_spawn with `/bin/true` and `/bin/false` when available.
+- All Windows tests pass.
+
+## Work Session — 2026-03-24
+
+Created `test/sh.c` — a freestanding interactive shell, the ultimate laststanding showcase.
+
+**Features implemented:**
+- Interactive REPL with `cwd$` prompt (shows last path component via `l_getcwd`)
+- Line reading from stdin with backspace handling (0x7f and 0x08)
+- Command parsing with single-quote and double-quote support
+- Four built-in commands: `cd`, `pwd`, `exit`, `echo`
+- PATH search with platform-aware separators (`:`:Linux, `;`:Windows)
+- External command execution via `l_spawn`/`l_wait`
+- I/O redirection on Unix: `>`, `>>`, `<` (using `l_fork` + `l_dup2` + `l_execve`)
+- Single-pipe support on Unix: `cmd1 | cmd2` (using `l_pipe` + `l_fork` + `l_dup2`)
+- `--help` flag following established pattern from `ls.c`/`sort.c`
+
+**Platform strategy:**
+- Unix: full features via `l_fork` + `l_dup2` + `l_execve` (enables redirection/piping in child)
+- Windows: basic command execution via `l_spawn` (`CreateProcessW` ignores `STARTF_USESTDHANDLES`; redirection/piping deferred until library supports it)
+- Auto-appends `.exe` on Windows for PATH search and direct paths
+
+**Constraints honored:**
+- No 64-bit division (ARM-safe)
+- Static buffers only (MAX_LINE=1024, MAX_ARGS=64, MAX_PATH_BUF=512)
+- No `L_WITHSNPRINTF` — all output via `l_puts` and `l_write`
+- ~280 lines, clean and readable
+- Compiles on Windows with `clang -I. -Oz -lkernel32 -ffreestanding` (8.5KB binary)
+- All existing tests still pass
+
+## Work Session — 2026-07-25 (Windows I/O)
+
+Implemented Windows I/O redirection (`>`, `>>`, `<`) and piping (`cmd1 | cmd2`) in `test/sh.c`.
+
+**Approach:** Direct `CreateProcessW` with `STARTF_USESTDHANDLES` in sh.c rather than modifying `l_spawn` in l_os.h. The shell already has `#ifdef _WIN32` sections so this keeps l_spawn simple.
+
+**Key implementation details:**
+- `build_cmdline()` helper: builds wide command line from argv with quoting (factored from l_spawn's pattern)
+- `make_inheritable()`: uses `DuplicateHandle` with `bInheritHandle=TRUE` to make file handles inheritable (l_open_* uses CreateFileW with NULL security attrs → non-inheritable)
+- `open_redir_read()` / `open_redir_write()`: open file via l_open_*, duplicate to inheritable handle, close original
+- `exec_cmd()`: sets up `STARTUPINFOW` with `STARTF_USESTDHANDLES`, redirected handles for stdin/stdout as needed, then CreateProcessW
+- `exec_pipe()`: creates pipe via `l_pipe` (already inheritable), launches left process with stdout→pipe write end, right process with stdin→pipe read end, closes pipe in parent, waits for both, returns right-side exit code
+- All error paths properly clean up handles
+- Usage text updated: redirection/piping features now advertised on all platforms
+
+**No changes to l_os.h.** All changes confined to test/sh.c.
+
+Build and full test suite pass on Windows.
+
+## Work Session — 2026-03-25
+
+Implemented deterministic showcase smoke tests end-to-end for the demo binaries.
+
+- Added LF-locked fixtures and expected outputs under `test/showcase_smoke/`.
+- Added `test/showcase_smoke.sh` for Linux/WSL/QEMU targets and `test/showcase_smoke.ps1` for Windows-native runs.
+- Wired smoke execution into `Taskfile test`, `test_arm`, `test_aarch64`, and `test_all.bat` without adding a separate CI action.
+- Kept `snake` build-only; smoke-tested `led` and `sh` only through stable usage/help paths.
+- Tightened `Taskfile` build globs to `test/*.c` so helper scripts and fixture directories under `test/` are never compiled.
+- Extended `ci.ps1` CRLF normalization to cover the smoke shell script and LF-sensitive fixture files before WSL runs.
+- Verified with `test_all.bat`, `.\ci.ps1 -Target linux -Action test -Compiler gcc`, `.\ci.ps1 -Target arm -Action test -Compiler gcc`, and the full `.\ci.ps1`.
+
+## Learnings
+
+- Once helper scripts or fixture directories live under `test/`, the Taskfile build loops must use `test/*.c` rather than `test/*` or WSL builds will try to compile non-source entries.
+- Byte-for-byte stdout checks on Windows cannot use PowerShell `>` redirection; it rewrites line endings. Use `System.Diagnostics.Process` and capture the raw stdout stream instead.
+- WSL-side CRLF cleanup has to include shell harnesses and LF-sensitive fixture files, not just C headers/sources and `Taskfile`, or exact-output smoke checks will fail before the binaries even run.
+- On Windows, keep parent pipe/file handles non-inheritable and have `l_spawn_stdio` duplicate only the three child stdio handles as inheritable right before `CreateProcessW`; that prevents leaked pipe ends from hanging readers.
+- On Unix, any spawn helper that `dup2`s pipe ends onto stdio must close the original non-stdio descriptors in the child after redirection, or pipelines can keep an extra writer open and delay EOF.
+- Scripted shell input on Windows can still arrive with a UTF-8 BOM in practice; trimming a BOM at the start of `read_line()` keeps non-interactive smoke paths stable without affecting normal interactive use.
+- In Unix `l_spawn_stdio`, close redirected source fds by deduplicating the three requested stdio targets first; that preserves intentionally shared fds while still dropping the original pre-dup descriptors before `execve()`.
+
+## Work Session — 2026-03-25 (descriptor table follow-up)
+
+Reworked the Windows process/stdio path from an explicit-stdio-only model into a descriptor-table-backed model.
+
+- Added a Windows-only descriptor table in `l_os.h` so `l_open*()`, `l_pipe()`, `l_read()`, `l_write()`, `l_close()`, `l_fstat()`, `l_mmap()`, `l_dup2()`, and spawn helpers all resolve `L_FD` through stable slots instead of raw cast handles.
+- Kept `l_spawn_stdio(...)` as the explicit helper, but made `L_SPAWN_INHERIT` resolve through the descriptor table so plain `l_spawn()` now composes with prior `dup2()` calls on Windows too.
+- Added tests for arbitrary-slot `dup2()` and for plain `l_spawn()` inheriting a `dup2()`-redirected stderr stream.
+
+## Learnings
+
+- On Windows, duplicate the initial stdio handles into separate table-owned entries; stdout and stderr can start out as the same console handle, and closing one raw handle must not accidentally kill the other descriptor slot.
+- A Windows descriptor table can stay purely process-local; children only need inheritable duplicates of the selected stdio handles at `CreateProcessW` time, not a transferred copy of the parent's table.
+
+## Work Session — 2026-03-25 (dup2/spawn closure)
+
+Closed the remaining Windows single-pipe / `dup2` + `l_spawn` gap by making `l_dup()` cross-platform, switching `test/sh.c` over to save/redirect/restore stdio around plain `l_spawn()`, and adding a real shell pipeline smoke check with a Windows timeout guard.
+
+- `l_os.h`: exposed `l_dup()` on Windows by duplicating the source `HANDLE` into a fresh descriptor slot.
+- `test/sh.c`: now uses `l_dup()` + `l_dup2()` to stage stdin/stdout for external commands, so redirection and `cmd1 | cmd2` exercise the same `l_spawn()` contract on both platforms.
+- `test/test.c`: added cross-platform `l_dup()` coverage and a `l_spawn` pipeline regression that wires `printenv | sort` through temporary stdio remaps.
+- `test/showcase_smoke.ps1` / `test/showcase_smoke.sh`: added a real `sh` single-pipe smoke path; the Windows harness fails fast on timeout instead of hanging indefinitely.
+- Verified with `cmd /c call test_all.bat` and full `powershell -NoProfile -ExecutionPolicy Bypass -File .\ci.ps1`.
+
+## Learnings
+
+- A cross-platform `l_dup()` is the clean reusable save/restore primitive for temporary stdio remaps; it avoids hard-coded spare fd slots and lets Windows share the same `dup2()` + `l_spawn()` composition style as Unix.
+- Real shell pipeline smoke tests should enforce a timeout on Windows so leaked-writer regressions fail fast instead of wedging CI.
+- `cmd /c "echo text 1>&2"` emits `text \r\n` on stderr with a trailing space before CRLF, so Windows byte-for-byte stderr assertions must expect that exact payload.

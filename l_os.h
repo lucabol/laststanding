@@ -24,6 +24,11 @@
 #ifndef _WIN32
 typedef long          ssize_t;
 typedef unsigned int  mode_t;
+#endif
+
+#ifdef _WIN32
+typedef long long     off_t;
+#else
 typedef long          off_t;
 #endif
 
@@ -52,6 +57,7 @@ typedef   long long       L_PID;  // pid_t on Linux, process HANDLE on Windows
 #define   L_STDIN         0
 #define   L_STDOUT        1
 #define   L_STDERR        2
+#define   L_SPAWN_INHERIT ((L_FD)-2)
 
 // Portable stat struct
 #ifndef L_STAT_TYPES_DEFINED
@@ -290,10 +296,18 @@ int l_chdir(const char *path);
 /// Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error.
 int l_pipe(L_FD fds[2]);
 
+/// Duplicates fd, returning a new descriptor on success or -1 on error.
+int l_dup(L_FD fd);
+
 /// Duplicates oldfd onto newfd. Returns newfd on success, -1 on error.
 int l_dup2(L_FD oldfd, L_FD newfd);
 
-/// Spawns a new process. Returns process ID/handle on success, -1 on error.
+/// Spawns a new process with explicit stdio. Use L_SPAWN_INHERIT to keep the parent's stream.
+L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
+                    L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd);
+
+/// Spawns a new process, inheriting the current stdio descriptors.
+/// Returns process ID/handle on success, -1 on error.
 /// path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit).
 L_PID l_spawn(const char *path, char *const argv[], char *const envp[]);
 
@@ -303,8 +317,6 @@ int l_wait(L_PID pid, int *exitcode);
 
 #ifdef __unix__
 // Unix-only functions
-/// Duplicates a file descriptor
-int l_dup(L_FD fd);
 /// Repositions the file offset of fd
 off_t l_lseek(L_FD fd, off_t offset, int whence);
 /// Creates a directory with the given permissions
@@ -1600,6 +1612,7 @@ inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
 #define O_TRUNC         0x200
 #define O_APPEND        0x400
 #define O_NONBLOCK      0x800
+#define O_CLOEXEC    0x80000
 #define O_DIRECTORY    0x4000
 
 #elif defined(__aarch64__)
@@ -1746,6 +1759,7 @@ inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
 #define O_TRUNC         0x200
 #define O_APPEND        0x400
 #define O_NONBLOCK      0x800
+#define O_CLOEXEC    0x80000
 #define O_DIRECTORY   0x10000
 
 #elif defined(__arm__)
@@ -1909,6 +1923,7 @@ inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
 #define O_TRUNC         0x200
 #define O_APPEND        0x400
 #define O_NONBLOCK      0x800
+#define O_CLOEXEC    0x80000
 #define O_DIRECTORY    0x4000
 
 #else
@@ -1925,6 +1940,10 @@ int raise(int sig) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+
+#ifndef _WIN32
+static char **l_envp;
+#endif
 
 noreturn inline void l_exit(int status)
 {
@@ -1964,11 +1983,11 @@ inline int l_pipe(L_FD fds[2])
 {
     int tmp[2];
 #if defined(__x86_64__)
-    long ret = my_syscall2(293 /*__NR_pipe2*/, tmp, 0);
+    long ret = my_syscall2(293 /*__NR_pipe2*/, tmp, O_CLOEXEC);
 #elif defined(__aarch64__)
-    long ret = my_syscall2(59 /*__NR_pipe2*/, tmp, 0);
+    long ret = my_syscall2(59 /*__NR_pipe2*/, tmp, O_CLOEXEC);
 #elif defined(__arm__)
-    long ret = my_syscall2(359 /*__NR_pipe2*/, tmp, 0);
+    long ret = my_syscall2(359 /*__NR_pipe2*/, tmp, O_CLOEXEC);
 #endif
     if (ret < 0) return -1;
     fds[0] = (L_FD)tmp[0];
@@ -1981,6 +2000,10 @@ inline int l_dup2(L_FD oldfd, L_FD newfd)
 #if defined(__x86_64__)
     return (int)my_syscall2(33 /*__NR_dup2*/, oldfd, newfd);
 #elif defined(__aarch64__)
+    if (oldfd == newfd) {
+        L_Stat st;
+        return l_fstat(oldfd, &st) < 0 ? -1 : (int)oldfd;
+    }
     return (int)my_syscall3(24 /*__NR_dup3*/, oldfd, newfd, 0);
 #elif defined(__arm__)
     return (int)my_syscall2(63 /*__NR_dup2*/, oldfd, newfd);
@@ -2020,15 +2043,57 @@ inline L_PID l_waitpid(L_PID pid, int *status, int options)
 #endif
 }
 
-inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
+                           L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd)
 {
     L_PID pid = l_fork();
     if (pid < 0) return -1;
     if (pid == 0) {
-        l_execve(path, argv, envp);
+        static char *const empty_env[] = { (char *)0 };
+        char *const *child_env = envp ? envp : l_envp;
+        if (!child_env) child_env = empty_env;
+
+        if (stdin_fd != L_SPAWN_INHERIT && stdin_fd != L_STDIN) {
+            if (l_dup2(stdin_fd, L_STDIN) < 0) l_exit(127);
+        }
+        if (stdout_fd != L_SPAWN_INHERIT && stdout_fd != L_STDOUT) {
+            if (l_dup2(stdout_fd, L_STDOUT) < 0) l_exit(127);
+        }
+        if (stderr_fd != L_SPAWN_INHERIT && stderr_fd != L_STDERR) {
+            if (l_dup2(stderr_fd, L_STDERR) < 0) l_exit(127);
+        }
+
+        {
+            L_FD child_fds[3] = { stdin_fd, stdout_fd, stderr_fd };
+            int i, j;
+
+            /* Close each original redirected fd exactly once in the child.
+             * If multiple stdio streams intentionally reuse the same fd,
+             * keep the dup2()-installed stdio endpoints and only close the
+             * extra pre-dup descriptor once before execve(). */
+            for (i = 0; i < 3; i++) {
+                int seen = 0;
+                if (child_fds[i] <= L_STDERR) continue;
+                for (j = 0; j < i; j++) {
+                    if (child_fds[j] == child_fds[i]) {
+                        seen = 1;
+                        break;
+                    }
+                }
+                if (!seen)
+                    l_close(child_fds[i]);
+            }
+        }
+
+        l_execve(path, argv, (char *const *)child_env);
         l_exit(127);
     }
     return pid;
+}
+
+inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+{
+    return l_spawn_stdio(path, argv, envp, L_SPAWN_INHERIT, L_SPAWN_INHERIT, L_SPAWN_INHERIT);
 }
 
 inline int l_wait(L_PID pid, int *exitcode)
@@ -2127,7 +2192,7 @@ inline int l_stat(const char *path, L_Stat *st)
     l_memset(buf, 0, sizeof(buf));
     long ret = my_syscall4(79 /*__NR_newfstatat*/, AT_FDCWD, path, buf, 0);
     if (ret < 0) return -1;
-    st->st_mode  = *(int *)(buf + 24);
+    st->st_mode  = *(int *)(buf + 16);
     st->st_size  = *(long long *)(buf + 48);
     st->st_mtime = *(long long *)(buf + 88);
     return 0;
@@ -2161,7 +2226,7 @@ inline int l_fstat(L_FD fd, L_Stat *st)
     l_memset(buf, 0, sizeof(buf));
     long ret = my_syscall2(80 /*__NR_fstat*/, fd, buf);
     if (ret < 0) return -1;
-    st->st_mode  = *(int *)(buf + 24);
+    st->st_mode  = *(int *)(buf + 16);
     st->st_size  = *(long long *)(buf + 48);
     st->st_mtime = *(long long *)(buf + 88);
     return 0;
@@ -2409,15 +2474,212 @@ noreturn inline void l_exit(int status)
 
 #define RETURN_CHECK(toReturn) if(result) return toReturn; else return -1
 
+static inline int l_utf8_to_wide(const char *path, wchar_t *wbuf, size_t wbuf_len);
+static inline int l_wide_to_utf8(const wchar_t *wbuf, char *buf, int buf_len);
+
+static inline HANDLE l_win_dup_handle(HANDLE src, BOOL inherit)
+{
+    HANDLE proc = GetCurrentProcess();
+    HANDLE dup = INVALID_HANDLE_VALUE;
+    if (!src || src == INVALID_HANDLE_VALUE) return INVALID_HANDLE_VALUE;
+    if (!DuplicateHandle(proc, src, proc, &dup, 0, inherit, DUPLICATE_SAME_ACCESS))
+        return INVALID_HANDLE_VALUE;
+    return dup;
+}
+
+#define L_WIN_MAX_FDS 256
+#define L_WIN_FD_VALID 1
+
+typedef struct {
+    HANDLE handle;
+    unsigned char flags;
+} L_WinFdEntry;
+
+typedef struct {
+    int initialized;
+    L_WinFdEntry entries[L_WIN_MAX_FDS];
+} L_WinFdTable;
+
+static L_WinFdTable l_win_fd_table;
+
+static inline void l_win_fd_table_init(void)
+{
+    HANDLE raw;
+    HANDLE dup;
+    int i;
+
+    if (l_win_fd_table.initialized) return;
+
+    l_win_fd_table.initialized = 1;
+    for (i = 0; i < L_WIN_MAX_FDS; i++) {
+        l_win_fd_table.entries[i].handle = INVALID_HANDLE_VALUE;
+        l_win_fd_table.entries[i].flags = 0;
+    }
+
+    raw = GetStdHandle(STD_INPUT_HANDLE);
+    dup = l_win_dup_handle(raw, FALSE);
+    if (dup != INVALID_HANDLE_VALUE) {
+        l_win_fd_table.entries[L_STDIN].handle = dup;
+        l_win_fd_table.entries[L_STDIN].flags = L_WIN_FD_VALID;
+    }
+
+    raw = GetStdHandle(STD_OUTPUT_HANDLE);
+    dup = l_win_dup_handle(raw, FALSE);
+    if (dup != INVALID_HANDLE_VALUE) {
+        l_win_fd_table.entries[L_STDOUT].handle = dup;
+        l_win_fd_table.entries[L_STDOUT].flags = L_WIN_FD_VALID;
+    }
+
+    raw = GetStdHandle(STD_ERROR_HANDLE);
+    dup = l_win_dup_handle(raw, FALSE);
+    if (dup != INVALID_HANDLE_VALUE) {
+        l_win_fd_table.entries[L_STDERR].handle = dup;
+        l_win_fd_table.entries[L_STDERR].flags = L_WIN_FD_VALID;
+    }
+}
+
+static inline HANDLE l_win_fd_handle(L_FD fd)
+{
+    l_win_fd_table_init();
+    if (fd < 0 || fd >= L_WIN_MAX_FDS) return INVALID_HANDLE_VALUE;
+    if (!(l_win_fd_table.entries[fd].flags & L_WIN_FD_VALID)) return INVALID_HANDLE_VALUE;
+    return l_win_fd_table.entries[fd].handle;
+}
+
+static inline L_FD l_win_alloc_fd(HANDLE handle)
+{
+    L_FD fd;
+
+    l_win_fd_table_init();
+    if (!handle || handle == INVALID_HANDLE_VALUE) return -1;
+
+    for (fd = 3; fd < L_WIN_MAX_FDS; fd++) {
+        if (!(l_win_fd_table.entries[fd].flags & L_WIN_FD_VALID)) {
+            l_win_fd_table.entries[fd].handle = handle;
+            l_win_fd_table.entries[fd].flags = L_WIN_FD_VALID;
+            return fd;
+        }
+    }
+    return -1;
+}
+
+static inline void l_win_fd_clear(L_FD fd)
+{
+    l_win_fd_table_init();
+    if (fd < 0 || fd >= L_WIN_MAX_FDS) return;
+    l_win_fd_table.entries[fd].handle = INVALID_HANDLE_VALUE;
+    l_win_fd_table.entries[fd].flags = 0;
+}
+
+static inline HANDLE l_win_fd_replace(L_FD fd, HANDLE handle)
+{
+    HANDLE prev = INVALID_HANDLE_VALUE;
+
+    l_win_fd_table_init();
+    if (fd < 0 || fd >= L_WIN_MAX_FDS) return INVALID_HANDLE_VALUE;
+    if (l_win_fd_table.entries[fd].flags & L_WIN_FD_VALID)
+        prev = l_win_fd_table.entries[fd].handle;
+    l_win_fd_table.entries[fd].handle = handle;
+    l_win_fd_table.entries[fd].flags = (handle && handle != INVALID_HANDLE_VALUE) ? L_WIN_FD_VALID : 0;
+    return prev;
+}
+
+static inline int l_win_cmd_push(wchar_t *buf, size_t cch, size_t *pos, wchar_t ch)
+{
+    if (*pos + 1 >= cch) return 0;
+    buf[(*pos)++] = ch;
+    buf[*pos] = L'\0';
+    return 1;
+}
+
+static inline int l_win_cmd_repeat(wchar_t *buf, size_t cch, size_t *pos, wchar_t ch, size_t count)
+{
+    while (count--) {
+        if (!l_win_cmd_push(buf, cch, pos, ch)) return 0;
+    }
+    return 1;
+}
+
+static inline int l_win_cmd_needs_quotes(const wchar_t *arg)
+{
+    if (!*arg) return 1;
+    for (; *arg; arg++) {
+        if (*arg == L' ' || *arg == L'\t' || *arg == L'"') return 1;
+    }
+    return 0;
+}
+
+static inline int l_win_cmd_append_arg(wchar_t *buf, size_t cch, size_t *pos, const char *arg)
+{
+    wchar_t warg[512];
+    size_t slashes = 0;
+
+    if (!l_utf8_to_wide(arg, warg, 512)) return 0;
+    if (!l_win_cmd_needs_quotes(warg)) {
+        for (size_t i = 0; warg[i]; i++) {
+            if (!l_win_cmd_push(buf, cch, pos, warg[i])) return 0;
+        }
+        return 1;
+    }
+
+    if (!l_win_cmd_push(buf, cch, pos, L'"')) return 0;
+    for (size_t i = 0;; i++) {
+        wchar_t ch = warg[i];
+        if (ch == L'\\') {
+            slashes++;
+            continue;
+        }
+        if (ch == L'"') {
+            if (!l_win_cmd_repeat(buf, cch, pos, L'\\', slashes * 2 + 1)) return 0;
+            if (!l_win_cmd_push(buf, cch, pos, L'"')) return 0;
+            slashes = 0;
+            continue;
+        }
+        if (ch == L'\0') {
+            if (!l_win_cmd_repeat(buf, cch, pos, L'\\', slashes * 2)) return 0;
+            break;
+        }
+        if (!l_win_cmd_repeat(buf, cch, pos, L'\\', slashes)) return 0;
+        slashes = 0;
+        if (!l_win_cmd_push(buf, cch, pos, ch)) return 0;
+    }
+    return l_win_cmd_push(buf, cch, pos, L'"');
+}
+
+static inline int l_win_build_cmdline(char *const argv[], wchar_t *cmdline, size_t cch)
+{
+    size_t pos = 0;
+    if (!argv || !argv[0] || cch == 0) return 0;
+    cmdline[0] = L'\0';
+    for (int i = 0; argv[i]; i++) {
+        if (i > 0 && !l_win_cmd_push(cmdline, cch, &pos, L' ')) return 0;
+        if (!l_win_cmd_append_arg(cmdline, cch, &pos, argv[i])) return 0;
+    }
+    return 1;
+}
+
+static inline wchar_t *l_win_build_env_block(char *const envp[], wchar_t *buf, size_t cch)
+{
+    size_t pos = 0;
+    if (!envp) return (wchar_t *)0;
+    for (int i = 0; envp[i]; i++) {
+        wchar_t wentry[512];
+        if (!l_utf8_to_wide(envp[i], wentry, 512)) return (wchar_t *)0;
+        for (size_t j = 0;; j++) {
+            if (pos + 1 >= cch) return (wchar_t *)0;
+            buf[pos++] = wentry[j];
+            if (wentry[j] == L'\0') break;
+        }
+    }
+    if (pos + 1 >= cch) return (wchar_t *)0;
+    buf[pos++] = L'\0';
+    return buf;
+}
+
 inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     DWORD written;
-    HANDLE out;
-    if(fd == L_STDOUT) {
-      out = GetStdHandle(STD_OUTPUT_HANDLE);
-    } else {
-        out = (HANDLE)fd;
-    }
+    HANDLE out = l_win_fd_handle(fd);
     BOOL result = WriteFile(out, buf, count, &written, NULL);
     RETURN_CHECK(written);
 }
@@ -2425,20 +2687,20 @@ inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
     DWORD readden;
-    HANDLE in;
-    if(fd == L_STDIN) {
-        in = GetStdHandle(STD_INPUT_HANDLE);
-    } else {
-        in = (HANDLE)fd;
-    }
+    HANDLE in = l_win_fd_handle(fd);
     BOOL result = ReadFile(in, buf, count, &readden, NULL);
     RETURN_CHECK(readden);
 }
 
 
 inline int l_close(L_FD fd) {
-    BOOL result = CloseHandle((HANDLE)fd);
-    if(result) return 0; else return -1;
+    HANDLE handle = l_win_fd_handle(fd);
+    BOOL result;
+    if (handle == INVALID_HANDLE_VALUE) return -1;
+    result = CloseHandle(handle);
+    if (!result) return -1;
+    l_win_fd_clear(fd);
+    return 0;
 }
 
 // Terminal and timing support for Windows
@@ -2451,30 +2713,42 @@ static DWORD l_saved_console_mode;
 
 static inline unsigned long l_term_raw(void)
 {
-    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
-    GetConsoleMode(in, &l_saved_console_mode);
+    HANDLE in = l_win_fd_handle(L_STDIN);
+    if (in == INVALID_HANDLE_VALUE) return 0;
+    if (!GetConsoleMode(in, &l_saved_console_mode)) return 0;
     DWORD raw = l_saved_console_mode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT);
     SetConsoleMode(in, raw);
     // Enable ANSI escape sequences on stdout
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE out = l_win_fd_handle(L_STDOUT);
     DWORD out_mode;
-    GetConsoleMode(out, &out_mode);
-    SetConsoleMode(out, out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    if (out != INVALID_HANDLE_VALUE && GetConsoleMode(out, &out_mode))
+        SetConsoleMode(out, out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     return l_saved_console_mode;
 }
 
 static inline void l_term_restore(unsigned long old_mode)
 {
-    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
-    SetConsoleMode(in, (DWORD)old_mode);
+    HANDLE in = l_win_fd_handle(L_STDIN);
+    if (in != INVALID_HANDLE_VALUE)
+        SetConsoleMode(in, (DWORD)old_mode);
 }
 
 inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
 {
-    (void)fd; (void)count;
-    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    HANDLE in = l_win_fd_handle(fd);
     INPUT_RECORD ir;
     DWORD events;
+    DWORD mode;
+    if (count == 0) return 0;
+    if (in == INVALID_HANDLE_VALUE) return -1;
+    if (!GetConsoleMode(in, &mode)) {
+        if (GetFileType(in) == FILE_TYPE_PIPE) {
+            DWORD avail = 0;
+            if (!PeekNamedPipe(in, NULL, 0, NULL, &avail, NULL)) return -1;
+            if (avail == 0) return 0;
+        }
+        return l_read(fd, buf, count);
+    }
     while (PeekConsoleInputW(in, &ir, 1, &events) && events > 0) {
         ReadConsoleInputW(in, &ir, 1, &events);
         if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
@@ -2491,8 +2765,8 @@ inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
 inline void l_term_size(int *rows, int *cols)
 {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (GetConsoleScreenBufferInfo(out, &csbi)) {
+    HANDLE out = l_win_fd_handle(L_STDOUT);
+    if (out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo(out, &csbi)) {
         *cols = csbi.srWindow.Right - csbi.srWindow.Left + 1;
         *rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
     } else {
@@ -2529,76 +2803,185 @@ inline char *l_getcwd(char *buf, size_t size)
 
 inline int l_pipe(L_FD fds[2])
 {
+    L_FD read_fd;
+    L_FD write_fd;
     HANDLE rd, wr;
-    SECURITY_ATTRIBUTES sa;
-    sa.nLength = sizeof(sa);
-    sa.lpSecurityDescriptor = NULL;
-    sa.bInheritHandle = TRUE;
-    if (!CreatePipe(&rd, &wr, &sa, 0)) return -1;
-    fds[0] = (L_FD)rd;
-    fds[1] = (L_FD)wr;
+    if (!CreatePipe(&rd, &wr, NULL, 0)) return -1;
+
+    read_fd = l_win_alloc_fd(rd);
+    if (read_fd < 0) {
+        CloseHandle(rd);
+        CloseHandle(wr);
+        return -1;
+    }
+
+    write_fd = l_win_alloc_fd(wr);
+    if (write_fd < 0) {
+        l_close(read_fd);
+        CloseHandle(wr);
+        return -1;
+    }
+
+    fds[0] = read_fd;
+    fds[1] = write_fd;
     return 0;
+}
+
+inline int l_dup(L_FD fd)
+{
+    HANDLE src = l_win_fd_handle(fd);
+    HANDLE dup;
+    L_FD newfd;
+
+    if (!src || src == INVALID_HANDLE_VALUE) return -1;
+
+    dup = l_win_dup_handle(src, FALSE);
+    if (dup == INVALID_HANDLE_VALUE) return -1;
+
+    newfd = l_win_alloc_fd(dup);
+    if (newfd < 0) {
+        CloseHandle(dup);
+        return -1;
+    }
+    return (int)newfd;
 }
 
 inline int l_dup2(L_FD oldfd, L_FD newfd)
 {
-    HANDLE proc = GetCurrentProcess();
+    HANDLE src = l_win_fd_handle(oldfd);
     HANDLE dup;
-    if (!DuplicateHandle(proc, (HANDLE)oldfd, proc, &dup, 0, TRUE, DUPLICATE_SAME_ACCESS))
-        return -1;
-    // On Windows we can't force a handle to a specific value.
-    // Return the new duplicated handle. Caller uses the returned value.
-    (void)newfd;
-    return (int)(L_FD)dup;
+
+    if (!src || src == INVALID_HANDLE_VALUE) return -1;
+    if (newfd < 0 || newfd >= L_WIN_MAX_FDS) return -1;
+    if (oldfd == newfd) return (int)newfd;
+
+    dup = l_win_dup_handle(src, FALSE);
+    if (dup == INVALID_HANDLE_VALUE) return -1;
+
+    {
+        HANDLE prev = l_win_fd_replace(newfd, dup);
+        if (prev != INVALID_HANDLE_VALUE)
+            CloseHandle(prev);
+    }
+    return (int)newfd;
 }
 
-inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
-    (void)path;
-    (void)envp;  // Windows CreateProcessW inherits environment
+    HANDLE handle = l_win_fd_handle(fd);
+    LARGE_INTEGER distance;
+    LARGE_INTEGER newpos;
+    DWORD move_method;
 
-    // Build command line from argv
-    wchar_t cmdline[2048];
-    cmdline[0] = L'\0';
-    int pos = 0;
-    for (int i = 0; argv[i]; i++) {
-        if (i > 0 && pos < 2046) cmdline[pos++] = L' ';
-        wchar_t warg[512];
-        if (!l_utf8_to_wide(argv[i], warg, 512)) return -1;
-        int needs_quote = 0;
-        for (int j = 0; warg[j]; j++) {
-            if (warg[j] == L' ' || warg[j] == L'\t') { needs_quote = 1; break; }
-        }
-        if (needs_quote && pos < 2046) cmdline[pos++] = L'"';
-        for (int j = 0; warg[j] && pos < 2046; j++) cmdline[pos++] = warg[j];
-        if (needs_quote && pos < 2046) cmdline[pos++] = L'"';
+    if (handle == INVALID_HANDLE_VALUE) return (off_t)-1;
+
+    switch (whence) {
+    case SEEK_SET: move_method = FILE_BEGIN; break;
+    case SEEK_CUR: move_method = FILE_CURRENT; break;
+    case SEEK_END: move_method = FILE_END; break;
+    default: return (off_t)-1;
     }
-    cmdline[pos] = L'\0';
+
+    distance.QuadPart = (LONGLONG)offset;
+    if (!SetFilePointerEx(handle, distance, &newpos, move_method))
+        return (off_t)-1;
+    return (off_t)newpos.QuadPart;
+}
+
+inline int l_mkdir(const char *path, mode_t mode)
+{
+    wchar_t wpath[1024];
+    (void)mode;
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    return CreateDirectoryW(wpath, NULL) ? 0 : -1;
+}
+
+inline int l_sched_yield(void)
+{
+    Sleep(0);
+    return 0;
+}
+
+inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
+                           L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd)
+{
+    wchar_t wpath[1024];
+    wchar_t cmdline[2048];
+    wchar_t envbuf[4096];
+    wchar_t *envblock = (wchar_t *)0;
+    HANDLE child_in = INVALID_HANDLE_VALUE;
+    HANDLE child_out = INVALID_HANDLE_VALUE;
+    HANDLE child_err = INVALID_HANDLE_VALUE;
+    HANDLE src;
+    DWORD flags = 0;
+
+    if (!path || !argv || !argv[0]) return -1;
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    if (!l_win_build_cmdline(argv, cmdline, 2048)) return -1;
+
+    src = l_win_fd_handle(stdin_fd == L_SPAWN_INHERIT ? L_STDIN : stdin_fd);
+    child_in = l_win_dup_handle(src, TRUE);
+    if (child_in == INVALID_HANDLE_VALUE) goto fail;
+
+    src = l_win_fd_handle(stdout_fd == L_SPAWN_INHERIT ? L_STDOUT : stdout_fd);
+    child_out = l_win_dup_handle(src, TRUE);
+    if (child_out == INVALID_HANDLE_VALUE) goto fail;
+
+    src = l_win_fd_handle(stderr_fd == L_SPAWN_INHERIT ? L_STDERR : stderr_fd);
+    child_err = l_win_dup_handle(src, TRUE);
+    if (child_err == INVALID_HANDLE_VALUE) goto fail;
+
+    if (envp) {
+        envblock = l_win_build_env_block(envp, envbuf, 4096);
+        if (!envblock) goto fail;
+        flags |= CREATE_UNICODE_ENVIRONMENT;
+    }
 
     STARTUPINFOW si;
     l_memset(&si, 0, sizeof(si));
     si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = child_in;
+    si.hStdOutput = child_out;
+    si.hStdError = child_err;
 
     PROCESS_INFORMATION pi;
     l_memset(&pi, 0, sizeof(pi));
 
-    if (!CreateProcessW(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
-        return -1;
+    if (!CreateProcessW(wpath, cmdline, NULL, NULL, TRUE, flags, envblock, NULL, &si, &pi))
+        goto fail;
 
+    CloseHandle(child_in);
+    CloseHandle(child_out);
+    CloseHandle(child_err);
     CloseHandle(pi.hThread);
     return (L_PID)pi.hProcess;
+
+fail:
+    if (child_in != INVALID_HANDLE_VALUE) CloseHandle(child_in);
+    if (child_out != INVALID_HANDLE_VALUE) CloseHandle(child_out);
+    if (child_err != INVALID_HANDLE_VALUE) CloseHandle(child_err);
+    return -1;
+}
+
+inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+{
+    return l_spawn_stdio(path, argv, envp, L_SPAWN_INHERIT, L_SPAWN_INHERIT, L_SPAWN_INHERIT);
 }
 
 inline int l_wait(L_PID pid, int *exitcode)
 {
     HANDLE proc = (HANDLE)pid;
-    WaitForSingleObject(proc, INFINITE);
+    if (WaitForSingleObject(proc, INFINITE) != WAIT_OBJECT_0) {
+        CloseHandle(proc);
+        return -1;
+    }
     DWORD code;
     if (!GetExitCodeProcess(proc, &code)) {
         CloseHandle(proc);
         return -1;
     }
-    *exitcode = (int)code;
+    if (exitcode) *exitcode = (int)code;
     CloseHandle(proc);
     return 0;
 }
@@ -2649,7 +3032,7 @@ inline int l_stat(const char *path, L_Stat *st) {
 
 inline int l_fstat(L_FD fd, L_Stat *st) {
     BY_HANDLE_FILE_INFORMATION info;
-    if (!GetFileInformationByHandle((HANDLE)fd, &info)) return -1;
+    if (!GetFileInformationByHandle(l_win_fd_handle(fd), &info)) return -1;
     st->st_size = ((long long)info.nFileSizeHigh << 32) | info.nFileSizeLow;
     if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         st->st_mode = L_S_IFDIR | 0755;
@@ -2740,7 +3123,9 @@ inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, lon
         sizeHi = (DWORD)((unsigned long long)(offset + length) >> 32);
         sizeLo = (DWORD)((unsigned long long)(offset + length) & 0xFFFFFFFF);
     }
-    HANDLE hMap = CreateFileMappingW((HANDLE)fd, NULL, flProtect, sizeHi, sizeLo, NULL);
+    HANDLE hFile = l_win_fd_handle(fd);
+    if (hFile == INVALID_HANDLE_VALUE) return L_MAP_FAILED;
+    HANDLE hMap = CreateFileMappingW(hFile, NULL, flProtect, sizeHi, sizeLo, NULL);
     if (!hMap) return L_MAP_FAILED;
     DWORD offHi = (DWORD)((unsigned long long)offset >> 32);
     DWORD offLo = (DWORD)((unsigned long long)offset & 0xFFFFFFFF);
@@ -2786,7 +3171,14 @@ static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared,
                                NULL);                 // no attr. template
 
     if(hFile == INVALID_HANDLE_VALUE) return -1;
-    else return (L_FD)hFile;
+    {
+        L_FD fd = l_win_alloc_fd(hFile);
+        if (fd < 0) {
+            CloseHandle(hFile);
+            return -1;
+        }
+        return fd;
+    }
 }
 inline L_FD l_open_read(const char* file) {
     return l_win_open_gen(file, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING);
@@ -2888,8 +3280,6 @@ static inline char *l_getenv(const char *name) {
 }
 
 #else
-
-static char **l_envp;
 
 static inline void l_getenv_init(int argc, char *argv[]) {
     l_envp = argv + argc + 1;

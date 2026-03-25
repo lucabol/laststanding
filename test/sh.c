@@ -49,6 +49,13 @@ static int read_line(char *buf, int max) {
         if (c != 0x7f && c != 0x08) buf[pos++] = c;
     }
     buf[pos] = '\0';
+    if (pos >= 3 &&
+        (unsigned char)buf[0] == 0xEF &&
+        (unsigned char)buf[1] == 0xBB &&
+        (unsigned char)buf[2] == 0xBF) {
+        l_memmove(buf, buf + 3, (size_t)(pos - 2));
+        pos -= 3;
+    }
     return pos;
 }
 
@@ -216,45 +223,113 @@ static int try_builtin(char *argv[], int ac) {
 
 /* --- Execution ---------------------------------------------------------- */
 
+static char *const *spawn_envp(void) {
 #ifdef __unix__
+    return sh_envp;
+#else
+    return (char *const *)0;
+#endif
+}
 
-static int exec_cmd(char *argv[], const Redir *r) {
+static void close_redir_fd(L_FD fd) {
+    if (fd >= 0 && fd != L_STDIN && fd != L_STDOUT && fd != L_STDERR)
+        l_close(fd);
+}
+
+static int redirect_std_fd(L_FD target_fd, L_FD source_fd, L_FD *saved_fd) {
+    *saved_fd = -1;
+    if (source_fd == L_SPAWN_INHERIT || source_fd == target_fd)
+        return 0;
+
+    *saved_fd = l_dup(target_fd);
+    if (*saved_fd < 0)
+        return -1;
+
+    if (l_dup2(source_fd, target_fd) != target_fd) {
+        l_close(*saved_fd);
+        *saved_fd = -1;
+        return -1;
+    }
+    return 0;
+}
+
+static int restore_std_fd(L_FD target_fd, L_FD saved_fd) {
+    int ok = 1;
+    if (saved_fd < 0)
+        return 0;
+    if (l_dup2(saved_fd, target_fd) != target_fd)
+        ok = 0;
+    if (l_close(saved_fd) < 0)
+        ok = 0;
+    return ok ? 0 : -1;
+}
+
+static L_PID spawn_cmd(char *argv[], L_FD stdin_fd, L_FD stdout_fd) {
     char path[MAX_PATH_BUF];
+    L_PID pid = -1;
+    L_FD saved_in = -1;
+    L_FD saved_out = -1;
+    int restore_failed = 0;
+
     if (!resolve_cmd(argv[0], path, MAX_PATH_BUF)) {
         eputs("sh: command not found: ");
         eputs(argv[0]); eputs("\n");
-        return 127;
+        return -1;
     }
-    L_PID pid = l_fork();
-    if (pid < 0) { eputs("sh: fork failed\n"); return 1; }
-    if (pid == 0) {
-        if (r->redir_in) {
-            L_FD f = l_open_read(r->redir_in);
-            if (f < 0) {
-                eputs("sh: cannot open '");
-                eputs(r->redir_in); eputs("'\n");
-                l_exit(1);
-            }
-            l_dup2(f, L_STDIN); l_close(f);
-        }
-        if (r->redir_out) {
-            L_FD f = r->append
-                ? l_open_append(r->redir_out)
-                : l_open_trunc(r->redir_out);
-            if (f < 0) {
-                eputs("sh: cannot open '");
-                eputs(r->redir_out); eputs("'\n");
-                l_exit(1);
-            }
-            l_dup2(f, L_STDOUT); l_close(f);
-        }
-        l_execve(path, argv, sh_envp);
+
+    if (redirect_std_fd(L_STDIN, stdin_fd, &saved_in) < 0)
+        goto done;
+    if (redirect_std_fd(L_STDOUT, stdout_fd, &saved_out) < 0)
+        goto done;
+
+    pid = l_spawn(path, argv, spawn_envp());
+
+done:
+    if (restore_std_fd(L_STDOUT, saved_out) < 0)
+        restore_failed = 1;
+    if (restore_std_fd(L_STDIN, saved_in) < 0)
+        restore_failed = 1;
+    if (restore_failed)
+        eputs("sh: failed to restore stdio\n");
+    if (pid < 0) {
         eputs("sh: failed to execute '");
         eputs(path); eputs("'\n");
-        l_exit(127);
     }
+    return pid;
+}
+
+static int exec_cmd(char *argv[], const Redir *r) {
+    L_FD in_fd = L_SPAWN_INHERIT;
+    L_FD out_fd = L_SPAWN_INHERIT;
+
+    if (r->redir_in) {
+        in_fd = l_open_read(r->redir_in);
+        if (in_fd < 0) {
+            eputs("sh: cannot open '");
+            eputs(r->redir_in); eputs("'\n");
+            return 1;
+        }
+    }
+    if (r->redir_out) {
+        out_fd = r->append ? l_open_append(r->redir_out) : l_open_trunc(r->redir_out);
+        if (out_fd < 0) {
+            close_redir_fd(in_fd);
+            eputs("sh: cannot open '");
+            eputs(r->redir_out); eputs("'\n");
+            return 1;
+        }
+    }
+
+    L_PID pid = spawn_cmd(argv, in_fd, out_fd);
+    close_redir_fd(in_fd);
+    close_redir_fd(out_fd);
+    if (pid < 0) return 127;
+
     int ec = 0;
-    l_wait(pid, &ec);
+    if (l_wait(pid, &ec) < 0) {
+        eputs("sh: wait failed\n");
+        return 1;
+    }
     return ec;
 }
 
@@ -264,257 +339,31 @@ static int exec_pipe(char *argv[], int at) {
         eputs("sh: invalid pipe\n"); return 1;
     }
 
-    char lp[MAX_PATH_BUF], rp[MAX_PATH_BUF];
-    if (!resolve_cmd(left[0], lp, MAX_PATH_BUF)) {
-        eputs("sh: command not found: ");
-        eputs(left[0]); eputs("\n"); return 127;
-    }
-    if (!resolve_cmd(right[0], rp, MAX_PATH_BUF)) {
-        eputs("sh: command not found: ");
-        eputs(right[0]); eputs("\n"); return 127;
-    }
-
     L_FD pfd[2];
     if (l_pipe(pfd) < 0) { eputs("sh: pipe failed\n"); return 1; }
 
-    L_PID p1 = l_fork();
-    if (p1 == 0) {
+    L_PID p1 = spawn_cmd(left, L_SPAWN_INHERIT, pfd[1]);
+    l_close(pfd[1]);
+    if (p1 < 0) {
         l_close(pfd[0]);
-        l_dup2(pfd[1], L_STDOUT); l_close(pfd[1]);
-        l_execve(lp, left, sh_envp);
-        l_exit(127);
+        return 127;
     }
-    L_PID p2 = l_fork();
-    if (p2 == 0) {
-        l_close(pfd[1]);
-        l_dup2(pfd[0], L_STDIN); l_close(pfd[0]);
-        l_execve(rp, right, sh_envp);
-        l_exit(127);
+
+    L_PID p2 = spawn_cmd(right, pfd[0], L_SPAWN_INHERIT);
+    l_close(pfd[0]);
+    if (p2 < 0) {
+        int e1 = 0;
+        l_wait(p1, &e1);
+        return 127;
     }
-    l_close(pfd[0]); l_close(pfd[1]);
 
     int e1 = 0, e2 = 0;
-    l_wait(p1, &e1);
-    l_wait(p2, &e2);
-    return e2;
-}
-
-#else /* Windows */
-
-/* Build a wide command line from argv (same quoting logic as l_spawn). */
-static int build_cmdline(char *const argv[], wchar_t *cmdline, int max) {
-    int pos = 0;
-    for (int i = 0; argv[i]; i++) {
-        if (i > 0 && pos < max - 2) cmdline[pos++] = L' ';
-        wchar_t warg[512];
-        if (!l_utf8_to_wide(argv[i], warg, 512)) return 0;
-        int needs_quote = 0;
-        for (int j = 0; warg[j]; j++) {
-            if (warg[j] == L' ' || warg[j] == L'\t') { needs_quote = 1; break; }
-        }
-        if (needs_quote && pos < max - 2) cmdline[pos++] = L'"';
-        for (int j = 0; warg[j] && pos < max - 2; j++) cmdline[pos++] = warg[j];
-        if (needs_quote && pos < max - 2) cmdline[pos++] = L'"';
-    }
-    cmdline[pos] = L'\0';
-    return 1;
-}
-
-/* Make a handle inheritable so child processes can use it. */
-static HANDLE make_inheritable(HANDLE h) {
-    HANDLE dup;
-    if (!DuplicateHandle(GetCurrentProcess(), h, GetCurrentProcess(), &dup,
-                         0, TRUE, DUPLICATE_SAME_ACCESS))
-        return INVALID_HANDLE_VALUE;
-    return dup;
-}
-
-/* Open a file for redirection, returning an inheritable handle. */
-static L_FD open_redir_read(const char *file) {
-    L_FD f = l_open_read(file);
-    if (f < 0) return -1;
-    HANDLE ih = make_inheritable((HANDLE)f);
-    l_close(f);
-    if (ih == INVALID_HANDLE_VALUE) return -1;
-    return (L_FD)ih;
-}
-
-static L_FD open_redir_write(const char *file, int append) {
-    L_FD f = append ? l_open_append(file) : l_open_trunc(file);
-    if (f < 0) return -1;
-    HANDLE ih = make_inheritable((HANDLE)f);
-    l_close(f);
-    if (ih == INVALID_HANDLE_VALUE) return -1;
-    return (L_FD)ih;
-}
-
-static int exec_cmd(char *argv[], const Redir *r) {
-    char path[MAX_PATH_BUF];
-    if (!resolve_cmd(argv[0], path, MAX_PATH_BUF)) {
-        eputs("sh: command not found: ");
-        eputs(argv[0]); eputs("\n");
-        return 127;
-    }
-
-    /* Build wide command line with resolved path as argv[0] */
-    char *save = argv[0];
-    argv[0] = path;
-    wchar_t cmdline[2048];
-    if (!build_cmdline(argv, cmdline, 2048)) {
-        argv[0] = save;
-        eputs("sh: failed to build command line\n");
+    if (l_wait(p1, &e1) < 0 || l_wait(p2, &e2) < 0) {
+        eputs("sh: wait failed\n");
         return 1;
     }
-    argv[0] = save;
-
-    STARTUPINFOW si;
-    l_memset(&si, 0, sizeof(si));
-    si.cb = sizeof(si);
-
-    HANDLE h_in = INVALID_HANDLE_VALUE, h_out = INVALID_HANDLE_VALUE;
-
-    if (r->redir_in || r->redir_out) {
-        si.dwFlags |= STARTF_USESTDHANDLES;
-        si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-        si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-
-        if (r->redir_in) {
-            h_in = (HANDLE)open_redir_read(r->redir_in);
-            if (h_in == INVALID_HANDLE_VALUE) {
-                eputs("sh: cannot open '"); eputs(r->redir_in); eputs("'\n");
-                return 1;
-            }
-            si.hStdInput = h_in;
-        }
-        if (r->redir_out) {
-            h_out = (HANDLE)open_redir_write(r->redir_out, r->append);
-            if (h_out == INVALID_HANDLE_VALUE) {
-                eputs("sh: cannot open '"); eputs(r->redir_out); eputs("'\n");
-                if (h_in != INVALID_HANDLE_VALUE) CloseHandle(h_in);
-                return 1;
-            }
-            si.hStdOutput = h_out;
-        }
-    }
-
-    PROCESS_INFORMATION pi;
-    l_memset(&pi, 0, sizeof(pi));
-
-    if (!CreateProcessW(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
-        eputs("sh: failed to execute '"); eputs(path); eputs("'\n");
-        if (h_in != INVALID_HANDLE_VALUE) CloseHandle(h_in);
-        if (h_out != INVALID_HANDLE_VALUE) CloseHandle(h_out);
-        return 127;
-    }
-
-    CloseHandle(pi.hThread);
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    DWORD code;
-    GetExitCodeProcess(pi.hProcess, &code);
-    CloseHandle(pi.hProcess);
-
-    if (h_in != INVALID_HANDLE_VALUE) CloseHandle(h_in);
-    if (h_out != INVALID_HANDLE_VALUE) CloseHandle(h_out);
-
-    return (int)code;
+    return e2;
 }
-
-static int exec_pipe(char *argv[], int at) {
-    char **left = argv, **right = argv + at + 1;
-    if (!left[0] || !right[0]) {
-        eputs("sh: invalid pipe\n"); return 1;
-    }
-
-    char lp[MAX_PATH_BUF], rp[MAX_PATH_BUF];
-    if (!resolve_cmd(left[0], lp, MAX_PATH_BUF)) {
-        eputs("sh: command not found: ");
-        eputs(left[0]); eputs("\n"); return 127;
-    }
-    if (!resolve_cmd(right[0], rp, MAX_PATH_BUF)) {
-        eputs("sh: command not found: ");
-        eputs(right[0]); eputs("\n"); return 127;
-    }
-
-    /* Create pipe (l_pipe makes inheritable handles) */
-    L_FD pfd[2];
-    if (l_pipe(pfd) < 0) { eputs("sh: pipe failed\n"); return 1; }
-
-    /* Left process: stdout → pipe write end */
-    char *save_l = left[0];
-    left[0] = lp;
-    wchar_t cmd1[2048];
-    if (!build_cmdline(left, cmd1, 2048)) {
-        left[0] = save_l;
-        l_close(pfd[0]); l_close(pfd[1]);
-        eputs("sh: failed to build command line\n"); return 1;
-    }
-    left[0] = save_l;
-
-    STARTUPINFOW si1;
-    l_memset(&si1, 0, sizeof(si1));
-    si1.cb = sizeof(si1);
-    si1.dwFlags = STARTF_USESTDHANDLES;
-    si1.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    si1.hStdOutput = (HANDLE)pfd[1];
-    si1.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-
-    PROCESS_INFORMATION pi1;
-    l_memset(&pi1, 0, sizeof(pi1));
-    if (!CreateProcessW(NULL, cmd1, NULL, NULL, TRUE, 0, NULL, NULL, &si1, &pi1)) {
-        eputs("sh: failed to execute '"); eputs(lp); eputs("'\n");
-        l_close(pfd[0]); l_close(pfd[1]);
-        return 127;
-    }
-    CloseHandle(pi1.hThread);
-
-    /* Right process: stdin ← pipe read end */
-    char *save_r = right[0];
-    right[0] = rp;
-    wchar_t cmd2[2048];
-    if (!build_cmdline(right, cmd2, 2048)) {
-        right[0] = save_r;
-        CloseHandle(pi1.hProcess);
-        l_close(pfd[0]); l_close(pfd[1]);
-        eputs("sh: failed to build command line\n"); return 1;
-    }
-    right[0] = save_r;
-
-    STARTUPINFOW si2;
-    l_memset(&si2, 0, sizeof(si2));
-    si2.cb = sizeof(si2);
-    si2.dwFlags = STARTF_USESTDHANDLES;
-    si2.hStdInput = (HANDLE)pfd[0];
-    si2.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-    si2.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-
-    PROCESS_INFORMATION pi2;
-    l_memset(&pi2, 0, sizeof(pi2));
-    if (!CreateProcessW(NULL, cmd2, NULL, NULL, TRUE, 0, NULL, NULL, &si2, &pi2)) {
-        eputs("sh: failed to execute '"); eputs(rp); eputs("'\n");
-        CloseHandle(pi1.hProcess);
-        l_close(pfd[0]); l_close(pfd[1]);
-        return 127;
-    }
-    CloseHandle(pi2.hThread);
-
-    /* Close pipe ends in parent so child EOF works properly */
-    l_close(pfd[0]);
-    l_close(pfd[1]);
-
-    /* Wait for both; return right-side exit code */
-    WaitForSingleObject(pi1.hProcess, INFINITE);
-    CloseHandle(pi1.hProcess);
-
-    WaitForSingleObject(pi2.hProcess, INFINITE);
-    DWORD code;
-    GetExitCodeProcess(pi2.hProcess, &code);
-    CloseHandle(pi2.hProcess);
-
-    return (int)code;
-}
-
-#endif
 
 /* --- Usage & main ------------------------------------------------------- */
 

@@ -5,6 +5,8 @@
 # to native line endings on checkout.
 *.c text
 *.h text
+test/showcase_smoke.sh text eol=lf
+test/showcase_smoke/** text eol=lf
 
 # Declare files that will always have CRLF line endings on checkout.
 *.sln text eol=crlf
@@ -12,6 +14,9 @@
 # Denote all files that are truly binary and should not be modified.
 *.png binary
 *.jpg binary
+test/fixtures/*.txt text eol=lf
+test/fixtures/*.out text eol=lf
+test/fixtures/*.bin binary
 # Squad: union merge for append-only team state files
 .squad/decisions.md merge=union
 .squad/agents/*/history.md merge=union

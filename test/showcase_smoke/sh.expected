@@ -1,0 +1,10 @@
+Usage: sh [--help]
+A freestanding shell built entirely on l_os.h.
+
+Built-in commands:
+  cd [dir]     change directory
+  pwd          print working directory
+  exit [code]  exit the shell
+  echo [...]   print arguments
+
+Features: PATH search, quoted arguments, > >> < redirection, cmd|cmd piping

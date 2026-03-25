@@ -24,7 +24,7 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
       ;;
   esac
 
-  for f in test/*; do
+  for f in test/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
@@ -49,11 +49,41 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
       ;;
   esac
 
-  for f in test/*; do
+  for f in test/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
   done
+}
+
+function build_aarch64 {    # Build for AArch64 (arm64) {compiler:aarch64-linux-gnu-gcc} {optimizationchar:3}
+  mkdir -p bin
+  CC=${1:-aarch64-linux-gnu-gcc}
+  OPT=${2:-z}
+
+  LDFLAGS=""
+  LINK_LIB="-lgcc"
+
+  case $CC in
+    clang)
+      LDFLAGS="--target=aarch64-linux-gnu --sysroot=/usr/aarch64-linux-gnu -flto"
+      LINK_LIB=""
+      ;;
+  esac
+
+  for f in test/*.c; do
+    x="${f##*/}"
+    x="${x%.*}";
+    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.aarch64
+  done
+}
+
+function showcase_smoke {    # Run showcase smoke tests {binarysuffix:} {runnerargs:}
+  local SUFFIX="${1:-}"
+  if [ $# -gt 0 ]; then
+    shift
+  fi
+  bash test/showcase_smoke.sh "$SUFFIX" "$@"
 }
 
 function verify {    # Verify executables don't depend on stdlib and contain no bloat {compiler:gcc} {optimizationchar:3}
@@ -63,8 +93,8 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
   echo "=== Verifying executables are stdlib-independent and bloat-free ==="
   
   for exe in bin/*; do
-    # Skip Windows (.exe) and ARM (.armhf) binaries
-    case "$exe" in *.exe|*.armhf) continue ;; esac
+    # Skip Windows (.exe) and cross-compiled ARM/AArch64 binaries
+    case "$exe" in *.exe|*.armhf|*.aarch64) continue ;; esac
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo
       echo "Analyzing: $exe"
@@ -134,13 +164,13 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
   echo "=== Verification complete ==="
 }
 
-function test {    # Build and run all tests in bin directory
+function test {    # Build and run all tests in bin directory plus showcase smoke tests
   build "$@"
   echo "=== Running all executables in bin/ ==="
   local fail=0
   for exe in bin/test*; do
-    # Skip Windows (.exe) and ARM (.armhf) binaries
-    case "$exe" in *.exe|*.armhf) continue ;; esac
+    # Skip Windows (.exe) and cross-compiled ARM/AArch64 binaries
+    case "$exe" in *.exe|*.armhf|*.aarch64) continue ;; esac
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       "$exe"
@@ -155,9 +185,10 @@ function test {    # Build and run all tests in bin directory
     echo "=== SOME TESTS FAILED ==="
     exit 1
   fi
+  showcase_smoke "" || exit 1
 }
 
-function test_arm {    # Build and run all tests for ARM using QEMU
+function test_arm {    # Build and run all tests for ARM using QEMU plus showcase smoke tests
   build_arm "$@"
   echo "=== Running all ARM executables in bin/ with QEMU ==="
   local fail=0
@@ -176,6 +207,29 @@ function test_arm {    # Build and run all tests for ARM using QEMU
     echo "=== SOME ARM TESTS FAILED ==="
     exit 1
   fi
+  showcase_smoke ".armhf" qemu-arm -L /usr/arm-linux-gnueabihf || exit 1
+}
+
+function test_aarch64 {    # Build and run all tests for AArch64 using QEMU plus showcase smoke tests
+  build_aarch64 "$@"
+  echo "=== Running all AArch64 executables in bin/ with QEMU ==="
+  local fail=0
+  for exe in bin/test*.aarch64; do
+    if [ -f "$exe" ] && [ -x "$exe" ]; then
+      echo "--- Running $exe ---"
+      qemu-aarch64 -L /usr/aarch64-linux-gnu "$exe"
+      if [ $? -ne 0 ]; then
+        echo "FAIL: $exe exited with error"
+        fail=1
+      fi
+      echo
+    fi
+  done
+  if [ $fail -ne 0 ]; then
+    echo "=== SOME AARCH64 TESTS FAILED ==="
+    exit 1
+  fi
+  showcase_smoke ".aarch64" qemu-aarch64 -L /usr/aarch64-linux-gnu || exit 1
 }
 
 function verify_arm {    # Verify ARM executables are stdlib-independent and bloat-free {compiler:arm-linux-gnueabihf-gcc} {optimizationchar:3}
@@ -239,6 +293,69 @@ function verify_arm {    # Verify ARM executables are stdlib-independent and blo
 
   echo
   echo "=== ARM Verification complete ==="
+}
+
+function verify_aarch64 {    # Verify AArch64 executables are stdlib-independent and bloat-free {compiler:aarch64-linux-gnu-gcc} {optimizationchar:3}
+  # Build AArch64 first to ensure we have current binaries
+  build_aarch64 "$@"
+
+  echo "=== Verifying AArch64 executables are stdlib-independent and bloat-free ==="
+
+  for exe in bin/*.aarch64; do
+    if [ -f "$exe" ]; then
+      echo
+      echo "Analyzing: $exe"
+      echo "----------------------------------------"
+
+      # Check file type (should be AArch64 ELF)
+      echo -n "  File type: "
+      file_output=$(file "$exe")
+      if echo "$file_output" | grep -qi "aarch64" && echo "$file_output" | grep -q "statically linked" && echo "$file_output" | grep -q "stripped"; then
+        echo "PASS (AArch64 ELF, static, stripped)"
+      else
+        echo "FAIL"
+        echo "    $file_output"
+      fi
+
+      # Check dynamic section
+      echo -n "  Dynamic section: "
+      if readelf -d "$exe" 2>/dev/null | grep -q "There is no dynamic section"; then
+        echo "PASS (no dynamic section)"
+      else
+        echo "PRESENT (showing dynamic dependencies):"
+        readelf -d "$exe" 2>/dev/null | grep -E "(NEEDED|Shared library)" | sed 's/^/    /' || echo "    No NEEDED entries found"
+      fi
+
+      # Check for stdlib symbols/strings
+      echo -n "  No stdlib symbols: "
+      stdlib_symbols=$(strings "$exe" | grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)" | head -5)
+      if [ -z "$stdlib_symbols" ]; then
+        echo "PASS"
+      else
+        echo "FAIL (found stdlib references)"
+        echo "$stdlib_symbols"
+      fi
+
+      # Binary size
+      echo -n "  Binary size: "
+      total_size=$(stat -c%s "$exe" 2>/dev/null || stat -f%z "$exe" 2>/dev/null || wc -c < "$exe")
+      echo "${total_size} bytes"
+
+      # Symbol count
+      echo -n "  Symbol count: "
+      symbol_count=$(nm "$exe" 2>/dev/null | wc -l)
+      if [ "$symbol_count" -eq 0 ]; then
+        echo "PASS (no symbols - stripped)"
+      elif [ "$symbol_count" -lt 10 ]; then
+        echo "WARN ($symbol_count symbols)"
+      else
+        echo "FAIL ($symbol_count symbols - too many)"
+      fi
+    fi
+  done
+
+  echo
+  echo "=== AArch64 Verification complete ==="
 }
 
 function help {     # Prints help

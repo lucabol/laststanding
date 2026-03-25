@@ -61,17 +61,25 @@ gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp m
 clang -I. -Oz -lkernel32 -ffreestanding -Wall -Wextra -Wpedantic -o myapp.exe myapp.c
 ```
 
-**ARM cross-compilation (gcc):**
+**ARM32 cross-compilation (gcc):**
 ```sh
 arm-linux-gnueabihf-gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
+```
+
+**AArch64 cross-compilation (gcc):**
+```sh
+aarch64-linux-gnu-gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
 ```
 
 ### Key Types
 
 | Type | Purpose |
 |------|---------|
-| `L_FD` | File descriptor (`ptrdiff_t`). Used instead of `int` for Windows `HANDLE` compatibility. |
+| `L_FD` | Opaque file descriptor (`ptrdiff_t`). On Windows it is a library-managed descriptor slot, not a raw `HANDLE`. |
 | `L_STDIN`, `L_STDOUT`, `L_STDERR` | Standard file descriptor constants (0, 1, 2). |
+| `L_SPAWN_INHERIT` | Sentinel for `l_spawn_stdio` that keeps the child's stream attached to the parent's current stdio descriptor. |
+
+On Windows, `l_open*`, `l_pipe`, `l_dup`, `l_dup2`, `l_spawn`, and `l_spawn_stdio` all resolve through that descriptor layer, so Unix-style fd remapping stays stable without exposing raw Win32 handle values. Use `l_dup()` + `l_dup2()` to save, remap, and restore stdio around a plain `l_spawn()` call on either platform.
 
 ### Standard Name Aliases
 
@@ -167,14 +175,15 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
 | `l_chdir` | Changes the current working directory | All |
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
+| `l_dup` | Duplicates fd, returning a new descriptor on success or -1 on error. | All |
 | `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
+| `l_lseek` | Repositions the file offset of fd | All |
+| `l_mkdir` | Creates a directory with the given permissions | All |
+| `l_sched_yield` | Yields the processor to other threads | All |
+| `l_spawn_stdio` | Spawns a process with explicit stdin/stdout/stderr. Use `L_SPAWN_INHERIT` to keep the parent's current stream. | All |
 | `l_spawn` | path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit). | All |
 | `l_wait` | exitcode receives the process exit code. | All |
 | **Unix-only functions** | | |
-| `l_dup` | Duplicates a file descriptor | Unix |
-| `l_lseek` | Repositions the file offset of fd | Unix |
-| `l_mkdir` | Creates a directory with the given permissions | Unix |
-| `l_sched_yield` | Yields the processor to other threads | Unix |
 | `l_fork` | Fork the current process. Returns child pid to parent, 0 to child, -1 on error. | Unix |
 | `l_execve` | Replace the current process image. Does not return on success. | Unix |
 | `l_waitpid` | Wait for a child process. Returns child pid on success, -1 on error. | Unix |
@@ -220,7 +229,7 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **test** | Comprehensive test suite (490+ assertions covering all `l_` functions) | [test.c](test/test.c) |
+| **test** | Comprehensive test suite (549 assertions on Windows, 560 on Linux/ARM/AArch64) | [test.c](test/test.c) |
 
 ## Directory Structure
 - `l_os.h` — Minimal C/OS abstraction header
@@ -242,9 +251,11 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 test_all.bat
 ```
 
+Both commands also run deterministic smoke checks from `test/showcase_smoke/` for the showcase utilities. `snake` remains build-only; `led` and `sh` are exercised only through stable usage/help paths.
+
 ### Using ci.ps1 (PowerShell)
 
-`ci.ps1` provides unified cross-platform CI from PowerShell. It builds, tests, and verifies across Windows, Linux (gcc + clang), and ARM (gcc + clang), delegating Linux/ARM targets to WSL.
+`ci.ps1` provides unified cross-platform CI from PowerShell. It builds, tests, and verifies across Windows, Linux (gcc + clang), and ARM32 plus AArch64 (gcc + clang), delegating Linux and ARM targets to WSL.
 
 **Parameters:**
 - `-Target` — Build target: `windows`, `linux`, `arm`, or `all` (default: `all`)
@@ -263,14 +274,14 @@ test_all.bat
 # Build Linux with clang only at -O2
 .\ci.ps1 -Target linux -Action build -Compiler clang -OptLevel 2
 
-# Test ARM binaries (via WSL + QEMU)
+# Test ARM32 and AArch64 binaries (via WSL + QEMU)
 .\ci.ps1 -Target arm -Action test
 ```
 
 **Requirements:**
 - Windows builds work natively (requires clang on PATH or Visual Studio Build Tools)
 - Linux and ARM builds require WSL (Windows Subsystem for Linux)
-- ARM target requires `arm-linux-gnueabihf-gcc` in WSL (provides sysroot for both gcc and clang cross-compilation)
+- ARM target requires `arm-linux-gnueabihf-gcc` and `aarch64-linux-gnu-gcc` in WSL (these provide the sysroots for both gcc and clang cross-compilation)
 - ARM clang cross-compilation requires `clang` installed in WSL
 
 ## Adding New Tests
