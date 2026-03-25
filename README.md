@@ -177,13 +177,12 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
 | `l_dup` | Duplicates fd, returning a new descriptor on success or -1 on error. | All |
 | `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
-| `l_lseek` | Repositions the file offset of fd | All |
-| `l_mkdir` | Creates a directory with the given permissions | All |
-| `l_sched_yield` | Yields the processor to other threads | All |
-| `l_spawn_stdio` | Spawns a process with explicit stdin/stdout/stderr. Use `L_SPAWN_INHERIT` to keep the parent's current stream. | All |
 | `l_spawn` | path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit). | All |
 | `l_wait` | exitcode receives the process exit code. | All |
 | **Unix-only functions** | | |
+| `l_lseek` | Repositions the file offset of fd | Unix |
+| `l_mkdir` | Creates a directory with the given permissions | Unix |
+| `l_sched_yield` | Yields the processor to other threads | Unix |
 | `l_fork` | Fork the current process. Returns child pid to parent, 0 to child, -1 on error. | Unix |
 | `l_execve` | Replace the current process image. Does not return on success. | Unix |
 | `l_waitpid` | Wait for a child process. Returns child pid on success, -1 on error. | Unix |
