@@ -232,7 +232,7 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **test** | Comprehensive test suite (561 assertions on Windows, 572 on Linux/ARM/AArch64) | [test.c](test/test.c) |
+| **test** | Comprehensive test suite (561 assertions on Windows, 573 on Linux/ARM/AArch64) | [test.c](test/test.c) |
 
 ## Directory Structure
 - `l_os.h` — Minimal C/OS abstraction header

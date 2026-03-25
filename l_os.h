@@ -292,7 +292,7 @@ int l_fstat(L_FD fd, L_Stat *st);
 /// Opens a directory for reading. Returns 0 on success, -1 on error.
 int l_opendir(const char *path, L_Dir *dir);
 /// Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done.
-L_DirEntry *l_readdir(L_Dir *dir);
+static L_DirEntry *l_readdir(L_Dir *dir);
 /// Closes a directory handle.
 void l_closedir(L_Dir *dir);
 
@@ -316,7 +316,7 @@ int l_dup(L_FD fd);
 int l_dup2(L_FD oldfd, L_FD newfd);
 
 /// Spawns a new process with explicit stdio. Use L_SPAWN_INHERIT to keep the parent's stream.
-L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
+static L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
                     L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd);
 
 /// Spawns a new process, inheriting the current stdio descriptors.
@@ -2056,7 +2056,7 @@ inline L_PID l_waitpid(L_PID pid, int *status, int options)
 #endif
 }
 
-inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
+static inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
                            L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd)
 {
     L_PID pid = l_fork();
@@ -2284,7 +2284,7 @@ inline int l_opendir(const char *path, L_Dir *dir)
     return 0;
 }
 
-inline L_DirEntry *l_readdir(L_Dir *dir)
+static inline L_DirEntry *l_readdir(L_Dir *dir)
 {
     static L_DirEntry entry;
     for (;;) {
@@ -2915,7 +2915,7 @@ inline int l_sched_yield(void)
     return 0;
 }
 
-inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
+static inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
                            L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd)
 {
     wchar_t wpath[1024];
@@ -3083,7 +3083,7 @@ inline int l_opendir(const char *path, L_Dir *dir) {
     return 0;
 }
 
-inline L_DirEntry *l_readdir(L_Dir *dir) {
+static inline L_DirEntry *l_readdir(L_Dir *dir) {
     if (dir->done) return (L_DirEntry *)0;
     if (dir->first) {
         dir->first = 0;
