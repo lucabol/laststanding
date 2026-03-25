@@ -148,8 +148,11 @@ static int fd_ready_now(L_FD fd) {
 }
 #endif
 
-static int maybe_run_spawn_stdio_helper(int argc, char *argv[]) {
-    if (argc > 1 && l_strcmp(argv[1], "--spawn-stdio-close-stdout-helper") == 0) {
+static int maybe_run_helper(int argc, char *argv[]) {
+    if (argc < 2)
+        return -1;
+
+    if (l_strcmp(argv[1], "--spawn-stdio-close-stdout-helper") == 0) {
         char drain[16];
         if (l_write(L_STDOUT, "hold", 4) != 4)
             return 2;
@@ -157,6 +160,22 @@ static int maybe_run_spawn_stdio_helper(int argc, char *argv[]) {
         while (l_read(L_STDIN, drain, sizeof(drain)) > 0) {}
         return 0;
     }
+
+    if (l_strcmp(argv[1], "--exit") == 0 && argc >= 3) {
+        l_exit(l_atoi(argv[2]));
+    }
+
+    if (l_strcmp(argv[1], "--echo-stderr") == 0 && argc >= 3) {
+        l_write(L_STDERR, argv[2], l_strlen(argv[2]));
+        return 0;
+    }
+
+    if (l_strcmp(argv[1], "--hold-stdin") == 0) {
+        char drain[16];
+        while (l_read(L_STDIN, drain, sizeof(drain)) > 0) {}
+        return 0;
+    }
+
     return -1;
 }
 
@@ -1107,6 +1126,44 @@ void test_getenv(void) {
     TEST_SECTION_PASS("l_getenv");
 }
 
+// ===================== l_env_iter =====================
+
+void test_env_iter(void) {
+    TEST_FUNCTION("l_env_iter");
+
+    void *handle = l_env_start();
+    TEST_ASSERT(handle != NULL, "l_env_start returns non-NULL");
+
+    void *iter = handle;
+    char buf[4096];
+    const char *entry;
+    int count = 0;
+    int found_path = 0;
+
+    while ((entry = l_env_next(&iter, buf, sizeof(buf))) != NULL) {
+        count++;
+        // PATH on Unix, Path on Windows — check case-insensitively
+        if (l_strncasecmp(entry, "PATH=", 5) == 0)
+            found_path = 1;
+    }
+
+    TEST_ASSERT(count > 0, "at least one env var found");
+    TEST_ASSERT(found_path, "PATH found in environment iteration");
+
+    l_env_end(handle);
+
+    // Verify a second iteration works
+    handle = l_env_start();
+    iter = handle;
+    int count2 = 0;
+    while (l_env_next(&iter, buf, sizeof(buf)) != NULL)
+        count2++;
+    l_env_end(handle);
+    TEST_ASSERT(count2 == count, "second iteration yields same count");
+
+    TEST_SECTION_PASS("l_env_iter");
+}
+
 // ===================== l_lseek =====================
 
 void test_lseek(void) {
@@ -1782,26 +1839,30 @@ void test_getcwd_chdir(void) {
     TEST_ASSERT(ret != 0, "getcwd returns non-null");
     TEST_ASSERT(l_strlen(cwd) > 0, "getcwd returns non-empty string");
 
-    // Save cwd, chdir to known location, verify, chdir back
+    // Save cwd, create temp dir, chdir to it, verify, chdir back, clean up
     char saved[512];
     l_getcwd(saved, sizeof(saved));
 
+    char tmpdir[512];
+    l_snprintf(tmpdir, sizeof(tmpdir), "%s%s", saved,
 #ifdef _WIN32
-    // On Windows, chdir to C:\ (always exists)
-    int cd_ret = l_chdir("C:\\");
-    TEST_ASSERT(cd_ret == 0, "chdir to C:\\ succeeds");
-    l_getcwd(cwd, sizeof(cwd));
-    TEST_ASSERT(cwd[0] == 'C', "getcwd after chdir starts with C");
+               "\\test_chdir_tmp"
 #else
-    // On Unix, chdir to / (always exists)
-    int cd_ret = l_chdir("/");
-    TEST_ASSERT(cd_ret == 0, "chdir to / succeeds");
-    l_getcwd(cwd, sizeof(cwd));
-    TEST_ASSERT(cwd[0] == '/' && cwd[1] == '\0', "getcwd after chdir is /");
+               "/test_chdir_tmp"
 #endif
+              );
 
-    // Restore original cwd
+    l_mkdir(tmpdir, 0755);
+    int cd_ret = l_chdir(tmpdir);
+    TEST_ASSERT(cd_ret == 0, "chdir to temp dir succeeds");
+
+    char after[512];
+    l_getcwd(after, sizeof(after));
+    TEST_ASSERT(l_strstr(after, "test_chdir_tmp") != 0, "getcwd after chdir contains temp dir name");
+
+    // Restore original cwd and clean up
     l_chdir(saved);
+    l_rmdir(tmpdir);
 
     TEST_SECTION_PASS("l_getcwd / l_chdir");
 }
@@ -1869,25 +1930,28 @@ void test_pipe_dup2(void) {
 void test_spawn_wait(void) {
     TEST_FUNCTION("l_spawn / l_wait");
 
-#ifdef _WIN32
-    // Test: spawn cmd.exe with "exit 0"
-    char *args[] = {"cmd.exe", "/c", "exit 0", NULL};
-    L_PID pid = l_spawn("C:\\Windows\\System32\\cmd.exe", args, (char *const *)0);
-    TEST_ASSERT(pid != -1, "spawn cmd.exe succeeds");
+    char test_path[256];
+    build_bin_path("test", test_path, sizeof(test_path));
+
+    // Test: spawn self with --exit 0
+    char *args[] = {test_path, "--exit", "0", NULL};
+    L_PID pid = l_spawn(test_path, args, (char *const *)0);
+    TEST_ASSERT(pid != -1, "spawn self --exit 0 succeeds");
     int exitcode = -1;
     int ret = l_wait(pid, &exitcode);
     TEST_ASSERT(ret == 0, "wait succeeds");
     TEST_ASSERT(exitcode == 0, "exit code is 0");
 
     // Test non-zero exit code
-    char *args2[] = {"cmd.exe", "/c", "exit 42", NULL};
-    L_PID pid2 = l_spawn("C:\\Windows\\System32\\cmd.exe", args2, (char *const *)0);
-    TEST_ASSERT(pid2 != -1, "spawn cmd.exe (exit 42) succeeds");
+    char *args2[] = {test_path, "--exit", "42", NULL};
+    L_PID pid2 = l_spawn(test_path, args2, (char *const *)0);
+    TEST_ASSERT(pid2 != -1, "spawn self --exit 42 succeeds");
     int exitcode2 = -1;
     l_wait(pid2, &exitcode2);
     TEST_ASSERT(exitcode2 == 42, "exit code is 42");
-#else
-    // Test fork + waitpid directly (works under QEMU too)
+
+#ifndef _WIN32
+    // Also test fork + waitpid directly (works under QEMU too)
     L_PID child = l_fork();
     if (child == 0) {
         l_exit(42);
@@ -1898,25 +1962,6 @@ void test_spawn_wait(void) {
     TEST_ASSERT(waited == child, "waitpid returns child pid");
     TEST_ASSERT((status & 0x7f) == 0, "child exited normally");
     TEST_ASSERT(((status >> 8) & 0xff) == 42, "child exit code is 42");
-
-    // Test l_spawn + l_wait with /bin/true (native Linux only)
-    char *args[] = {"/bin/true", NULL};
-    L_PID pid = l_spawn("/bin/true", args, (char *const *)0);
-    if (pid > 0) {
-        int exitcode = -1;
-        int ret = l_wait(pid, &exitcode);
-        TEST_ASSERT(ret == 0, "wait on /bin/true succeeds");
-        TEST_ASSERT(exitcode == 0, "/bin/true exits 0");
-    }
-
-    // Test non-zero exit with /bin/false
-    char *args2[] = {"/bin/false", NULL};
-    L_PID pid2 = l_spawn("/bin/false", args2, (char *const *)0);
-    if (pid2 > 0) {
-        int exitcode2 = -1;
-        l_wait(pid2, &exitcode2);
-        TEST_ASSERT(exitcode2 != 0, "/bin/false exits non-zero");
-    }
 #endif
 
     TEST_SECTION_PASS("l_spawn / l_wait");
@@ -1924,6 +1969,9 @@ void test_spawn_wait(void) {
 
 void test_spawn_inherits_dup2(void) {
     TEST_FUNCTION("l_spawn inherits dup2");
+
+    char test_path[256];
+    build_bin_path("test", test_path, sizeof(test_path));
 
     L_FD cap_pipe[2];
     L_FD saved_stderr = -1;
@@ -1943,13 +1991,8 @@ void test_spawn_inherits_dup2(void) {
     l_close(cap_pipe[1]);
 
     if (saved_stderr >= 0 && redir_ret == L_STDERR) {
-#ifdef _WIN32
-        char *args[] = {"cmd.exe", "/c", "echo spawndup 1>&2", NULL};
-        pid = l_spawn("C:\\Windows\\System32\\cmd.exe", args, (char *const *)0);
-#else
-        char *args[] = {"/bin/sh", "-c", "printf spawndup >&2", NULL};
-        pid = l_spawn("/bin/sh", args, (char *const *)0);
-#endif
+        char *args[] = {test_path, "--echo-stderr", "spawndup", NULL};
+        pid = l_spawn(test_path, args, (char *const *)0);
         restore_ret = l_dup2(saved_stderr, L_STDERR);
     }
     if (saved_stderr >= 0)
@@ -1967,13 +2010,8 @@ void test_spawn_inherits_dup2(void) {
     l_close(cap_pipe[0]);
 
     TEST_ASSERT(child_exit == 0, "inherited-stderr child exits 0");
-#ifdef _WIN32
-    TEST_ASSERT(cap_len == 11, "captured inherited stderr length matches");
-    TEST_ASSERT(l_memcmp(cap_buf, "spawndup \r\n", 11) == 0, "captured inherited stderr matches payload");
-#else
     TEST_ASSERT(cap_len == 8, "captured inherited stderr length matches");
     TEST_ASSERT(l_strcmp(cap_buf, "spawndup") == 0, "captured inherited stderr matches");
-#endif
 
     TEST_SECTION_PASS("l_spawn inherits dup2");
 }
@@ -2141,13 +2179,66 @@ void test_spawn_stdio_child_fd_cleanup(void) {
     TEST_SECTION_PASS("l_spawn_stdio child fd cleanup");
 }
 
+// ===================== l_find_executable =====================
+
+void test_find_executable(void) {
+    TEST_FUNCTION("l_find_executable");
+    char buf[512];
+
+    /* Nonexistent command must return 0 */
+    TEST_ASSERT(l_find_executable("__no_such_cmd_xyz__", buf, sizeof(buf)) == 0,
+                "nonexistent command returns 0");
+
+    /* Empty command must return 0 */
+    TEST_ASSERT(l_find_executable("", buf, sizeof(buf)) == 0,
+                "empty command returns 0");
+
+    /* NULL command must return 0 */
+    TEST_ASSERT(l_find_executable((const char *)0, buf, sizeof(buf)) == 0,
+                "NULL command returns 0");
+
+#ifdef _WIN32
+    /* On Windows, cmd.exe should be findable without .exe extension */
+    TEST_ASSERT(l_find_executable("cmd", buf, sizeof(buf)) == 1,
+                "finds cmd on Windows PATH");
+    TEST_ASSERT(l_strstr(buf, "cmd") != (const char *)0,
+                "resolved path contains 'cmd'");
+
+    /* With explicit .exe extension */
+    TEST_ASSERT(l_find_executable("cmd.exe", buf, sizeof(buf)) == 1,
+                "finds cmd.exe on Windows PATH");
+#else
+    /* On Unix, sh should be findable */
+    TEST_ASSERT(l_find_executable("sh", buf, sizeof(buf)) == 1,
+                "finds sh on Unix PATH");
+    TEST_ASSERT(l_strstr(buf, "sh") != (const char *)0,
+                "resolved path contains 'sh'");
+#endif
+
+    /* Direct path to the test binary itself (argv[0]-style) */
+    {
+        char self[512];
+        build_bin_path("test", self, sizeof(self));
+        if (l_access(self, L_F_OK) == 0) {
+            TEST_ASSERT(l_find_executable(self, buf, sizeof(buf)) == 1,
+                        "finds test binary by direct path");
+        }
+    }
+
+    /* Buffer too small should return 0 */
+    TEST_ASSERT(l_find_executable("cmd", buf, 1) == 0,
+                "buffer too small returns 0");
+
+    TEST_SECTION_PASS("l_find_executable");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
 
     {
-        int helper_exit = maybe_run_spawn_stdio_helper(argc, argv);
+        int helper_exit = maybe_run_helper(argc, argv);
         if (helper_exit >= 0)
             return helper_exit;
     }
@@ -2204,6 +2295,7 @@ int main(int argc, char* argv[]) {
     test_system_functions();
     test_sleep_ms();
     test_getenv();
+    test_env_iter();
     test_unlink_rmdir();
     test_rename_access();
     test_stat();
@@ -2217,6 +2309,7 @@ int main(int argc, char* argv[]) {
     test_spawn_pipeline_via_dup2();
     test_spawn_stdio();
     test_spawn_stdio_child_fd_cleanup();
+    test_find_executable();
 
     test_lseek();
     test_mkdir();

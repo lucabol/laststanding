@@ -179,6 +179,10 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
 | `l_spawn` | path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit). | All |
 | `l_wait` | exitcode receives the process exit code. | All |
+| `l_env_start` | Begin iterating environment variables. Returns opaque handle. | All |
+| `l_env_next` | Get next `KEY=VALUE` string during iteration. Returns NULL when done. | All |
+| `l_env_end` | End environment iteration and free resources. | All |
+| `l_find_executable` | Search PATH for an executable. Handles platform separators and Windows extensions. Returns 1 if found, 0 otherwise. | All |
 | **Unix-only functions** | | |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
@@ -228,7 +232,7 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **test** | Comprehensive test suite (549 assertions on Windows, 560 on Linux/ARM/AArch64) | [test.c](test/test.c) |
+| **test** | Comprehensive test suite (561 assertions on Windows, 572 on Linux/ARM/AArch64) | [test.c](test/test.c) |
 
 ## Directory Structure
 - `l_os.h` — Minimal C/OS abstraction header

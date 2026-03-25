@@ -238,6 +238,19 @@ void l_exitif(bool condition, int code, char *message);
 static char *l_getenv(const char *name);
 /// Initializes environment variable access (call from main)
 static void l_getenv_init(int argc, char *argv[]);
+/// Begin iterating environment variables. Returns opaque handle (pass to l_env_end).
+static void *l_env_start(void);
+/// Get next "KEY=VALUE" string. buf/bufsz provide conversion space (Windows).
+/// Returns NULL when done. Caller must not free the returned pointer.
+static const char *l_env_next(void **iter, char *buf, size_t bufsz);
+/// End iteration and free resources.
+static void l_env_end(void *handle);
+
+/// Finds an executable by name, searching PATH if needed.
+/// On Windows: tries .exe/.bat/.com extensions. Uses ';' PATH separator.
+/// On Unix: uses ':' PATH separator, no extension magic.
+/// Returns 1 if found (writes full path to out), 0 if not found.
+static int l_find_executable(const char *cmd, char *out, size_t outsz);
 
 // Convenience file openers
 /// Opens a file for reading
@@ -3296,6 +3309,151 @@ static inline char *l_getenv(const char *name) {
 }
 
 #endif
+
+// l_env_start / l_env_next / l_env_end: iterate all environment variables.
+// Usage:
+//   void *h = l_env_start();
+//   void *it = h;
+//   char buf[4096];
+//   const char *e;
+//   while ((e = l_env_next(&it, buf, sizeof(buf))) != NULL) { ... }
+//   l_env_end(h);
+
+#ifdef _WIN32
+
+static inline void *l_env_start(void) {
+    return (void *)GetEnvironmentStringsW();
+}
+
+static inline const char *l_env_next(void **iter, char *buf, size_t bufsz) {
+    wchar_t *p = (wchar_t *)*iter;
+    if (!p || !*p) return (const char *)0;
+    l_wide_to_utf8(p, buf, (int)bufsz);
+    while (*p) p++;
+    p++; // skip past null terminator to next entry
+    *iter = (void *)p;
+    return buf;
+}
+
+static inline void l_env_end(void *handle) {
+    if (handle) FreeEnvironmentStringsW((wchar_t *)handle);
+}
+
+#else
+
+static inline void *l_env_start(void) {
+    return (void *)l_envp;
+}
+
+static inline const char *l_env_next(void **iter, char *buf, size_t bufsz) {
+    (void)buf; (void)bufsz;
+    char **ep = (char **)*iter;
+    if (!ep || !*ep) return (const char *)0;
+    const char *entry = *ep;
+    *iter = (void *)(ep + 1);
+    return entry;
+}
+
+static inline void l_env_end(void *handle) {
+    (void)handle;
+}
+
+#endif
+
+// l_find_executable: resolve a command name to a full executable path.
+// Searches PATH with platform-appropriate separator and extension logic.
+
+static inline int l_find_executable(const char *cmd, char *out, size_t outsz) {
+    if (!cmd || !*cmd || !out || outsz < 2) return 0;
+
+#ifdef _WIN32
+    const char path_sep = ';';
+    const char dir_sep = '\\';
+    static const char *win_exts[] = { ".exe", ".bat", ".com", (const char *)0 };
+#else
+    const char path_sep = ':';
+    const char dir_sep = '/';
+#endif
+
+    int isz = (int)outsz;
+
+#ifdef _WIN32
+    /* Check if cmd already has a file extension (dot after last separator) */
+    int cmd_has_ext = 0;
+    {
+        const char *dot = (const char *)0;
+        const char *sep = (const char *)0;
+        for (const char *s = cmd; *s; s++) {
+            if (*s == '.') dot = s;
+            if (*s == '/' || *s == '\\') sep = s;
+        }
+        if (dot && (!sep || dot > sep)) cmd_has_ext = 1;
+    }
+#endif
+
+    /* Does the command already have a path separator? Use directly. */
+    {
+        int has_sep = 0;
+        for (const char *s = cmd; *s; s++)
+            if (*s == '/' || *s == '\\') { has_sep = 1; break; }
+
+        if (has_sep) {
+            l_strncpy(out, cmd, outsz - 1);
+            out[outsz - 1] = '\0';
+#ifdef _WIN32
+            /* On Windows, try extensions first when cmd has no extension */
+            if (!cmd_has_ext) {
+                int base_len = (int)l_strlen(out);
+                for (const char **ext = win_exts; *ext; ext++) {
+                    if (base_len + 5 < isz) {
+                        l_strncpy(out + base_len, *ext, outsz - (size_t)base_len);
+                        if (l_access(out, L_F_OK) == 0) return 1;
+                    }
+                }
+                out[base_len] = '\0'; /* restore bare name for fallback */
+            }
+#endif
+            if (l_access(out, L_F_OK) == 0) return 1;
+            return 0;
+        }
+    }
+
+    /* Search PATH directories */
+    {
+        char *path = l_getenv("PATH");
+        if (!path) return 0;
+
+        const char *p = path;
+        while (*p) {
+            const char *e = l_strchr(p, path_sep);
+            int dlen = e ? (int)(e - p) : (int)l_strlen(p);
+            if (dlen > 0 && dlen + 2 < isz) {
+                l_strncpy(out, p, (size_t)dlen);
+                out[dlen] = dir_sep;
+                out[dlen + 1] = '\0';
+                l_strncat(out, cmd, outsz - (size_t)dlen - 2);
+
+#ifdef _WIN32
+                /* On Windows, try extensions first when cmd has no extension */
+                if (!cmd_has_ext) {
+                    int base_len = (int)l_strlen(out);
+                    for (const char **ext = win_exts; *ext; ext++) {
+                        if (base_len + 5 < isz) {
+                            l_strncpy(out + base_len, *ext, outsz - (size_t)base_len);
+                            if (l_access(out, L_F_OK) == 0) return 1;
+                        }
+                    }
+                    out[base_len] = '\0'; /* restore bare name for fallback */
+                }
+#endif
+                if (l_access(out, L_F_OK) == 0) return 1;
+            }
+            if (!e) break;
+            p = e + 1;
+        }
+    }
+    return 0;
+}
 
 #endif // L_OSH
 

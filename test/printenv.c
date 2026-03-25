@@ -9,25 +9,15 @@ int main(int argc, char *argv[]) {
 
     if (argc < 2) {
         // Print all environment variables
-#ifdef _WIN32
-        wchar_t *env = GetEnvironmentStringsW();
-        if (env) {
-            char buf[4096];
-            wchar_t *p = env;
-            while (*p) {
-                int len = WideCharToMultiByte(CP_UTF8, 0, p, -1, buf, sizeof(buf), NULL, NULL);
-                if (len > 0) { puts(buf); puts("\n"); }
-                while (*p) p++;
-                p++;
-            }
-            FreeEnvironmentStringsW(env);
-        }
-#else
-        for (char **ep = l_envp; *ep; ep++) {
-            puts(*ep);
+        void *handle = l_env_start();
+        void *iter = handle;
+        char buf[4096];
+        const char *entry;
+        while ((entry = l_env_next(&iter, buf, sizeof(buf))) != NULL) {
+            puts(entry);
             puts("\n");
         }
-#endif
+        l_env_end(handle);
         return 0;
     }
 

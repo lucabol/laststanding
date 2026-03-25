@@ -12,9 +12,6 @@
 #define MAX_PATH_BUF 512
 
 static int last_exit;
-#ifdef __unix__
-static char **sh_envp;
-#endif
 
 /* --- Helpers ------------------------------------------------------------ */
 
@@ -78,71 +75,9 @@ static int parse_line(char *line, char *argv[]) {
 
 /* --- Command resolution ------------------------------------------------- */
 
-static int has_sep(const char *s) {
-    for (; *s; s++) if (*s == '/' || *s == '\\') return 1;
-    return 0;
-}
-
-static int file_exists(const char *p) {
-    L_FD f = l_open_read(p);
-    if (f < 0) return 0;
-    l_close(f);
-    return 1;
-}
-
-#ifdef _WIN32
-static int has_win_ext(const char *s) {
-    const char *d = (const char *)0;
-    for (; *s; s++) if (*s == '.') d = s;
-    return d && (l_strcasecmp(d, ".exe") == 0 ||
-                 l_strcasecmp(d, ".bat") == 0 ||
-                 l_strcasecmp(d, ".cmd") == 0);
-}
-#endif
-
 /* Find cmd in PATH; writes full path to out. Returns 1 if found. */
 static int resolve_cmd(const char *cmd, char *out, int sz) {
-    /* Command with explicit path — use directly */
-    if (has_sep(cmd)) {
-        l_strncpy(out, cmd, (size_t)(sz - 1));
-        out[sz - 1] = '\0';
-#ifdef _WIN32
-        if (!file_exists(out) && !has_win_ext(cmd) &&
-            (int)l_strlen(out) + 5 < sz)
-            l_strncat(out, ".exe", 4);
-#endif
-        return 1;
-    }
-
-    /* Search PATH directories */
-    char *path = l_getenv("PATH");
-    if (!path) return 0;
-
-#ifdef _WIN32
-    const char sep = ';', ds = '\\';
-#else
-    const char sep = ':', ds = '/';
-#endif
-
-    const char *p = path;
-    while (*p) {
-        const char *e = l_strchr(p, sep);
-        int dlen = e ? (int)(e - p) : (int)l_strlen(p);
-        if (dlen > 0 && dlen + 2 < sz) {
-            l_strncpy(out, p, (size_t)dlen);
-            out[dlen] = ds;
-            out[dlen + 1] = '\0';
-            l_strncat(out, cmd, (size_t)(sz - dlen - 2));
-#ifdef _WIN32
-            if (!has_win_ext(cmd) && (int)l_strlen(out) + 5 < sz)
-                l_strncat(out, ".exe", 4);
-#endif
-            if (file_exists(out)) return 1;
-        }
-        if (!e) break;
-        p = e + 1;
-    }
-    return 0;
+    return l_find_executable(cmd, out, (size_t)sz);
 }
 
 /* --- Redirection parsing ------------------------------------------------ */
@@ -223,14 +158,6 @@ static int try_builtin(char *argv[], int ac) {
 
 /* --- Execution ---------------------------------------------------------- */
 
-static char *const *spawn_envp(void) {
-#ifdef __unix__
-    return sh_envp;
-#else
-    return (char *const *)0;
-#endif
-}
-
 static void close_redir_fd(L_FD fd) {
     if (fd >= 0 && fd != L_STDIN && fd != L_STDOUT && fd != L_STDERR)
         l_close(fd);
@@ -282,7 +209,7 @@ static L_PID spawn_cmd(char *argv[], L_FD stdin_fd, L_FD stdout_fd) {
     if (redirect_std_fd(L_STDOUT, stdout_fd, &saved_out) < 0)
         goto done;
 
-    pid = l_spawn(path, argv, spawn_envp());
+    pid = l_spawn(path, argv, (char *const *)0);
 
 done:
     if (restore_std_fd(L_STDOUT, saved_out) < 0)
@@ -380,9 +307,6 @@ static void usage(void) {
 
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
-#ifdef __unix__
-    sh_envp = argv + argc + 1;
-#endif
 
     if (argc > 1 && l_strcmp(argv[1], "--help") == 0) {
         usage();
