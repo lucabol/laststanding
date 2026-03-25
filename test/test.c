@@ -1532,6 +1532,36 @@ void test_strspn(void) {
     TEST_SECTION_PASS("l_strspn / l_strcspn");
 }
 
+// ===================== l_strpbrk =====================
+
+void test_strpbrk(void) {
+    TEST_FUNCTION("l_strpbrk");
+
+    char *p;
+    p = l_strpbrk("hello world", "aeiou");
+    TEST_ASSERT(p != (char *)0 && *p == 'e', "first vowel in 'hello world' is 'e'");
+
+    p = l_strpbrk("hello", "xyz");
+    TEST_ASSERT(p == (char *)0, "no match returns NULL");
+
+    p = l_strpbrk("", "abc");
+    TEST_ASSERT(p == (char *)0, "empty string returns NULL");
+
+    p = l_strpbrk("abc", "");
+    TEST_ASSERT(p == (char *)0, "empty accept returns NULL");
+
+    p = l_strpbrk("abcdef", "fed");
+    TEST_ASSERT(p != (char *)0 && *p == 'd', "first of fed in abcdef is 'd'");
+
+    p = l_strpbrk("abcdef", "a");
+    TEST_ASSERT(p != (char *)0 && p[0] == 'a', "single char match at start");
+
+    p = l_strpbrk("abcdef", "f");
+    TEST_ASSERT(p != (char *)0 && *p == 'f', "single char match at end");
+
+    TEST_SECTION_PASS("l_strpbrk");
+}
+
 // ===================== l_basename / l_dirname =====================
 
 void test_basename_dirname(void) {
@@ -1636,6 +1666,31 @@ void test_rename_access(void) {
     l_unlink(dst);
 
     TEST_SECTION_PASS("l_rename / l_access");
+}
+
+// ===================== l_chmod =====================
+
+void test_chmod(void) {
+    TEST_FUNCTION("l_chmod");
+
+    const char *tmpf = "test_chmod_tmpfile";
+    L_FD fd = l_open_write(tmpf);
+    TEST_ASSERT(fd >= 0, "create temp file for chmod");
+    l_write(fd, "x", 1);
+    l_close(fd);
+
+    // Make read-only (no write bit)
+    TEST_ASSERT(l_chmod(tmpf, 0444) == 0, "chmod 0444 succeeds");
+    // On Linux write permission is now denied; on Windows the readonly attribute is set.
+    TEST_ASSERT(l_access(tmpf, L_R_OK) == 0, "readable after chmod 0444");
+    TEST_ASSERT(l_access(tmpf, L_W_OK) != 0, "not writable after chmod 0444");
+
+    // Restore write permission
+    TEST_ASSERT(l_chmod(tmpf, 0644) == 0, "chmod 0644 succeeds");
+    TEST_ASSERT(l_access(tmpf, L_W_OK) == 0, "writable after chmod 0644");
+
+    l_unlink(tmpf);
+    TEST_SECTION_PASS("l_chmod");
 }
 
 // ===================== l_stat / l_fstat =====================
@@ -2171,6 +2226,7 @@ int main(int argc, char* argv[]) {
     test_reverse();
     test_strcasecmp();
     test_strspn();
+    test_strpbrk();
     test_basename_dirname();
 
     // Conversion functions
@@ -2206,6 +2262,7 @@ int main(int argc, char* argv[]) {
     test_getenv();
     test_unlink_rmdir();
     test_rename_access();
+    test_chmod();
     test_stat();
     test_opendir_readdir();
     test_mmap();

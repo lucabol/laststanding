@@ -158,6 +158,8 @@ int l_strncasecmp(const char *s1, const char *s2, size_t n);
 size_t l_strspn(const char *s, const char *accept);
 /// Returns length of initial segment of s consisting entirely of bytes NOT in reject
 size_t l_strcspn(const char *s, const char *reject);
+/// Returns pointer to first occurrence in s of any character in accept, or NULL
+char *l_strpbrk(const char *s, const char *accept);
 /// Returns pointer to the filename component of path (after last '/' or '\')
 const char *l_basename(const char *path);
 /// Writes the directory component of path into buf (up to bufsize), returns buf
@@ -272,6 +274,8 @@ int l_rmdir(const char *path);
 int l_rename(const char *oldpath, const char *newpath);
 /// Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error.
 int l_access(const char *path, int mode);
+/// Changes permission bits of a file. Returns 0 on success, -1 on error.
+int l_chmod(const char *path, mode_t mode);
 /// Gets file metadata by path. Returns 0 on success, -1 on error.
 int l_stat(const char *path, L_Stat *st);
 /// Gets file metadata by open file descriptor. Returns 0 on success, -1 on error.
@@ -589,6 +593,7 @@ int WINAPI mainCRTStartup(void)
 #  define strncasecmp l_strncasecmp
 #  define strspn l_strspn
 #  define strcspn l_strcspn
+#  define strpbrk l_strpbrk
 #  define basename l_basename
 #  define dirname l_dirname
 
@@ -635,6 +640,7 @@ int WINAPI mainCRTStartup(void)
 #  define rmdir l_rmdir
 #  define rename l_rename
 #  define access l_access
+#  define chmod l_chmod
 #  define F_OK L_F_OK
 #  define R_OK L_R_OK
 #  define W_OK L_W_OK
@@ -1405,6 +1411,16 @@ inline size_t l_strcspn(const char *s, const char *reject) {
     return count;
 }
 
+inline char *l_strpbrk(const char *s, const char *accept) {
+    for (; *s; s++) {
+        const char *a = accept;
+        for (; *a; a++) {
+            if (*s == *a) return (char *)s;
+        }
+    }
+    return (char *)0;
+}
+
 inline const char *l_basename(const char *path) {
     if (!path || !*path) return path;
     const char *last = path;
@@ -2173,6 +2189,19 @@ inline int l_access(const char *path, int mode)
     return (int)my_syscall4(334 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
 #else
 #error Unsupported architecture for l_access
+#endif
+}
+
+inline int l_chmod(const char *path, mode_t mode)
+{
+#if defined(__x86_64__)
+    return (int)my_syscall3(268 /*__NR_fchmodat*/, AT_FDCWD, path, mode);
+#elif defined(__aarch64__)
+    return (int)my_syscall3(53 /*__NR_fchmodat*/, AT_FDCWD, path, mode);
+#elif defined(__arm__)
+    return (int)my_syscall3(333 /*__NR_fchmodat*/, AT_FDCWD, path, mode);
+#else
+#error Unsupported architecture for l_chmod
 #endif
 }
 
@@ -3012,6 +3041,18 @@ inline int l_access(const char *path, int mode) {
     if (attr == (DWORD)-1) return -1;
     if ((mode & L_W_OK) && (attr & 1 /*FILE_ATTRIBUTE_READONLY*/)) return -1;
     return 0;
+}
+
+inline int l_chmod(const char *path, mode_t mode) {
+    wchar_t wpath[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    DWORD attr = GetFileAttributesW(wpath);
+    if (attr == (DWORD)-1) return -1;
+    if (mode & 0200 /*S_IWUSR*/)
+        attr &= ~(DWORD)1 /*FILE_ATTRIBUTE_READONLY*/;
+    else
+        attr |= (DWORD)1 /*FILE_ATTRIBUTE_READONLY*/;
+    return SetFileAttributesW(wpath, attr) ? 0 : -1;
 }
 
 inline int l_stat(const char *path, L_Stat *st) {

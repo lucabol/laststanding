@@ -109,6 +109,7 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_strncasecmp` | Case-insensitive comparison of up to n characters | All |
 | `l_strspn` | Returns length of initial segment of s consisting entirely of bytes in accept | All |
 | `l_strcspn` | Returns length of initial segment of s consisting entirely of bytes NOT in reject | All |
+| `l_strpbrk` | Returns pointer to first occurrence in s of any character in accept, or NULL | All |
 | `l_basename` | Returns pointer to the filename component of path (after last '/' or '\') | All |
 | `l_dirname` | Writes the directory component of path into buf (up to bufsize), returns buf | All |
 | `l_reverse` | Reverses a string in place | All |
@@ -165,6 +166,7 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
 | `l_rename` | Renames (or moves) a file or directory. Returns 0 on success, -1 on error. | All |
 | `l_access` | Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error. | All |
+| `l_chmod` | Changes permission bits of a file. Returns 0 on success, -1 on error. | All |
 | `l_stat` | Gets file metadata by path. Returns 0 on success, -1 on error. | All |
 | `l_fstat` | Gets file metadata by open file descriptor. Returns 0 on success, -1 on error. | All |
 | `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
