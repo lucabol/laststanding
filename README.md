@@ -196,26 +196,30 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 
 | Program | Description | Source |
 |---------|-------------|--------|
+| **base64** | Base64 encoder/decoder (RFC 4648, -d decode, file input) | [base64.c](test/base64.c) |
+| **checksum** | Computes XOR and additive checksums of a file | [checksum.c](test/checksum.c) |
 | **countlines** | Counts lines in a file | [countlines.c](test/countlines.c) |
 | **grep** | Filters lines matching a substring pattern | [grep.c](test/grep.c) |
 | **hexdump** | Displays file contents in hex + ASCII format | [hexdump.c](test/hexdump.c) |
-| **checksum** | Computes XOR and additive checksums of a file | [checksum.c](test/checksum.c) |
+| **ls** | Lists directory contents (-a, -l flags, case-insensitive sort) | [ls.c](test/ls.c) |
+| **printenv** | Prints environment variables (all or by name) | [printenv.c](test/printenv.c) |
+| **sort** | Line-based text sort (-r reverse, -f fold case, -n numeric, -u unique) | [sort.c](test/sort.c) |
 | **upper** | Converts text to uppercase | [upper.c](test/upper.c) |
 | **wc** | Counts lines, words, and bytes | [wc.c](test/wc.c) |
-| **printenv** | Prints environment variables (all or by name) | [printenv.c](test/printenv.c) |
 
 ### Interactive Programs
 
 | Program | Description | Source |
 |---------|-------------|--------|
 | **led** | Modal text editor with vim keybindings (hjkl, insert/normal/command modes, :w/:q, search) | [led.c](test/led.c) |
+| **sh** | Interactive shell with builtins (cd/pwd/exit/echo), PATH search, quoted args, I/O redirection, piping | [sh.c](test/sh.c) |
 | **snake** | Playable Snake console game with WASD controls and ANSI rendering | [snake.c](test/snake.c) |
 
 ### Test Suite
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **test** | Comprehensive test suite (200+ assertions covering all `l_` functions) | [test.c](test/test.c) |
+| **test** | Comprehensive test suite (490+ assertions covering all `l_` functions) | [test.c](test/test.c) |
 
 ## Directory Structure
 - `l_os.h` — Minimal C/OS abstraction header
