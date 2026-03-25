@@ -347,3 +347,71 @@ Closed the remaining Windows single-pipe / `dup2` + `l_spawn` gap by making `l_d
 - A cross-platform `l_dup()` is the clean reusable save/restore primitive for temporary stdio remaps; it avoids hard-coded spare fd slots and lets Windows share the same `dup2()` + `l_spawn()` composition style as Unix.
 - Real shell pipeline smoke tests should enforce a timeout on Windows so leaked-writer regressions fail fast instead of wedging CI.
 - `cmd /c "echo text 1>&2"` emits `text \r\n` on stderr with a trailing space before CRLF, so Windows byte-for-byte stderr assertions must expect that exact payload.
+
+## Work Session — Self-Hosted Spawn Test Helpers
+
+Eliminated platform-specific OS commands (`cmd.exe`, `/bin/sh`, `/bin/true`, `/bin/false`) from spawn tests by making the test binary itself serve as the child process.
+
+**Changes to `test/test.c`:**
+- Replaced `maybe_run_spawn_stdio_helper()` with `maybe_run_helper()` that handles `--exit N`, `--echo-stderr MSG`, `--hold-stdin`, and the existing `--spawn-stdio-close-stdout-helper`.
+- `test_spawn_wait()`: uses `build_bin_path("test", ...)` + `--exit 0` / `--exit 42` instead of `cmd.exe /c exit N` (Windows) and `/bin/true`/`/bin/false` (Linux). Fork+waitpid test preserved for Unix.
+- `test_spawn_inherits_dup2()`: uses `--echo-stderr spawndup` instead of `cmd.exe /c echo` / `/bin/sh -c printf`. Eliminates the `#ifdef` for output comparison (no CRLF from cmd.exe).
+- `test_getcwd_chdir()`: uses `l_mkdir` + `l_chdir` to a repo-owned temp dir instead of `C:\` vs `/`.
+
+**Removed `#ifdef _WIN32` blocks:** 4 blocks eliminated (2 in spawn_wait, 1 in spawn_inherits_dup2, 1 in getcwd_chdir).
+
+Verified: all 21 CI targets PASS (Windows + Linux gcc/clang + ARM32 gcc/clang + AArch64 gcc/clang).
+
+## Learnings
+
+- Self-hosted test helpers (`--exit N`, `--echo-stderr MSG`) eliminate platform-specific shell commands from spawn tests, reducing `#ifdef` blocks and producing identical output across all platforms.
+- `l_atoi` is available in tests for parsing helper arguments (e.g., `--exit N`).
+- `l_exit()` never returns so no `return` is needed after it in helper dispatch.
+
+## Work Session — Environment Iteration API
+
+Added `l_env_start` / `l_env_next` / `l_env_end` to `l_os.h` — a cross-platform, zero-allocation API for iterating all environment variables.
+
+**API design:** Start/next/end pattern with caller-provided buffer. On Unix, walks the `l_envp` array directly (no copy). On Windows, walks the `GetEnvironmentStringsW` double-null-terminated block, converting each entry to UTF-8 via `l_wide_to_utf8` into the caller's buffer. `l_env_end` calls `FreeEnvironmentStringsW` on Windows; no-op on Unix.
+
+**Refactored `test/printenv.c`:** Eliminated `#ifdef _WIN32` block entirely. Now uses the new API for platform-independent env iteration.
+
+**Added tests in `test/test.c`:** `test_env_iter` verifies: non-NULL handle from start, at least one env var found, PATH discovered via case-insensitive prefix match, second iteration yields same count.
+
+Verified: all 21 CI targets PASS (Windows + Linux gcc/clang + ARM32 gcc/clang + AArch64 gcc/clang), 566 assertions on Linux/ARM (up from 553 on Windows due to assertion count differences).
+
+## Learnings
+
+- Forward declarations in `l_os.h` must use `static` to match `static inline` implementations — gcc errors on `static` def following non-static decl.
+- `GetEnvironmentStringsW` returns a double-null-terminated `wchar_t*` block. Iterate by walking past each entry's null terminator; stop when `*p == 0`.
+- The env iteration API doesn't need `l_getenv_init` — on Unix it uses the already-stored `l_envp`; on Windows it calls the Win32 API directly.
+
+## Work Session — 2026-07-25 (l_find_executable)
+
+Added `l_find_executable` API to `l_os.h` and refactored `test/sh.c` to use it.
+
+**Part 1 — l_find_executable in l_os.h:**
+- New function: `l_find_executable(const char *cmd, char *out, size_t outsz)` — resolves command name to full executable path.
+- Searches PATH with platform-appropriate separator (`;` on Windows, `:` on Unix) and dir separator (`\` vs `/`).
+- On Windows, tries `.exe`/`.bat`/`.com` extensions BEFORE bare name (critical when Linux binaries coexist in same dir as .exe files).
+- When cmd contains a path separator, checks direct path (with extension fallback on Windows).
+- Declaration in L_WITHDEFS section, implementation after l_env_end (uses `l_getenv`, `l_access`, `l_strchr`, `l_strncpy`, `l_strncat`).
+
+**Part 2 — test/sh.c refactor:**
+- Replaced `has_sep`, `file_exists`, `has_win_ext`, and full `resolve_cmd` (~65 lines) with thin wrapper calling `l_find_executable` (~3 lines).
+- Removed `sh_envp` global, `spawn_envp()` function, and all `#ifdef __unix__` envp plumbing — `l_spawn(..., NULL)` inherits environment on both platforms.
+- Kept HOME/USERPROFILE `#ifdef` in `cd` builtin (genuine OS difference).
+
+**Part 3 — Tests:**
+- Added `test_find_executable` to `test/test.c`: tests NULL/empty/nonexistent commands, platform-specific executable lookup (cmd on Windows, sh on Unix), direct path resolution, and buffer-too-small edge case.
+
+**Bug found during testing:** On Windows, `bin\` contains both Linux binaries (no extension) and Windows .exe files. The initial implementation checked bare name before trying extensions, causing `l_find_executable("sort", ...)` to find the Linux `sort` binary instead of `sort.exe`. Fixed by trying `.exe`/`.bat`/`.com` BEFORE bare name when cmd has no extension.
+
+Verified: all 21 CI targets PASS, 561 Windows assertions, 573 Linux/ARM assertions.
+
+## Learnings
+
+- On Windows, `l_find_executable` must try `.exe`/`.bat`/`.com` BEFORE the bare name. The bin directory can contain both extensionless Linux binaries and `.exe` Windows binaries; checking bare name first finds the wrong one.
+- `l_getenv` on Windows uses a static 4096-byte buffer. The returned pointer is invalidated by the next `l_getenv` call, so callers must copy or finish using the value before calling `l_getenv` again.
+- `l_spawn(..., NULL)` inherits the parent's environment on both Windows (via CreateProcessW with NULL envblock) and Unix (via l_envp). No need for explicit envp passthrough.
+- `GetFileAttributesW` does NOT do automatic extension appending — it checks the exact filename. So `l_access("sort", L_F_OK)` won't find `sort.exe`.
