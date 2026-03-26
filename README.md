@@ -288,6 +288,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_canvas_flush` | Copies the pixel buffer to the screen. |
 | `l_canvas_clear` | Fills the entire pixel buffer with a single color. |
 | `l_canvas_key` | Returns the next key press (ASCII or arrow codes), or 0 if none. Non-blocking. |
+| `l_canvas_mouse` | Returns mouse button bitmask (1=left, 2=right, 4=middle) and writes position to *x, *y. |
 | **Drawing primitives (platform-independent, operate on pixels[])** | |
 | `l_pixel` | Sets a single pixel at (x, y) to the given color. No-op if out of bounds. |
 | `l_get_pixel` | Returns the color of the pixel at (x, y), or 0 if out of bounds. |

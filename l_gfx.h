@@ -39,6 +39,9 @@ typedef struct {
     int       height;
     int       stride;       // bytes per row in pixel buffer
     uint32_t *pixels;       // user-accessible ARGB pixel buffer
+    int       mouse_x;     // current mouse x position
+    int       mouse_y;     // current mouse y position
+    int       mouse_btn;   // button bitmask: 1=left, 2=right, 4=middle
 
 #ifdef _WIN32
     // Windows GDI internals
@@ -59,6 +62,7 @@ typedef struct {
     int       fb_xoff;      // x offset in virtual framebuffer
     int       fb_yoff;      // y offset in virtual framebuffer
     unsigned long saved_tty; // saved terminal mode for restore
+    int       mouse_fd;    // fd to /dev/input/mice (-1 if unavailable)
 #endif
 } L_Canvas;
 
@@ -177,6 +181,8 @@ static inline void l_canvas_flush(L_Canvas *c);
 static inline void l_canvas_clear(L_Canvas *c, uint32_t color);
 /// Returns the next key press (ASCII or arrow codes), or 0 if none. Non-blocking.
 static inline int  l_canvas_key(L_Canvas *c);
+/// Returns mouse button bitmask (1=left, 2=right, 4=middle) and writes position to *x, *y.
+static inline int  l_canvas_mouse(L_Canvas *c, int *x, int *y);
 
 // ── Drawing primitives (platform-independent, operate on pixels[]) ───────────
 
@@ -335,6 +341,15 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             }
         }
         return 0;
+    case WM_MOUSEMOVE:
+        if (c) { c->mouse_x = (short)LOWORD(lp); c->mouse_y = (short)HIWORD(lp); }
+        return 0;
+    case WM_LBUTTONDOWN: if (c) c->mouse_btn |=  1; return 0;
+    case WM_LBUTTONUP:   if (c) c->mouse_btn &= ~1; return 0;
+    case WM_RBUTTONDOWN: if (c) c->mouse_btn |=  2; return 0;
+    case WM_RBUTTONUP:   if (c) c->mouse_btn &= ~2; return 0;
+    case WM_MBUTTONDOWN: if (c) c->mouse_btn |=  4; return 0;
+    case WM_MBUTTONUP:   if (c) c->mouse_btn &= ~4; return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -352,10 +367,17 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *title) {
     l_memset(c, 0, sizeof(*c));
+    l_gfx_active_canvas = c;
+
+    int fullscreen = (width <= 0 && height <= 0);
+    if (fullscreen) {
+        width  = GetSystemMetrics(SM_CXSCREEN);
+        height = GetSystemMetrics(SM_CYSCREEN);
+    }
+
     c->width  = width;
     c->height = height;
     c->stride = width * 4;
-    l_gfx_active_canvas = c;
 
     WNDCLASSW wc;
     l_memset(&wc, 0, sizeof(wc));
@@ -365,9 +387,16 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     wc.hCursor        = LoadCursorW(0, (LPCWSTR)IDC_ARROW);
     RegisterClassW(&wc);
 
+    DWORD style = fullscreen
+        ? (DWORD)WS_POPUP
+        : (DWORD)(WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX));
+
     // Calculate window size to fit client area exactly
     RECT rect = {0, 0, width, height};
-    AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX), FALSE);
+    AdjustWindowRect(&rect, style, FALSE);
+
+    int wx = fullscreen ? 0 : CW_USEDEFAULT;
+    int wy = fullscreen ? 0 : CW_USEDEFAULT;
 
     // Convert title to wide
     wchar_t wtitle[256];
@@ -377,9 +406,8 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     }
     wtitle[i] = 0;
 
-    c->hwnd = CreateWindowExW(0, l_gfx_classname, wtitle,
-        WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
-        CW_USEDEFAULT, CW_USEDEFAULT,
+    c->hwnd = CreateWindowExW(0, l_gfx_classname, wtitle, style,
+        wx, wy,
         rect.right - rect.left, rect.bottom - rect.top,
         0, 0, GetModuleHandleW(0), 0);
     if (!c->hwnd) return -1;
@@ -457,6 +485,17 @@ static inline int l_canvas_key(L_Canvas *c) {
     int key = c->keys[c->key_tail];
     c->key_tail = (c->key_tail + 1) % 16;
     return key;
+}
+
+static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
+    MSG msg;
+    while (PeekMessageW(&msg, (HWND)c->hwnd, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    if (x) *x = c->mouse_x;
+    if (y) *y = c->mouse_y;
+    return c->mouse_btn;
 }
 
 #else
@@ -561,10 +600,14 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
 
     // Enter raw terminal mode for keyboard input
     c->saved_tty = l_term_raw();
+
+    // Try to open PS/2 mouse device (failure is non-fatal)
+    c->mouse_fd = (int)l_open("/dev/input/mice", 0 /* O_RDONLY */, 0);
     return 0;
 }
 
 static inline void l_canvas_close(L_Canvas *c) {
+    if (c->mouse_fd >= 0) l_close(c->mouse_fd);
     if (c->saved_tty) l_term_restore(c->saved_tty);
     if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
         l_munmap(c->pixels, (size_t)(c->stride * c->height));
@@ -626,6 +669,26 @@ static inline int l_canvas_key(L_Canvas *c) {
         }
     }
     return (unsigned char)buf[0];
+}
+
+static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
+    if (c->mouse_fd >= 0) {
+        uint8_t pkt[3];
+        while (l_read_nonblock(c->mouse_fd, pkt, 3) == 3) {
+            int dx = (int)pkt[1] - ((pkt[0] & 0x10) ? 256 : 0);
+            int dy = -((int)pkt[2] - ((pkt[0] & 0x20) ? 256 : 0));
+            c->mouse_x += dx;
+            c->mouse_y += dy;
+            if (c->mouse_x < 0) c->mouse_x = 0;
+            if (c->mouse_y < 0) c->mouse_y = 0;
+            if (c->mouse_x >= c->width)  c->mouse_x = c->width  - 1;
+            if (c->mouse_y >= c->height) c->mouse_y = c->height - 1;
+            c->mouse_btn = (pkt[0] & 1) | ((pkt[0] & 2) ? 2 : 0) | ((pkt[0] & 4) ? 4 : 0);
+        }
+    }
+    if (x) *x = c->mouse_x;
+    if (y) *y = c->mouse_y;
+    return c->mouse_btn;
 }
 
 #endif // _WIN32 / __unix__
