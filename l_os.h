@@ -719,6 +719,23 @@ inline void *l_memmove(void *dst, const void *src, size_t len)
     const char *s = (const char *)src;
 
     if (d <= s) {
+        /* Forward copy — same word-at-a-time algorithm as l_memcpy.
+         * Safe because d <= s means no read-after-write aliasing. */
+        while (len && ((uintptr_t)d & (sizeof(uintptr_t) - 1U))) {
+            *d++ = *s++;
+            len--;
+        }
+        if (len >= sizeof(uintptr_t) && !((uintptr_t)s & (sizeof(uintptr_t) - 1U))) {
+            typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+            uptr_alias       *dp = (uptr_alias *)(void *)d;
+            const uptr_alias *sp = (const uptr_alias *)(const void *)s;
+            size_t nw = len / sizeof(uptr_alias);
+            while (nw--)
+                *dp++ = *sp++;
+            d   = (char *)(void *)dp;
+            s   = (const char *)(const void *)sp;
+            len &= sizeof(uptr_alias) - 1U;
+        }
         while (len--)
             *d++ = *s++;
     } else {
@@ -876,15 +893,16 @@ inline char *l_strstr(const char *s1, const char *s2) {
     const size_t len = l_strlen(s2);
     if (len == 0) return (char *)s1;
     const size_t slen = l_strlen(s1);
-    if (len > slen) return (0);
+    if (len > slen) return NULL;
     const char *end = s1 + slen - len;
-    while (*s1 && s1 <= end)
-    {
-        if (!l_memcmp(s1, s2, len))
+    const char first = s2[0];
+    /* Fast first-byte check avoids l_memcmp on non-matching positions. */
+    while (s1 <= end) {
+        if (*s1 == first && !l_memcmp(s1, s2, len))
             return (char *)s1;
         ++s1;
     }
-    return (0);
+    return NULL;
 }
 
 inline int l_isspace(int c)
