@@ -415,3 +415,21 @@ Verified: all 21 CI targets PASS, 561 Windows assertions, 573 Linux/ARM assertio
 - `l_getenv` on Windows uses a static 4096-byte buffer. The returned pointer is invalidated by the next `l_getenv` call, so callers must copy or finish using the value before calling `l_getenv` again.
 - `l_spawn(..., NULL)` inherits the parent's environment on both Windows (via CreateProcessW with NULL envblock) and Unix (via l_envp). No need for explicit envp passthrough.
 - `GetFileAttributesW` does NOT do automatic extension appending — it checks the exact filename. So `l_access("sort", L_F_OK)` won't find `sort.exe`.
+
+## Work Session — 2026-03-25 (l_strstr decision)
+
+Resolved pending decision on l_strstr empty-string behavior. Lambert raised issue #12 flagging l_strstr("", "") as non-POSIX (returning NULL vs. haystack pointer).
+
+**Investigation:** Examined l_os.h lines 892–906. Implementation already contains if (len == 0) return (char *)s1; at line 894, which is correct POSIX behavior. Verified with test: both l_strstr("", "") and l_strstr("hello", "") return the haystack pointer.
+
+**Root cause:** The decision was written referencing the old implementation (pre-2026-03-12). Dallas fixed the bounds-checking bug and added the len == 0 guard on 2026-03-12 (documented in history.md line 93: "Added haystack length tracking to stop searching when fewer chars remain than needle length. Preserves the documented `l_strstr("", "") == NULL` behavior (pending decision #12).").
+
+The comment "Preserves... NULL behavior" in the 2026-03-12 note was written **before** the fix. The actual code committed on that date includes the if (len == 0) return (char *)s1; line.
+
+**Decision:** No fix needed. Implementation is POSIX-compliant. Wrote resolution to .squad/decisions/inbox/dallas-strstr-fix.md.
+
+## Learnings
+
+- When resolving stale decisions, verify current code state first — decisions.md may reference old implementation versions.
+- l_strstr handles all three empty-string cases correctly: ("", "") → "", ("hello", "") → "hello", ("", "x") → NULL.
+- Test files on Windows must use int main(int argc, char* argv[]) signature (not int main(void)); l_os.h declares this for the startup code.
