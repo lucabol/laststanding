@@ -28,7 +28,8 @@ function Parse-Header {
     $inWithDefs = -not $RequireWithDefs  # if not required, always "in"
 
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i].Trim()
+        $raw = $lines[$i]
+        $line = $raw.Trim()
 
         if ($RequireWithDefs) {
             if ($line -eq '#ifdef L_WITHDEFS') { $inWithDefs = $true; continue }
@@ -37,23 +38,37 @@ function Parse-Header {
         }
 
         # Group header: // ── Section name ──  or  // Section name
+        # Must not be a doc-comment (///) and must start at column 0 (not indented)
         if ($line -match '^//\s+(?:──\s+)?(.+?)(?:\s+──.*)?$' -and $line -notmatch '^///') {
             $g = $Matches[1].Trim()
-            # Skip noisy implementation comments
-            if ($g -notmatch 'Suppress|Window class|Framebuffer ioctl|Simplified|Each character') {
-                $currentGroup = $g
+            if ($raw -match '^//') {  # not indented — genuine section header
+                # Skip pure separator lines (all dashes/equals) and noisy comments
+                if ($g -notmatch '^[-=─]+$' -and
+                    $g -notmatch 'Suppress|Window class|Framebuffer ioctl|Simplified|Each character') {
+                    $currentGroup = $g
+                }
             }
             continue
         }
 
         # Doc-comment: /// description
+        # Doc-comment block: collect consecutive /// lines, then match function
         if ($line -match '^///\s+(.+)$') {
             $desc = $Matches[1]
+            # Skip any further consecutive /// lines (multi-line doc-comment)
+            while (($i + 1) -lt $lines.Count -and $lines[$i + 1].Trim() -match '^///') { $i++ }
             # Next non-empty line should be a function declaration or inline definition
             $j = $i + 1
             while ($j -lt $lines.Count -and $lines[$j].Trim() -eq '') { $j++ }
             if ($j -lt $lines.Count) {
                 $declLine = $lines[$j].Trim()
+                # Join continuation lines (multi-line signatures)
+                while ($declLine -notmatch '[;{]\s*$' -and ($j + 1) -lt $lines.Count) {
+                    $j++
+                    $nextLine = $lines[$j].Trim()
+                    if ($nextLine -match '^//') { break }  # stop at comments
+                    $declLine += ' ' + $nextLine
+                }
                 # Match: [noreturn] [static] [inline] type [*]name(params) [;|{]
                 if ($declLine -match '(?:noreturn\s+)?(?:static\s+)?(?:inline\s+)?(\w+)\s+\*?\s*(l_\w+)\s*\(([^)]*)\)\s*[;{]') {
                     $name = $Matches[2]

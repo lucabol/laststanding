@@ -1,17 +1,18 @@
 # laststanding
 
-A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Two header files give you everything from `strlen` to pixel graphics, across **Linux** (x86_64, ARM, AArch64) and **Windows**, with no libc at all.
+A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Three header files give you everything from `strlen` to pixel graphics to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64) and **Windows**, with no libc at all.
 
 | Header | What it provides |
 |--------|-----------------|
 | `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access |
-| `l_gfx.h` | Pixel graphics — drawing primitives, bitmap font, keyboard input (Linux framebuffer / Windows GDI) |
+| `l_gfx.h` | Pixel graphics — drawing primitives, bitmap font, keyboard/mouse input (Linux framebuffer / Windows GDI) |
+| `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
-Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 10 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), and 5 graphical demos — all built without a single line of libc.
+Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 10 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 5 graphical demos, and 2 UI demos — all built without a single line of libc.
 
 ## Quick Start
 
-### Hello World
+### Hello World (`l_os.h`)
 
 ```c
 #define L_MAINFILE
@@ -28,19 +29,17 @@ gcc -I. -Oz -ffreestanding -nostdlib -static -o hello hello.c   # Linux
 clang -I. -Oz -lkernel32 -ffreestanding -o hello.exe hello.c    # Windows
 ```
 
-### File I/O
+### File I/O (`l_os.h`)
 
 ```c
 #define L_MAINFILE
 #include "l_os.h"
 
 int main(int argc, char *argv[]) {
-    // Write a file
     L_FD fd = l_open_write("greeting.txt");
     l_write(fd, "Hello!\n", 7);
     l_close(fd);
 
-    // Read it back
     char buf[64];
     fd = l_open_read("greeting.txt");
     ptrdiff_t n = l_read(fd, buf, sizeof(buf));
@@ -51,7 +50,7 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-### Spawn a Child Process
+### Spawn a Child Process (`l_os.h`)
 
 ```c
 #define L_MAINFILE
@@ -70,7 +69,7 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-### Pixel Graphics
+### Pixel Graphics (`l_gfx.h`)
 
 ```c
 #define L_MAINFILE
@@ -83,18 +82,17 @@ int main(int argc, char *argv[]) {
     l_canvas_clear(&c, L_BLACK);
     l_fill_rect(&c, 50, 50, 100, 80, L_RED);
     l_circle(&c, 200, 120, 60, L_GREEN);
-    l_line(&c, 0, 0, 319, 239, L_BLUE);
     l_draw_text(&c, 60, 85, "Hello!", L_WHITE);
     l_canvas_flush(&c);
 
-    while (l_canvas_alive(&c) && l_canvas_key(&c) != 'q')
+    while (l_canvas_alive(&c) && l_canvas_key(&c) != 27)
         l_sleep_ms(16);
     l_canvas_close(&c);
     return 0;
 }
 ```
 
-### Animation Loop
+### Animation Loop (`l_gfx.h`)
 
 ```c
 #define L_MAINFILE
@@ -106,16 +104,120 @@ int main(int argc, char *argv[]) {
 
     int x = 160, y = 120, dx = 2, dy = 1;
     while (l_canvas_alive(&c)) {
-        if (l_canvas_key(&c) == 27) break;   // ESC to quit
+        if (l_canvas_key(&c) == 27) break;
         l_canvas_clear(&c, L_BLACK);
         l_fill_circle(&c, x, y, 10, L_RED);
         l_canvas_flush(&c);
         x += dx; y += dy;
         if (x <= 10 || x >= 310) dx = -dx;
         if (y <= 10 || y >= 230) dy = -dy;
-        l_sleep_ms(16);                       // ~60 fps
+        l_sleep_ms(16);
     }
     l_canvas_close(&c);
+    return 0;
+}
+```
+
+### UI Form (`l_ui.h`)
+
+```c
+#define L_MAINFILE
+#include "l_ui.h"         // pulls in l_gfx.h and l_os.h automatically
+
+int main(int argc, char *argv[]) {
+    L_Canvas canvas;
+    if (l_canvas_open(&canvas, 400, 300, "My App") != 0) return 1;
+
+    L_UI ui;
+    l_ui_init(&ui);
+
+    int clicked = 0, checked = 0, volume = 50;
+    char name[256] = "";
+
+    while (l_canvas_alive(&canvas)) {
+        l_ui_begin(&ui, &canvas);
+        l_canvas_clear(&canvas, L_RGB(30, 30, 34));
+        if (ui.key == 27) break;
+
+        l_ui_panel(&ui, 10, 10, 380, 280);
+
+        l_ui_column_begin(&ui, 20, 20, 8);
+
+        int y = l_ui_next(&ui, 10);
+        l_ui_label(&ui, 20, y, "Settings");
+
+        y = l_ui_next(&ui, 24);
+        if (l_ui_button(&ui, 20, y, 120, 24, "Click Me"))
+            clicked++;
+
+        y = l_ui_next(&ui, 16);
+        l_ui_checkbox(&ui, 20, y, "Dark mode", &checked);
+
+        y = l_ui_next(&ui, 8);
+        l_ui_label(&ui, 20, y, "Volume:");
+        y = l_ui_next(&ui, 16);
+        l_ui_slider(&ui, 20, y, 200, &volume, 0, 100);
+
+        y = l_ui_next(&ui, 8);
+        l_ui_label(&ui, 20, y, "Name:");
+        y = l_ui_next(&ui, 20);
+        l_ui_textbox(&ui, 20, y, 200, name, 256);
+
+        l_ui_layout_end(&ui);
+
+        l_ui_end(&ui);
+        l_canvas_flush(&canvas);
+    }
+    l_canvas_close(&canvas);
+    return 0;
+}
+```
+
+### RGB Color Mixer (`l_ui.h`)
+
+```c
+#define L_MAINFILE
+#include "l_ui.h"
+
+int main(int argc, char *argv[]) {
+    L_Canvas canvas;
+    if (l_canvas_open(&canvas, 480, 300, "Color Mixer") != 0) return 1;
+
+    L_UI ui;
+    l_ui_init(&ui);
+    int r = 128, g = 64, b = 200;
+
+    while (l_canvas_alive(&canvas)) {
+        l_ui_begin(&ui, &canvas);
+        l_canvas_clear(&canvas, L_RGB(25, 25, 28));
+        if (ui.key == 27) break;
+
+        l_ui_column_begin(&ui, 20, 20, 8);
+
+        int y = l_ui_next(&ui, 8);
+        l_ui_label(&ui, 20, y, "Red:");
+        y = l_ui_next(&ui, 16);
+        l_ui_slider(&ui, 20, y, 200, &r, 0, 255);
+
+        y = l_ui_next(&ui, 8);
+        l_ui_label(&ui, 20, y, "Green:");
+        y = l_ui_next(&ui, 16);
+        l_ui_slider(&ui, 20, y, 200, &g, 0, 255);
+
+        y = l_ui_next(&ui, 8);
+        l_ui_label(&ui, 20, y, "Blue:");
+        y = l_ui_next(&ui, 16);
+        l_ui_slider(&ui, 20, y, 200, &b, 0, 255);
+
+        l_ui_layout_end(&ui);
+
+        // Color preview
+        l_fill_rect(&canvas, 250, 20, 210, 260, L_RGB(r, g, b));
+
+        l_ui_end(&ui);
+        l_canvas_flush(&canvas);
+    }
+    l_canvas_close(&canvas);
     return 0;
 }
 ```
@@ -148,6 +250,8 @@ In multi-file projects, only one `.c` file defines `L_MAINFILE`:
 | `L_FD` | File descriptor (`ptrdiff_t`). On Windows, a library-managed slot — not a raw `HANDLE`. |
 | `L_STDIN`, `L_STDOUT`, `L_STDERR` | Standard descriptor constants (0, 1, 2). |
 | `L_Canvas` | Pixel graphics context (framebuffer on Linux, GDI window on Windows). |
+| `L_UI` | Immediate-mode UI context (theme, input state, layout cursor). |
+| `L_UI_Theme` | UI color theme (background, hover, active, text, border, accent, input). |
 
 ## Compiler Flags
 
@@ -225,9 +329,9 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_getenv` | Returns value of environment variable, or NULL if not found | All |
 | `l_getenv_init` | Initializes environment variable access (call from main) | All |
 | `l_env_start` | Begin iterating environment variables. Returns opaque handle (pass to l_env_end). | All |
-| `l_env_next` | Returns NULL when done. Caller must not free the returned pointer. | All |
+| `l_env_next` | Get next "KEY=VALUE" string. buf/bufsz provide conversion space (Windows). | All |
 | `l_env_end` | End iteration and free resources. | All |
-| `l_find_executable` | Returns 1 if found (writes full path to out), 0 if not found. | All |
+| `l_find_executable` | Finds an executable by name, searching PATH if needed. | All |
 | **Convenience file openers** | | |
 | `l_open_read` | Opens a file for reading | All |
 | `l_open_write` | Opens or creates a file for writing | All |
@@ -258,8 +362,9 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
 | `l_dup` | Duplicates fd, returning a new descriptor on success or -1 on error. | All |
 | `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
-| `l_spawn` | path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit). | All |
-| `l_wait` | exitcode receives the process exit code. | All |
+| `l_spawn_stdio` | Spawns a new process with explicit stdio. Use L_SPAWN_INHERIT to keep the parent's stream. | All |
+| `l_spawn` | Spawns a new process, inheriting the current stdio descriptors. | All |
+| `l_wait` | Waits for a spawned process to finish. Returns 0 on success, -1 on error. | All |
 | **Unix-only functions** | | |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
@@ -304,40 +409,32 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- END GFX REFERENCE -->
 
-**Platform backends:**
-- **Linux:** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland)
-- **Windows:** native GDI window (`user32.dll` + `gdi32.dll`)
-
-All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
+Platform backends: **Linux** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland). **Windows** opens a native GDI window (`user32.dll` + `gdi32.dll`). All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
 
 ## Function Reference — `l_ui.h`
 
-Immediate-mode UI components built on `l_gfx.h`. No heap allocation, no widget tree — declare widgets every frame between `l_ui_begin`/`l_ui_end`. Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
+Immediate-mode UI library built on `l_gfx.h`. No heap allocation, no widget tree — declare widgets every frame between `l_ui_begin`/`l_ui_end`. Widget functions return action state (e.g. `l_ui_button` returns 1 if clicked). Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- BEGIN UI REFERENCE -->
 
 | Function | Description |
 |----------|-------------|
-| **---------------------------------------------------------------------------** | |
+| **Frame functions** | |
 | `l_ui_begin` | Begins a UI frame. Call once per frame before declaring widgets. |
 | `l_ui_end` | Ends a UI frame. Handles releasing active widget when mouse released. |
-| **If clicked but not on any widget, clear focus** | |
 | `l_ui_init` | Initializes a UI context with the default dark theme and font scale 1. |
-| **---------------------------------------------------------------------------** | |
+| **Widgets** | |
 | `l_ui_label` | Draws a text label at (x,y). Returns 0 always. |
 | `l_ui_button` | Draws a clickable button at (x,y) with given width and height. Returns 1 if clicked this frame. |
-| **Center text** | |
 | `l_ui_checkbox` | Draws a checkbox at (x,y). *checked is toggled on click. Returns 1 if toggled this frame. |
-| **Draw thumb** | |
+| `l_ui_slider` | Draws a horizontal slider at (x,y) with given width. *value is clamped to [min_val, max_val]. Returns 1 if value changed. |
 | `l_ui_textbox` | Draws a single-line text input at (x,y) with width w. buf is the text buffer, buf_len is max capacity. Returns 1 if text changed. |
-| **Draw blinking cursor when focused** | |
 | `l_ui_panel` | Draws a panel (filled rectangle with border) at (x,y). Returns 0. |
 | `l_ui_separator` | Draws a horizontal separator line at (x,y) with width w. Returns 0. |
-| **---------------------------------------------------------------------------** | |
+| **Auto-Layout Helpers** | |
 | `l_ui_column_begin` | Begins a vertical (column) auto-layout at (x,y) with given spacing between widgets. |
 | `l_ui_row_begin` | Begins a horizontal (row) auto-layout at (x,y) with given spacing. |
 | `l_ui_next` | Advances auto-layout by `size` pixels. Returns the position before advancing (y for column, x for row). |
-| **Horizontal: return current x, advance x** | |
 | `l_ui_layout_end` | Ends the current layout. |
 
 <!-- END UI REFERENCE -->
