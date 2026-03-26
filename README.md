@@ -193,6 +193,48 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 
 <!-- END FUNCTION REFERENCE -->
 
+## Pixel Graphics: `l_gfx.h`
+
+A second header provides freestanding pixel graphics. Include it instead of `l_os.h` — it pulls in `l_os.h` automatically:
+
+```c
+#define L_MAINFILE
+#include "l_gfx.h"
+
+int main(int argc, char *argv[]) {
+    L_Canvas c;
+    if (l_canvas_open(&c, 320, 240, "Hello") != 0) return 1;
+    l_fill_rect(&c, 50, 50, 100, 80, L_RED);
+    l_draw_text(&c, 60, 80, "Hello!", L_WHITE);
+    l_canvas_flush(&c);
+    while (l_canvas_alive(&c) && l_canvas_key(&c) != 'q')
+        l_sleep_ms(16);
+    l_canvas_close(&c);
+    return 0;
+}
+```
+
+**Platform backends:**
+- **Linux:** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland needed)
+- **Windows:** opens a native GDI window (`user32.dll` + `gdi32.dll`)
+
+**API summary:**
+
+| Function | Description |
+|----------|-------------|
+| `l_canvas_open` | Open a canvas (framebuffer or window) |
+| `l_canvas_close` | Close and free resources |
+| `l_canvas_alive` | Returns non-zero if canvas is still open |
+| `l_canvas_flush` | Blit pixel buffer to screen |
+| `l_canvas_clear` | Fill pixel buffer with a color |
+| `l_canvas_key` | Non-blocking key read (returns 0 if none) |
+| `l_pixel` / `l_get_pixel` | Set/get individual pixels |
+| `l_line` | Bresenham line drawing |
+| `l_rect` / `l_fill_rect` | Outline and filled rectangles |
+| `l_circle` / `l_fill_circle` | Midpoint circle algorithm |
+| `l_draw_char` / `l_draw_text` | Embedded 8×8 bitmap font (ASCII 32–126) |
+| `L_RGB(r,g,b)` | Color macro (32-bit ARGB) |
+
 ## Scope
 
 ### Not Included (by Design)
@@ -225,6 +267,7 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 | Program | Description | Source |
 |---------|-------------|--------|
 | **led** | Modal text editor with vim keybindings (hjkl, insert/normal/command modes, :w/:q, search) | [led.c](test/led.c) |
+| **mandelbrot** | Interactive fractal renderer with pan/zoom (fixed-point, no floats) | [mandelbrot.c](test/mandelbrot.c) |
 | **sh** | Interactive shell with builtins (cd/pwd/exit/echo), PATH search, quoted args, I/O redirection, piping | [sh.c](test/sh.c) |
 | **snake** | Playable Snake console game with WASD controls and ANSI rendering | [snake.c](test/snake.c) |
 
@@ -232,10 +275,12 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 
 | Program | Description | Source |
 |---------|-------------|--------|
+| **gfx_test** | In-memory pixel graphics test suite (28 assertions) | [gfx_test.c](test/gfx_test.c) |
 | **test** | Comprehensive test suite (561 assertions on Windows, 573 on Linux/ARM/AArch64) | [test.c](test/test.c) |
 
 ## Directory Structure
 - `l_os.h` — Minimal C/OS abstraction header
+- `l_gfx.h` — Pixel graphics header (framebuffer on Linux, GDI on Windows)
 - `test/` — Test programs for various functions
 - `bin/` — Compiled test binaries
 - `misc/` — Extra tools and experiments
