@@ -115,43 +115,7 @@ done:
     return pid;
 }
 
-#ifndef _WIN32
-struct test_fdset {
-    unsigned long words[16];
-};
 
-struct test_timespec {
-    long tv_sec;
-    long tv_nsec;
-};
-
-static int fd_ready_now(L_FD fd) {
-    struct test_fdset readfds;
-    struct test_timespec timeout;
-    size_t word = (size_t)fd / (8 * sizeof(readfds.words[0]));
-    int result;
-
-    if (fd < 0 || word >= sizeof(readfds.words) / sizeof(readfds.words[0]))
-        return -1;
-
-    l_memset(&readfds, 0, sizeof(readfds));
-    readfds.words[word] = 1ul << ((size_t)fd % (8 * sizeof(readfds.words[0])));
-    timeout.tv_sec = 0;
-    timeout.tv_nsec = 0;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#if defined(__x86_64__)
-    result = (int)my_syscall6(270 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
-#elif defined(__arm__)
-    result = (int)my_syscall6(335 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
-#elif defined(__aarch64__)
-    result = (int)my_syscall6(72 /*__NR_pselect6*/, fd + 1, &readfds, 0, 0, &timeout, 0);
-#endif
-#pragma GCC diagnostic pop
-    return result;
-}
-#endif
 
 static int maybe_run_helper(int argc, char *argv[]) {
     if (argc < 2)

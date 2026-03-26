@@ -271,12 +271,22 @@ The `test/` directory contains example programs that showcase `l_os.h` capabilit
 | **sh** | Interactive shell with builtins (cd/pwd/exit/echo), PATH search, quoted args, I/O redirection, piping | [sh.c](test/sh.c) |
 | **snake** | Playable Snake console game with WASD controls and ANSI rendering | [snake.c](test/snake.c) |
 
+### Graphical Demos (l_gfx.h)
+
+| Program | Description | Source |
+|---------|-------------|--------|
+| **life** | Conway's Game of Life — 80×60 grid, 4×4 pixel cells, pause/randomize/clear | [life.c](test/life.c) |
+| **plasma** | Classic plasma effect — animated rainbow sine-wave color cycling | [plasma.c](test/plasma.c) |
+| **starfield** | 3D starfield fly-through — 200 stars with perspective projection | [starfield.c](test/starfield.c) |
+| **fire** | Doom-style fire effect — bottom-up heat propagation with 37-color palette | [fire.c](test/fire.c) |
+| **clock** | Analog clock — hour/minute/second hands with fixed-point sin/cos tables | [clock.c](test/clock.c) |
+
 ### Test Suite
 
 | Program | Description | Source |
 |---------|-------------|--------|
 | **gfx_test** | In-memory pixel graphics test suite (28 assertions) | [gfx_test.c](test/gfx_test.c) |
-| **test** | Comprehensive test suite (561 assertions on Windows, 573 on Linux/ARM/AArch64) | [test.c](test/test.c) |
+| **test** | Comprehensive test suite (561 assertions on Windows, 572 on Linux/ARM/AArch64) | [test.c](test/test.c) |
 
 ## Directory Structure
 - `l_os.h` — Minimal C/OS abstraction header

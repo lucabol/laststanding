@@ -1949,6 +1949,45 @@ int raise(int sig) {
     (void)sig;
     return 0;
 }
+
+/* ARM EABI integer division helpers — ARM32 has no hardware divide instruction.
+   clang emits calls to these instead of inlining division.
+   __attribute__((used)) prevents LTO/gc-sections from stripping them. */
+__attribute__((used)) unsigned __aeabi_uidiv(unsigned num, unsigned den) {
+    if (den == 0) return 0;
+    unsigned quot = 0;
+    int shift = 0;
+    while (den <= (num >> 1) && shift < 31) { den <<= 1; shift++; }
+    while (shift >= 0) {
+        if (num >= den) { num -= den; quot |= (1u << shift); }
+        den >>= 1;
+        shift--;
+    }
+    return quot;
+}
+
+__attribute__((used)) int __aeabi_idiv(int num, int den) {
+    int neg = 0;
+    unsigned unum, uden;
+    if (num < 0) { unum = (unsigned)(-(num + 1)) + 1u; neg = !neg; } else { unum = (unsigned)num; }
+    if (den < 0) { uden = (unsigned)(-(den + 1)) + 1u; neg = !neg; } else { uden = (unsigned)den; }
+    int q = (int)__aeabi_uidiv(unum, uden);
+    return neg ? -q : q;
+}
+
+/* divmod returns {quotient, remainder} in {r0, r1}.
+   ARM EABI: unsigned long long returned in r0:r1. */
+__attribute__((used)) unsigned long long __aeabi_uidivmod(unsigned num, unsigned den) {
+    unsigned q = __aeabi_uidiv(num, den);
+    unsigned r = num - q * den;
+    return q | ((unsigned long long)r << 32);
+}
+
+__attribute__((used)) long long __aeabi_idivmod(int num, int den) {
+    int q = __aeabi_idiv(num, den);
+    int r = num - q * den;
+    return (unsigned)q | ((unsigned long long)(unsigned)r << 32);
+}
 #endif
 
 #pragma GCC diagnostic push
