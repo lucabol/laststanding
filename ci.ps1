@@ -801,17 +801,16 @@ foreach ($t in $targets) {
 Write-BinarySizeTable
 
 # ============================================================
-#  Documentation check
+#  Documentation regeneration
 # ============================================================
 Write-Host ""
-Write-Host "  Checking docs..." -NoNewline
+Write-Host "  Regenerating docs..." -NoNewline
 try {
-    & (Join-Path $PSScriptRoot 'gen-docs.ps1') -Check
-    Write-Host "  up to date" -ForegroundColor Green
-    $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Check'; Status = 'PASS' }
+    & (Join-Path $PSScriptRoot 'gen-docs.ps1')
+    $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Generate'; Status = 'PASS' }
 } catch {
-    Write-Host "  out of date" -ForegroundColor Red
-    $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Check'; Status = 'FAIL' }
+    Write-Host "  FAILED: $_" -ForegroundColor Red
+    $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Generate'; Status = 'FAIL' }
 }
 
 # ============================================================
