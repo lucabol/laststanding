@@ -19,7 +19,10 @@
 #endif
 
 // ── Color helpers ────────────────────────────────────────────────────────────
+
+/// Composes a 32-bit ARGB color from red, green, blue (0-255).
 #define L_RGB(r, g, b)       ((uint32_t)0xFF000000u | ((uint32_t)(r)<<16) | ((uint32_t)(g)<<8) | (uint32_t)(b))
+/// Composes a 32-bit ARGB color from red, green, blue, alpha (0-255).
 #define L_RGBA(r, g, b, a)   (((uint32_t)(a)<<24) | ((uint32_t)(r)<<16) | ((uint32_t)(g)<<8) | (uint32_t)(b))
 #define L_BLACK   ((uint32_t)0xFF000000u)
 #define L_WHITE   ((uint32_t)0xFFFFFFFFu)
@@ -177,17 +180,20 @@ static inline int  l_canvas_key(L_Canvas *c);
 
 // ── Drawing primitives (platform-independent, operate on pixels[]) ───────────
 
+/// Sets a single pixel at (x, y) to the given color. No-op if out of bounds.
 static inline void l_pixel(L_Canvas *c, int x, int y, uint32_t color) {
     if (x >= 0 && x < c->width && y >= 0 && y < c->height)
         c->pixels[y * (c->stride / 4) + x] = color;
 }
 
+/// Returns the color of the pixel at (x, y), or 0 if out of bounds.
 static inline uint32_t l_get_pixel(L_Canvas *c, int x, int y) {
     if (x >= 0 && x < c->width && y >= 0 && y < c->height)
         return c->pixels[y * (c->stride / 4) + x];
     return 0;
 }
 
+/// Draws a line from (x0,y0) to (x1,y1) using Bresenham's algorithm.
 static inline void l_line(L_Canvas *c, int x0, int y0, int x1, int y1, uint32_t color) {
     int dx = x1 - x0, dy = y1 - y0;
     int sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
@@ -203,6 +209,7 @@ static inline void l_line(L_Canvas *c, int x0, int y0, int x1, int y1, uint32_t 
     }
 }
 
+/// Draws an outline rectangle at (x,y) with width w and height h.
 static inline void l_rect(L_Canvas *c, int x, int y, int w, int h, uint32_t color) {
     l_line(c, x, y, x + w - 1, y, color);
     l_line(c, x, y + h - 1, x + w - 1, y + h - 1, color);
@@ -210,6 +217,7 @@ static inline void l_rect(L_Canvas *c, int x, int y, int w, int h, uint32_t colo
     l_line(c, x + w - 1, y, x + w - 1, y + h - 1, color);
 }
 
+/// Draws a filled rectangle at (x,y) with width w and height h.
 static inline void l_fill_rect(L_Canvas *c, int x, int y, int w, int h, uint32_t color) {
     int x0 = x < 0 ? 0 : x;
     int y0 = y < 0 ? 0 : y;
@@ -221,6 +229,7 @@ static inline void l_fill_rect(L_Canvas *c, int x, int y, int w, int h, uint32_t
             c->pixels[py * s + px] = color;
 }
 
+/// Draws an outline circle centered at (cx,cy) with radius r (midpoint algorithm).
 static inline void l_circle(L_Canvas *c, int cx, int cy, int r, uint32_t color) {
     int x = r, y = 0, d = 1 - r;
     while (x >= y) {
@@ -234,6 +243,7 @@ static inline void l_circle(L_Canvas *c, int cx, int cy, int r, uint32_t color) 
     }
 }
 
+/// Draws a filled circle centered at (cx,cy) with radius r.
 static inline void l_fill_circle(L_Canvas *c, int cx, int cy, int r, uint32_t color) {
     int x = r, y = 0, d = 1 - r;
     while (x >= y) {
@@ -247,7 +257,7 @@ static inline void l_fill_circle(L_Canvas *c, int cx, int cy, int r, uint32_t co
     }
 }
 
-// Optimized horizontal line (used by fill_circle for performance)
+/// Draws a horizontal line from x0 to x1 at row y (used internally by fill_circle).
 static inline void l_hline(L_Canvas *c, int x0, int x1, int y, uint32_t color) {
     if (y < 0 || y >= c->height) return;
     if (x0 > x1) { int t = x0; x0 = x1; x1 = t; }
@@ -260,6 +270,7 @@ static inline void l_hline(L_Canvas *c, int x0, int x1, int y, uint32_t color) {
 
 // ── Text rendering ───────────────────────────────────────────────────────────
 
+/// Draws a single character at (x,y) using the embedded 8x8 bitmap font.
 static inline void l_draw_char(L_Canvas *c, int x, int y, char ch, uint32_t color) {
     if (ch < 32 || ch > 126) return;
     const uint8_t *glyph = l_font8x8[ch - 32];
@@ -269,6 +280,7 @@ static inline void l_draw_char(L_Canvas *c, int x, int y, char ch, uint32_t colo
                 l_pixel(c, x + col, y + row, color);
 }
 
+/// Draws a null-terminated string at (x,y), advancing 8 pixels per character.
 static inline void l_draw_text(L_Canvas *c, int x, int y, const char *text, uint32_t color) {
     while (*text) {
         l_draw_char(c, x, y, *text, color);

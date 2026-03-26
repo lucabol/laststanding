@@ -270,29 +270,36 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 ## Function Reference — `l_gfx.h`
 
+Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
+
+<!-- BEGIN GFX REFERENCE -->
+
 | Function | Description |
 |----------|-------------|
-| **Canvas lifecycle** | |
-| `l_canvas_open(canvas, w, h, title)` | Open a window/framebuffer. Returns 0 on success. |
-| `l_canvas_close(canvas)` | Close and free resources |
-| `l_canvas_alive(canvas)` | Returns non-zero while the window is open |
-| `l_canvas_flush(canvas)` | Blit the pixel buffer to screen |
-| `l_canvas_clear(canvas, color)` | Fill the entire canvas with a color |
-| `l_canvas_key(canvas)` | Non-blocking key read (0 if none, ASCII code or ESC=27) |
-| **Drawing primitives** | |
-| `l_pixel(canvas, x, y, color)` | Set a single pixel |
-| `l_get_pixel(canvas, x, y)` | Read a pixel's color |
-| `l_line(canvas, x0, y0, x1, y1, color)` | Bresenham line |
-| `l_rect(canvas, x, y, w, h, color)` | Outline rectangle |
-| `l_fill_rect(canvas, x, y, w, h, color)` | Filled rectangle |
-| `l_circle(canvas, cx, cy, r, color)` | Outline circle (midpoint algorithm) |
-| `l_fill_circle(canvas, cx, cy, r, color)` | Filled circle |
-| **Text** | |
-| `l_draw_char(canvas, x, y, ch, color)` | Draw one character (8×8 bitmap font) |
-| `l_draw_text(canvas, x, y, str, color)` | Draw a string |
-| **Colors** | |
-| `L_RGB(r, g, b)` | Compose a 32-bit ARGB color |
-| `L_BLACK`, `L_WHITE`, `L_RED`, `L_GREEN`, `L_BLUE` | Predefined constants |
+| **Color helpers** | |
+| `L_RGB` | Composes a 32-bit ARGB color from red, green, blue (0-255). |
+| `L_RGBA` | Composes a 32-bit ARGB color from red, green, blue, alpha (0-255). |
+| **API declarations** | |
+| `l_canvas_open` | Opens a canvas. Returns 0 on success, -1 on error (e.g. no display). |
+| `l_canvas_close` | Closes the canvas and frees resources. |
+| `l_canvas_alive` | Returns non-zero if the canvas is still alive (window not closed). |
+| `l_canvas_flush` | Copies the pixel buffer to the screen. |
+| `l_canvas_clear` | Fills the entire pixel buffer with a single color. |
+| `l_canvas_key` | Returns the next key press (ASCII or arrow codes), or 0 if none. Non-blocking. |
+| **Drawing primitives (platform-independent, operate on pixels[])** | |
+| `l_pixel` | Sets a single pixel at (x, y) to the given color. No-op if out of bounds. |
+| `l_get_pixel` | Returns the color of the pixel at (x, y), or 0 if out of bounds. |
+| `l_line` | Draws a line from (x0,y0) to (x1,y1) using Bresenham's algorithm. |
+| `l_rect` | Draws an outline rectangle at (x,y) with width w and height h. |
+| `l_fill_rect` | Draws a filled rectangle at (x,y) with width w and height h. |
+| `l_circle` | Draws an outline circle centered at (cx,cy) with radius r (midpoint algorithm). |
+| `l_fill_circle` | Draws a filled circle centered at (cx,cy) with radius r. |
+| `l_hline` | Draws a horizontal line from x0 to x1 at row y (used internally by fill_circle). |
+| **Text rendering** | |
+| `l_draw_char` | Draws a single character at (x,y) using the embedded 8x8 bitmap font. |
+| `l_draw_text` | Draws a null-terminated string at (x,y), advancing 8 pixels per character. |
+
+<!-- END GFX REFERENCE -->
 
 **Platform backends:**
 - **Linux:** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland)
