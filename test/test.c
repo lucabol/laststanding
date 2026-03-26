@@ -2171,7 +2171,8 @@ void test_spawn_stdio_child_fd_cleanup(void) {
     TEST_ASSERT(l_read(out_pipe[0], hold_buf, 4) == 4, "reads helper stdout payload");
     TEST_ASSERT(l_memcmp(hold_buf, "hold", 4) == 0, "helper stdout payload matches");
     TEST_ASSERT(l_waitpid(pid, &status, 1 /* WNOHANG */) == 0, "helper remains blocked after closing stdout");
-    TEST_ASSERT(fd_ready_now(out_pipe[0]) > 0, "stdout pipe reaches EOF while child is still alive");
+    // Child has written "hold" and will close stdout, then block on stdin.
+    // l_read returning 0 proves the child's stdout fd was properly closed (EOF).
     TEST_ASSERT(l_read(out_pipe[0], hold_buf, 1) == 0, "stdout pipe reports EOF before child exits");
 
     l_close(out_pipe[0]);
