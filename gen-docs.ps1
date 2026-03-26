@@ -155,16 +155,24 @@ if ($gfxFunctions.Count -eq 0) {
     exit 1
 }
 
+$uiFunctions = Parse-Header -Path (Join-Path $root 'l_ui.h')
+if ($uiFunctions.Count -eq 0) {
+    Write-Error "No documented functions found in l_ui.h."
+    exit 1
+}
+
 # --- Build markdown ---
 
 $osMd  = Build-MarkdownTable -Functions $osFunctions -Columns @('Function','Description','Platform')
 $gfxMd = Build-MarkdownTable -Functions $gfxFunctions -Columns @('Function','Description')
+$uiMd  = Build-MarkdownTable -Functions $uiFunctions  -Columns @('Function','Description')
 
 # --- Update README.md ---
 
 $readme = Get-Content $readmeFile -Raw
 $readme = Update-ReadmeSection $readme '<!-- BEGIN FUNCTION REFERENCE -->' '<!-- END FUNCTION REFERENCE -->' $osMd
 $readme = Update-ReadmeSection $readme '<!-- BEGIN GFX REFERENCE -->' '<!-- END GFX REFERENCE -->' $gfxMd
+$readme = Update-ReadmeSection $readme '<!-- BEGIN UI REFERENCE -->' '<!-- END UI REFERENCE -->' $uiMd
 
 if ($Check) {
     $original = Get-Content $readmeFile -Raw
@@ -177,4 +185,4 @@ if ($Check) {
 }
 
 Set-Content $readmeFile $readme -NoNewline
-Write-Host "Updated README.md with $($osFunctions.Count) functions from l_os.h and $($gfxFunctions.Count) functions from l_gfx.h" -ForegroundColor Green
+Write-Host "Updated README.md with $($osFunctions.Count) functions from l_os.h, $($gfxFunctions.Count) functions from l_gfx.h, and $($uiFunctions.Count) functions from l_ui.h" -ForegroundColor Green

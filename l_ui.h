@@ -176,4 +176,282 @@ static inline int l_ui__mouse_released(L_UI *ui) {
     return !(ui->mouse_btn & 1) && (ui->mouse_btn_prev & 1);
 }
 
+// ---------------------------------------------------------------------------
+// Widgets
+// ---------------------------------------------------------------------------
+
+/// Draws a text label at (x,y). Returns 0 always.
+static inline int l_ui_label(L_UI *ui, int x, int y, const char *text) {
+    l_ui__draw_text(ui->canvas, x, y, text, ui->theme.fg, ui->font_scale);
+    return 0;
+}
+
+/// Draws a clickable button at (x,y) with given width and height. Returns 1 if clicked this frame.
+static inline int l_ui_button(L_UI *ui, int x, int y, int w, int h, const char *label) {
+    uint32_t id = l_ui__hash(label, x, y);
+    int over = l_ui__in_rect(ui->mouse_x, ui->mouse_y, x, y, w, h);
+    int clicked = 0;
+
+    if (over) {
+        ui->hot = id;
+        if (l_ui__mouse_pressed(ui))
+            ui->active = id;
+    }
+    if (ui->active == id && l_ui__mouse_released(ui)) {
+        if (over) clicked = 1;
+        ui->active = 0;
+    }
+
+    // Draw
+    uint32_t bg = ui->theme.bg;
+    if (ui->active == id && over)      bg = ui->theme.bg_active;
+    else if (ui->hot == id)            bg = ui->theme.bg_hover;
+
+    l_fill_rect(ui->canvas, x, y, w, h, bg);
+    l_rect(ui->canvas, x, y, w, h, ui->theme.border);
+
+    // Center text
+    int tw = l_ui__text_width(label, ui->font_scale);
+    int th = l_ui__text_height(ui->font_scale);
+    int tx = x + (w - tw) / 2;
+    int ty = y + (h - th) / 2;
+    l_ui__draw_text(ui->canvas, tx, ty, label, ui->theme.fg, ui->font_scale);
+
+    return clicked;
+}
+
+/// Draws a checkbox at (x,y). *checked is toggled on click. Returns 1 if toggled this frame.
+static inline int l_ui_checkbox(L_UI *ui, int x, int y, const char *label, int *checked) {
+    int scale = ui->font_scale;
+    int box = 8 * scale * 2;  // checkbox size: 16 at scale 1
+    uint32_t id = l_ui__hash(label, x, y);
+    int over = l_ui__in_rect(ui->mouse_x, ui->mouse_y, x, y, box, box);
+    int toggled = 0;
+
+    if (over) {
+        ui->hot = id;
+        if (l_ui__mouse_pressed(ui))
+            ui->active = id;
+    }
+    if (ui->active == id && l_ui__mouse_released(ui)) {
+        if (over) {
+            *checked = !(*checked);
+            toggled = 1;
+        }
+        ui->active = 0;
+    }
+
+    // Draw box
+    uint32_t bg = (ui->hot == id) ? ui->theme.bg_hover : ui->theme.bg;
+    l_fill_rect(ui->canvas, x, y, box, box, bg);
+    l_rect(ui->canvas, x, y, box, box, ui->theme.border);
+
+    // Draw check mark (filled inner rect)
+    if (*checked) {
+        int pad = box / 4;
+        l_fill_rect(ui->canvas, x + pad, y + pad, box - pad * 2, box - pad * 2,
+                     ui->theme.accent);
+    }
+
+    // Label to the right
+    int th = l_ui__text_height(scale);
+    l_ui__draw_text(ui->canvas, x + box + 4 * scale, y + (box - th) / 2,
+                    label, ui->theme.fg, scale);
+
+    return toggled;
+}
+
+/// Draws a horizontal slider at (x,y) with given width. *value is clamped to [min_val, max_val]. Returns 1 if value changed.
+static inline int l_ui_slider(L_UI *ui, int x, int y, int w, int *value,
+                               int min_val, int max_val) {
+    int scale = ui->font_scale;
+    int track_h = 4 * scale;
+    int thumb_w = 8 * scale;
+    int thumb_h = 16 * scale;
+    int h = thumb_h;  // total widget height
+    uint32_t id = l_ui__hash("slider", x, y);
+    int over = l_ui__in_rect(ui->mouse_x, ui->mouse_y, x, y, w, h);
+    int changed = 0;
+
+    if (over) {
+        ui->hot = id;
+        if (l_ui__mouse_pressed(ui))
+            ui->active = id;
+    }
+
+    // Clamp value
+    if (*value < min_val) *value = min_val;
+    if (*value > max_val) *value = max_val;
+
+    // If active, update value from mouse position
+    if (ui->active == id && (ui->mouse_btn & 1)) {
+        int range = max_val - min_val;
+        int usable = w - thumb_w;
+        int mx = ui->mouse_x - x - thumb_w / 2;
+        if (mx < 0) mx = 0;
+        if (mx > usable) mx = usable;
+        int new_val = min_val + (usable > 0 ? mx * range / usable : 0);
+        if (new_val != *value) {
+            *value = new_val;
+            changed = 1;
+        }
+    }
+
+    // Draw track
+    int track_y = y + (h - track_h) / 2;
+    l_fill_rect(ui->canvas, x, track_y, w, track_h, ui->theme.border);
+
+    // Draw thumb
+    int usable = w - thumb_w;
+    int range = max_val - min_val;
+    int thumb_x = x + (range > 0 ? (*value - min_val) * usable / range : 0);
+    int thumb_y = y;
+    uint32_t thumb_col = (ui->active == id) ? ui->theme.fg : ui->theme.accent;
+    l_fill_rect(ui->canvas, thumb_x, thumb_y, thumb_w, thumb_h, thumb_col);
+
+    return changed;
+}
+
+/// Draws a single-line text input at (x,y) with width w. buf is the text buffer, buf_len is max capacity. Returns 1 if text changed.
+static inline int l_ui_textbox(L_UI *ui, int x, int y, int w, char *buf, int buf_len) {
+    int scale = ui->font_scale;
+    int h = l_ui__text_height(scale) + 8 * scale;
+    uint32_t id = l_ui__hash("textbox", x, y);
+    int over = l_ui__in_rect(ui->mouse_x, ui->mouse_y, x, y, w, h);
+    int changed = 0;
+
+    // Set hot when hovered (prevents l_ui_end from clearing focus)
+    if (over)
+        ui->hot = id;
+
+    // Click to focus
+    if (over && l_ui__mouse_pressed(ui)) {
+        ui->focused = id;
+        ui->cursor_pos = (int)l_strlen(buf);
+        ui->cursor_blink = 0;
+    }
+
+    int focused = (ui->focused == id);
+
+    // Draw background and border
+    l_fill_rect(ui->canvas, x, y, w, h, ui->theme.input_bg);
+    l_rect(ui->canvas, x, y, w, h, focused ? ui->theme.accent : ui->theme.border);
+
+    // Handle keyboard input when focused
+    if (focused && ui->key) {
+        int len = (int)l_strlen(buf);
+        int key = ui->key;
+        if (key == 8) {  // backspace
+            if (ui->cursor_pos > 0) {
+                // Shift chars left
+                for (int i = ui->cursor_pos - 1; i < len - 1; i++)
+                    buf[i] = buf[i + 1];
+                buf[len - 1] = '\0';
+                ui->cursor_pos--;
+                changed = 1;
+            }
+        } else if (key == 1001) {  // left arrow
+            if (ui->cursor_pos > 0) ui->cursor_pos--;
+        } else if (key == 1002) {  // right arrow
+            if (ui->cursor_pos < len) ui->cursor_pos++;
+        } else if (key >= 32 && key <= 126) {  // printable ASCII
+            if (len < buf_len - 1) {
+                // Shift chars right to make room
+                for (int i = len; i > ui->cursor_pos; i--)
+                    buf[i] = buf[i - 1];
+                buf[ui->cursor_pos] = (char)key;
+                buf[len + 1] = '\0';
+                ui->cursor_pos++;
+                changed = 1;
+            }
+        }
+        ui->cursor_blink = 0;  // reset blink on any key
+    }
+
+    // Draw text
+    int pad = 4 * scale;
+    int text_y = y + (h - l_ui__text_height(scale)) / 2;
+    // Clip: only draw chars that fit in the box
+    int max_chars = (w - pad * 2) / (8 * scale);
+    int len = (int)l_strlen(buf);
+    // Scroll offset: ensure cursor is visible
+    int scroll = 0;
+    if (ui->cursor_pos > max_chars)
+        scroll = ui->cursor_pos - max_chars;
+
+    // Draw visible portion of text
+    for (int i = scroll; i < len && (i - scroll) < max_chars; i++) {
+        char ch = buf[i];
+        if (ch >= 32 && ch <= 126) {
+            int cx = x + pad + (i - scroll) * 8 * scale;
+            l_ui__draw_text(ui->canvas, cx, text_y, (const char[2]){ch, 0},
+                            ui->theme.fg, scale);
+        }
+    }
+
+    // Draw blinking cursor when focused
+    if (focused && (ui->cursor_blink % 60) < 30) {
+        int cursor_x = x + pad + (ui->cursor_pos - scroll) * 8 * scale;
+        l_fill_rect(ui->canvas, cursor_x, text_y, scale, l_ui__text_height(scale),
+                     ui->theme.fg);
+    }
+
+    return changed;
+}
+
+/// Draws a panel (filled rectangle with border) at (x,y). Returns 0.
+static inline int l_ui_panel(L_UI *ui, int x, int y, int w, int h) {
+    l_fill_rect(ui->canvas, x, y, w, h, ui->theme.bg);
+    l_rect(ui->canvas, x, y, w, h, ui->theme.border);
+    return 0;
+}
+
+/// Draws a horizontal separator line at (x,y) with width w. Returns 0.
+static inline int l_ui_separator(L_UI *ui, int x, int y, int w) {
+    l_hline(ui->canvas, x, x + w - 1, y, ui->theme.border);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-Layout Helpers
+// ---------------------------------------------------------------------------
+
+/// Begins a vertical (column) auto-layout at (x,y) with given spacing between widgets.
+static inline void l_ui_column_begin(L_UI *ui, int x, int y, int spacing) {
+    ui->layout_x = x;
+    ui->layout_y = y;
+    ui->layout_spacing = spacing;
+    ui->layout_dir = 1;
+    ui->layout_active = 1;
+}
+
+/// Begins a horizontal (row) auto-layout at (x,y) with given spacing.
+static inline void l_ui_row_begin(L_UI *ui, int x, int y, int spacing) {
+    ui->layout_x = x;
+    ui->layout_y = y;
+    ui->layout_spacing = spacing;
+    ui->layout_dir = 0;
+    ui->layout_active = 1;
+}
+
+/// Advances auto-layout by `size` pixels. Returns the position before advancing (y for column, x for row).
+static inline int l_ui_next(L_UI *ui, int size) {
+    if (ui->layout_dir == 1) {
+        // Vertical: return current y, advance y
+        int pos = ui->layout_y;
+        ui->layout_y += size + ui->layout_spacing;
+        return pos;
+    } else {
+        // Horizontal: return current x, advance x
+        int pos = ui->layout_x;
+        ui->layout_x += size + ui->layout_spacing;
+        return pos;
+    }
+}
+
+/// Ends the current layout.
+static inline void l_ui_layout_end(L_UI *ui) {
+    ui->layout_active = 0;
+}
+
 #endif // L_UI_H

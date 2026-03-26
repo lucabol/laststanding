@@ -310,6 +310,38 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
 
+## Function Reference — `l_ui.h`
+
+Immediate-mode UI components built on `l_gfx.h`. No heap allocation, no widget tree — declare widgets every frame between `l_ui_begin`/`l_ui_end`. Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
+
+<!-- BEGIN UI REFERENCE -->
+
+| Function | Description |
+|----------|-------------|
+| **---------------------------------------------------------------------------** | |
+| `l_ui_begin` | Begins a UI frame. Call once per frame before declaring widgets. |
+| `l_ui_end` | Ends a UI frame. Handles releasing active widget when mouse released. |
+| **If clicked but not on any widget, clear focus** | |
+| `l_ui_init` | Initializes a UI context with the default dark theme and font scale 1. |
+| **---------------------------------------------------------------------------** | |
+| `l_ui_label` | Draws a text label at (x,y). Returns 0 always. |
+| `l_ui_button` | Draws a clickable button at (x,y) with given width and height. Returns 1 if clicked this frame. |
+| **Center text** | |
+| `l_ui_checkbox` | Draws a checkbox at (x,y). *checked is toggled on click. Returns 1 if toggled this frame. |
+| **Draw thumb** | |
+| `l_ui_textbox` | Draws a single-line text input at (x,y) with width w. buf is the text buffer, buf_len is max capacity. Returns 1 if text changed. |
+| **Draw blinking cursor when focused** | |
+| `l_ui_panel` | Draws a panel (filled rectangle with border) at (x,y). Returns 0. |
+| `l_ui_separator` | Draws a horizontal separator line at (x,y) with width w. Returns 0. |
+| **---------------------------------------------------------------------------** | |
+| `l_ui_column_begin` | Begins a vertical (column) auto-layout at (x,y) with given spacing between widgets. |
+| `l_ui_row_begin` | Begins a horizontal (row) auto-layout at (x,y) with given spacing. |
+| `l_ui_next` | Advances auto-layout by `size` pixels. Returns the position before advancing (y for column, x for row). |
+| **Horizontal: return current x, advance x** | |
+| `l_ui_layout_end` | Ends the current layout. |
+
+<!-- END UI REFERENCE -->
+
 ## Example Programs
 
 Every program in `test/` compiles to a small, self-contained binary with no libc dependency.
@@ -348,18 +380,27 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 | **fire** | Doom-style fire — bottom-up heat propagation | [fire.c](test/fire.c) |
 | **clock** | Analog clock — hour/minute/second hands, ticking in real time | [clock.c](test/clock.c) |
 
+### UI Demos (`l_ui.h`)
+
+| Program | Description | Source |
+|---------|-------------|--------|
+| **ui_demo** | Full widget showcase — buttons, checkbox, slider, textbox, layout | [ui_demo.c](test/ui_demo.c) |
+| **ui_controls** | RGB color mixer — three sliders, hex input, live color preview | [ui_controls.c](test/ui_controls.c) |
+
 ### Test Suite
 
 | Program | Assertions | Source |
 |---------|-----------|--------|
 | **test** | 572 (Linux/ARM/AArch64), 561 (Windows) | [test.c](test/test.c) |
 | **gfx_test** | 28 (in-memory pixel buffer tests) | [gfx_test.c](test/gfx_test.c) |
+| **ui_test** | UI widget logic tests (simulated canvas) | [ui_test.c](test/ui_test.c) |
 
 ## Directory Structure
 
 ```
 l_os.h          — Core runtime header (strings, I/O, processes, terminal)
 l_gfx.h        — Pixel graphics header (drawing, font, canvas)
+l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
 test/           — All example programs and tests
 bin/            — Compiled binaries (generated)
 misc/           — Reference implementations using standard libc
