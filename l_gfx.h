@@ -265,7 +265,7 @@ static inline void l_draw_char(L_Canvas *c, int x, int y, char ch, uint32_t colo
     const uint8_t *glyph = l_font8x8[ch - 32];
     for (int row = 0; row < 8; row++)
         for (int col = 0; col < 8; col++)
-            if (glyph[row] & (0x80 >> col))
+            if (glyph[row] & (1 << col))
                 l_pixel(c, x + col, y + row, color);
 }
 
@@ -499,11 +499,13 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     l_memset(&vinfo, 0, sizeof(vinfo));
     l_memset(&finfo, 0, sizeof(finfo));
 
-    if (my_syscall3(__NR_ioctl, c->fb_fd, L_FBIOGET_VSCREENINFO, &vinfo) < 0) {
+    long vret = my_syscall3(__NR_ioctl, c->fb_fd, L_FBIOGET_VSCREENINFO, &vinfo);
+    if (vret < 0) {
         l_close(c->fb_fd);
         return -1;
     }
-    if (my_syscall3(__NR_ioctl, c->fb_fd, L_FBIOGET_FSCREENINFO, &finfo) < 0) {
+    long fret = my_syscall3(__NR_ioctl, c->fb_fd, L_FBIOGET_FSCREENINFO, &finfo);
+    if (fret < 0) {
         l_close(c->fb_fd);
         return -1;
     }

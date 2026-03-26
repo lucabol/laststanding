@@ -88,17 +88,17 @@ static void test_in_memory(void) {
     // Test draw_char
     l_canvas_clear(&c, L_BLACK);
     l_draw_char(&c, 0, 0, 'A', L_WHITE);
-    // 'A' glyph row 0 = 0x0C = 00001100 → with MSB=left: pixels at col 4 and 5
-    check(l_get_pixel(&c, 4, 0) == L_WHITE, "draw_char 'A' row0 bit");
+    // 'A' glyph row 0 = 0x0C = 00001100 → with LSB=left: pixels at col 2 and 3
+    check(l_get_pixel(&c, 2, 0) == L_WHITE, "draw_char 'A' row0 bit");
     check(l_get_pixel(&c, 0, 0) == L_BLACK, "draw_char 'A' row0 empty bit");
 
     // Test draw_text
     l_canvas_clear(&c, L_BLACK);
     l_draw_text(&c, 0, 0, "Hi", L_RED);
-    // 'H' glyph row 0 = 0x33 = 00110011 → pixels at col 2,3,6,7
-    check(l_get_pixel(&c, 2, 0) == L_RED, "draw_text first char");
-    // 'i' at x=8: glyph row 0 = 0x0C → pixels at col 4,5 → x=12,13
-    check(l_get_pixel(&c, 12, 0) == L_RED, "draw_text second char");
+    // 'H' glyph row 0 = 0x33 = 00110011 → LSB=left: pixels at col 0,1,4,5
+    check(l_get_pixel(&c, 0, 0) == L_RED, "draw_text first char");
+    // 'i' at x=8: glyph row 0 = 0x0C → LSB=left: pixels at col 2,3 → x=10,11
+    check(l_get_pixel(&c, 10, 0) == L_RED, "draw_text second char");
 
     // Test color macros
     check(L_RGB(255, 0, 0) == L_RED, "L_RGB red");
