@@ -17,6 +17,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# When cross-compiled binaries have a suffix (e.g. .armhf, .aarch64),
+# create a symlink directory so the freestanding shell can find them by
+# their unsuffixed names (e.g. "sort" → "sort.armhf").
+SHELL_BIN_DIR="$BIN_DIR"
+if [ -n "$SUFFIX" ]; then
+  SHELL_BIN_DIR="$TMP_DIR/shell_bin"
+  mkdir -p "$SHELL_BIN_DIR"
+  for f in "$BIN_DIR"/*"$SUFFIX"; do
+    base="$(basename "$f" "$SUFFIX")"
+    ln -sf "$f" "$SHELL_BIN_DIR/$base"
+  done
+fi
+
 run_target() {
   local exe="$1"
   shift
@@ -111,7 +124,7 @@ run_shell_redir_check() {
   echo "--- Running $name ---"
   (
     cd "$work_dir" || exit 1
-    export PATH="$BIN_DIR${PATH:+:$PATH}"
+    export PATH="$SHELL_BIN_DIR${PATH:+:$PATH}"
     printf '%s' "$script_text" | run_target sh >"$shell_out" 2>"$shell_err"
   )
   local status=$?
@@ -172,7 +185,7 @@ run_shell_pipe_check() {
   echo "--- Running $name ---"
   (
     cd "$work_dir" || exit 1
-    export PATH="$BIN_DIR${PATH:+:$PATH}"
+    export PATH="$SHELL_BIN_DIR${PATH:+:$PATH}"
     export "$env_name=$env_value"
     printf '%s' "$script_text" | run_target sh >"$shell_out" 2>"$shell_err"
   ) &
