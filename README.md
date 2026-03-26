@@ -1,23 +1,17 @@
 # laststanding
 
-A minimal C runtime and test suite for exploring freestanding, static, and cross-platform C code. This project provides:
+A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Two header files give you everything from `strlen` to pixel graphics, across **Linux** (x86_64, ARM, AArch64) and **Windows**, with no libc at all.
 
-- Minimal implementations of common C library functions (with `l_` prefix) in `l_os.h`
-- Direct syscall wrappers for Linux (x86_64, ARM/32-bit, AArch64/64-bit ARM) and Windows
-- Test programs for verifying correctness and portability
-- Build scripts for Linux and Windows
+| Header | What it provides |
+|--------|-----------------|
+| `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access |
+| `l_gfx.h` | Pixel graphics — drawing primitives, bitmap font, keyboard input (Linux framebuffer / Windows GDI) |
 
-## Features
-- No dependency on libc or glibc: all binaries are statically linked and freestanding
-- Cross-platform syscall support: x86_64, ARM, AArch64, and Windows
-- Simple build and test automation via `Taskfile` (bash) and `test_all.bat` (Windows)
-- AArch64 (64-bit ARM) fully supported and tested via QEMU
+Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 10 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), and 5 graphical demos — all built without a single line of libc.
 
-## How to Use
+## Quick Start
 
-### Quick Start
-
-`laststanding` is a single-header library. Copy `l_os.h` into your project and include it:
+### Hello World
 
 ```c
 #define L_MAINFILE
@@ -29,65 +23,146 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-### Compile-Time Flags
+```sh
+gcc -I. -Oz -ffreestanding -nostdlib -static -o hello hello.c   # Linux
+clang -I. -Oz -lkernel32 -ffreestanding -o hello.exe hello.c    # Windows
+```
+
+### File I/O
+
+```c
+#define L_MAINFILE
+#include "l_os.h"
+
+int main(int argc, char *argv[]) {
+    // Write a file
+    L_FD fd = l_open_write("greeting.txt");
+    l_write(fd, "Hello!\n", 7);
+    l_close(fd);
+
+    // Read it back
+    char buf[64];
+    fd = l_open_read("greeting.txt");
+    ptrdiff_t n = l_read(fd, buf, sizeof(buf));
+    l_close(fd);
+
+    l_write(L_STDOUT, buf, n);
+    return 0;
+}
+```
+
+### Spawn a Child Process
+
+```c
+#define L_MAINFILE
+#include "l_os.h"
+
+int main(int argc, char *argv[]) {
+    char *child_argv[] = { "ls", "-l", NULL };
+    L_FD pid = l_spawn("/bin/ls", child_argv, NULL);
+    int code;
+    l_wait(pid, &code);
+
+    char msg[32];
+    l_itoa(code, msg, 10);
+    puts("Exit code: "); puts(msg); puts("\n");
+    return 0;
+}
+```
+
+### Pixel Graphics
+
+```c
+#define L_MAINFILE
+#include "l_gfx.h"       // pulls in l_os.h automatically
+
+int main(int argc, char *argv[]) {
+    L_Canvas c;
+    if (l_canvas_open(&c, 320, 240, "Demo") != 0) return 1;
+
+    l_canvas_clear(&c, L_BLACK);
+    l_fill_rect(&c, 50, 50, 100, 80, L_RED);
+    l_circle(&c, 200, 120, 60, L_GREEN);
+    l_line(&c, 0, 0, 319, 239, L_BLUE);
+    l_draw_text(&c, 60, 85, "Hello!", L_WHITE);
+    l_canvas_flush(&c);
+
+    while (l_canvas_alive(&c) && l_canvas_key(&c) != 'q')
+        l_sleep_ms(16);
+    l_canvas_close(&c);
+    return 0;
+}
+```
+
+### Animation Loop
+
+```c
+#define L_MAINFILE
+#include "l_gfx.h"
+
+int main(int argc, char *argv[]) {
+    L_Canvas c;
+    if (l_canvas_open(&c, 320, 240, "Bounce") != 0) return 1;
+
+    int x = 160, y = 120, dx = 2, dy = 1;
+    while (l_canvas_alive(&c)) {
+        if (l_canvas_key(&c) == 27) break;   // ESC to quit
+        l_canvas_clear(&c, L_BLACK);
+        l_fill_circle(&c, x, y, 10, L_RED);
+        l_canvas_flush(&c);
+        x += dx; y += dy;
+        if (x <= 10 || x >= 310) dx = -dx;
+        if (y <= 10 || y >= 230) dy = -dy;
+        l_sleep_ms(16);                       // ~60 fps
+    }
+    l_canvas_close(&c);
+    return 0;
+}
+```
+
+## Compile-Time Flags
 
 | Define | Purpose |
 |--------|---------|
-| `L_MAINFILE` | Activates both function definitions and platform startup code. **Exactly one** translation unit must define this before including `l_os.h`. |
-| `L_DONTOVERRIDE` | Prevents `#define strlen l_strlen` style aliases. Use this if you need to mix `laststanding` with standard library headers. |
+| `L_MAINFILE` | Activates function definitions and platform startup code. **Exactly one** translation unit must define this. |
+| `L_DONTOVERRIDE` | Prevents `#define strlen l_strlen` aliases — use when mixing with standard headers. |
+| `L_WITHSNPRINTF` | Enables `l_snprintf` / `l_vsnprintf` (opt-in to keep binaries small). |
 
-In multi-file projects, only one `.c` file defines `L_MAINFILE`. Other files include `l_os.h` without it — they get type definitions and constants but no function bodies or startup code:
+By default, `l_os.h` aliases standard names (`strlen`, `memcpy`, `exit`, `puts`, …) to their `l_` equivalents so you can write familiar C. Define `L_DONTOVERRIDE` to disable this.
+
+In multi-file projects, only one `.c` file defines `L_MAINFILE`:
 
 ```c
-// utils.c — no L_MAINFILE, safe to include alongside other headers
+// utils.c — gets type definitions and constants only
 #include "l_os.h"
 
-// main.c — the one translation unit with startup code and definitions
+// main.c — the one file with startup code and function bodies
 #define L_MAINFILE
 #include "l_os.h"
 ```
 
-### Compiler Flags
-
-Binaries must be compiled freestanding with no standard library:
-
-**Linux (gcc or clang):**
-```sh
-gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
-```
-
-**Windows (clang):**
-```bat
-clang -I. -Oz -lkernel32 -ffreestanding -Wall -Wextra -Wpedantic -o myapp.exe myapp.c
-```
-
-**ARM32 cross-compilation (gcc):**
-```sh
-arm-linux-gnueabihf-gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
-```
-
-**AArch64 cross-compilation (gcc):**
-```sh
-aarch64-linux-gnu-gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o myapp myapp.c
-```
-
-### Key Types
+## Key Types
 
 | Type | Purpose |
 |------|---------|
-| `L_FD` | Opaque file descriptor (`ptrdiff_t`). On Windows it is a library-managed descriptor slot, not a raw `HANDLE`. |
-| `L_STDIN`, `L_STDOUT`, `L_STDERR` | Standard file descriptor constants (0, 1, 2). |
-| `L_SPAWN_INHERIT` | Sentinel for `l_spawn_stdio` that keeps the child's stream attached to the parent's current stdio descriptor. |
+| `L_FD` | File descriptor (`ptrdiff_t`). On Windows, a library-managed slot — not a raw `HANDLE`. |
+| `L_STDIN`, `L_STDOUT`, `L_STDERR` | Standard descriptor constants (0, 1, 2). |
+| `L_Canvas` | Pixel graphics context (framebuffer on Linux, GDI window on Windows). |
 
-On Windows, `l_open*`, `l_pipe`, `l_dup`, `l_dup2`, `l_spawn`, and `l_spawn_stdio` all resolve through that descriptor layer, so Unix-style fd remapping stays stable without exposing raw Win32 handle values. Use `l_dup()` + `l_dup2()` to save, remap, and restore stdio around a plain `l_spawn()` call on either platform.
+## Compiler Flags
 
-### Standard Name Aliases
+Binaries must be compiled freestanding:
 
-By default, `l_os.h` defines macros that alias standard names to their `l_` equivalents (e.g., `strlen` → `l_strlen`, `exit` → `l_exit`). This lets you write familiar C code without the `l_` prefix. Define `L_DONTOVERRIDE` before including to disable this.
+| Platform | Command |
+|----------|---------|
+| Linux (gcc/clang) | `gcc -I. -Oz -ffreestanding -nostdlib -static -Wall -Wextra -Wpedantic -o app app.c` |
+| Windows (clang) | `clang -I. -Oz -lkernel32 -ffreestanding -Wall -Wextra -Wpedantic -o app.exe app.c` |
+| ARM32 cross | `arm-linux-gnueabihf-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
+| AArch64 cross | `aarch64-linux-gnu-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
 
-## Function Reference
+## Function Reference — `l_os.h`
 
-Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
+Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- BEGIN FUNCTION REFERENCE -->
 
@@ -123,8 +198,8 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_tolower` | Converts c to lowercase; returns c unchanged if not an uppercase letter | All |
 | `l_atol` | Converts a string to a long integer, skipping leading whitespace | All |
 | `l_atoi` | Converts a string to an integer | All |
-| `l_strtoul` | Converts a string to an unsigned long, auto-detecting base when base==0 (0x=hex, 0=octal, else decimal); sets *endptr past last digit | All |
-| `l_strtol` | Converts a string to a long, auto-detecting base when base==0; handles leading sign; sets *endptr past last digit | All |
+| `l_strtoul` | Converts a string to an unsigned long, auto-detecting base (0x=hex, 0=octal) | All |
+| `l_strtol` | Converts a string to a long, auto-detecting base; handles leading sign | All |
 | `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
 | **Memory functions** | | |
 | `l_memmove` | Copies len bytes from src to dst, handling overlapping regions | All |
@@ -133,11 +208,11 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_memcpy` | Copies len bytes from src to dst | All |
 | `l_memchr` | Finds first occurrence of byte c in the first n bytes of s, or NULL | All |
 | `l_memrchr` | Finds last occurrence of byte c in the first n bytes of s, or NULL | All |
-| `l_strnlen` | Returns the length of s, but at most maxlen (does not scan past maxlen bytes) | All |
-| `l_memmem` | Finds first occurrence of needle (needlelen bytes) in haystack (haystacklen bytes), or NULL | All |
-| **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | |
-| `l_vsnprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
-| `l_snprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
+| `l_strnlen` | Returns the length of s, but at most maxlen | All |
+| `l_memmem` | Finds first occurrence of needle in haystack, or NULL | All |
+| **Formatted output** (opt-in: `#define L_WITHSNPRINTF`) | | |
+| `l_vsnprintf` | `va_list` version of `l_snprintf` | All |
+| `l_snprintf` | Formats a string into buf (at most n bytes including NUL) | All |
 | **System functions** | | |
 | `l_exit` | Terminates the process with the given status code | All |
 | `l_open` | Opens a file with the given flags and mode, returns file descriptor | All |
@@ -147,205 +222,163 @@ Generated from `l_os.h` doc-comments. Run `.\gen-docs.ps1` to update.
 | `l_puts` | Writes a string to stdout | All |
 | `l_exitif` | Exits with code and message if condition is true | All |
 | `l_getenv` | Returns value of environment variable, or NULL if not found | All |
-| `l_getenv_init` | Initializes environment variable access (call from main) | All |
-| `l_env_start` | Begin iterating environment variables. Returns opaque handle (pass to l_env_end). | All |
-| `l_env_next` | Returns NULL when done. Caller must not free the returned pointer. | All |
-| `l_env_end` | End iteration and free resources. | All |
-| `l_find_executable` | Returns 1 if found (writes full path to out), 0 if not found. | All |
+| `l_find_executable` | Searches PATH for an executable, returns 1 if found | All |
 | **Convenience file openers** | | |
 | `l_open_read` | Opens a file for reading | All |
 | `l_open_write` | Opens or creates a file for writing | All |
 | `l_open_readwrite` | Opens or creates a file for reading and writing | All |
 | `l_open_append` | Opens or creates a file for appending | All |
 | `l_open_trunc` | Opens or creates a file, truncating to zero length | All |
-| **Terminal and timing functions (cross-platform)** | | |
+| **Terminal and timing** | | |
 | `l_sleep_ms` | Sleeps for the given number of milliseconds | All |
-| `l_term_raw` | Sets stdin to raw mode (no echo, no line buffering), returns old mode | All |
-| `l_term_restore` | Restores terminal mode from value returned by l_term_raw | All |
-| `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | All |
+| `l_term_raw` | Sets stdin to raw mode, returns old mode for later restore | All |
+| `l_term_restore` | Restores terminal mode from value returned by `l_term_raw` | All |
+| `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data | All |
 | `l_term_size` | Gets terminal size in rows and columns | All |
-| **File system functions (cross-platform)** | | |
-| `l_unlink` | Deletes a file, returns 0 on success, -1 on error | All |
-| `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
-| `l_rename` | Renames (or moves) a file or directory. Returns 0 on success, -1 on error. | All |
-| `l_access` | Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error. | All |
-| `l_stat` | Gets file metadata by path. Returns 0 on success, -1 on error. | All |
-| `l_fstat` | Gets file metadata by open file descriptor. Returns 0 on success, -1 on error. | All |
-| `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
-| `l_readdir` | Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done. | All |
-| `l_closedir` | Closes a directory handle. | All |
-| `l_mmap` | Maps a file or anonymous memory into the process address space | All |
-| `l_munmap` | Unmaps a previously mapped region | All |
-| `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
-| `l_chdir` | Changes the current working directory | All |
-| `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
-| `l_dup` | Duplicates fd, returning a new descriptor on success or -1 on error. | All |
-| `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
-| `l_spawn` | path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit). | All |
-| `l_wait` | exitcode receives the process exit code. | All |
-| **Unix-only functions** | | |
-| `l_lseek` | Repositions the file offset of fd | Unix |
-| `l_mkdir` | Creates a directory with the given permissions | Unix |
-| `l_sched_yield` | Yields the processor to other threads | Unix |
-| `l_fork` | Fork the current process. Returns child pid to parent, 0 to child, -1 on error. | Unix |
-| `l_execve` | Replace the current process image. Does not return on success. | Unix |
-| `l_waitpid` | Wait for a child process. Returns child pid on success, -1 on error. | Unix |
+| **File system** | | |
+| `l_unlink` | Deletes a file | All |
+| `l_rmdir` | Removes an empty directory | All |
+| `l_rename` | Renames a file or directory | All |
+| `l_access` | Checks file access (`L_F_OK`, `L_R_OK`, `L_W_OK`, `L_X_OK`) | All |
+| `l_stat` / `l_fstat` | Gets file metadata (size, mode, timestamps) by path or fd | All |
+| `l_opendir` / `l_readdir` / `l_closedir` | Directory iteration | All |
+| `l_mmap` / `l_munmap` | Memory-mapped I/O | All |
+| `l_getcwd` / `l_chdir` | Working directory | All |
+| **Pipes and processes** | | |
+| `l_pipe` | Creates a pipe (fds[0]=read, fds[1]=write) | All |
+| `l_dup` / `l_dup2` | Duplicate file descriptors | All |
+| `l_spawn` | Spawns a child process | All |
+| `l_spawn_stdio` | Spawns with explicit stdin/stdout/stderr redirection | All |
+| `l_wait` | Waits for child process, returns exit code | All |
+| **Unix-only** | | |
+| `l_lseek` | Repositions file offset | Unix |
+| `l_mkdir` | Creates a directory | Unix |
+| `l_fork` / `l_execve` / `l_waitpid` | Traditional Unix process control | Unix |
 
 <!-- END FUNCTION REFERENCE -->
 
-## Pixel Graphics: `l_gfx.h`
-
-A second header provides freestanding pixel graphics. Include it instead of `l_os.h` — it pulls in `l_os.h` automatically:
-
-```c
-#define L_MAINFILE
-#include "l_gfx.h"
-
-int main(int argc, char *argv[]) {
-    L_Canvas c;
-    if (l_canvas_open(&c, 320, 240, "Hello") != 0) return 1;
-    l_fill_rect(&c, 50, 50, 100, 80, L_RED);
-    l_draw_text(&c, 60, 80, "Hello!", L_WHITE);
-    l_canvas_flush(&c);
-    while (l_canvas_alive(&c) && l_canvas_key(&c) != 'q')
-        l_sleep_ms(16);
-    l_canvas_close(&c);
-    return 0;
-}
-```
-
-**Platform backends:**
-- **Linux:** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland needed)
-- **Windows:** opens a native GDI window (`user32.dll` + `gdi32.dll`)
-
-**API summary:**
+## Function Reference — `l_gfx.h`
 
 | Function | Description |
 |----------|-------------|
-| `l_canvas_open` | Open a canvas (framebuffer or window) |
-| `l_canvas_close` | Close and free resources |
-| `l_canvas_alive` | Returns non-zero if canvas is still open |
-| `l_canvas_flush` | Blit pixel buffer to screen |
-| `l_canvas_clear` | Fill pixel buffer with a color |
-| `l_canvas_key` | Non-blocking key read (returns 0 if none) |
-| `l_pixel` / `l_get_pixel` | Set/get individual pixels |
-| `l_line` | Bresenham line drawing |
-| `l_rect` / `l_fill_rect` | Outline and filled rectangles |
-| `l_circle` / `l_fill_circle` | Midpoint circle algorithm |
-| `l_draw_char` / `l_draw_text` | Embedded 8×8 bitmap font (ASCII 32–126) |
-| `l_sleep_ms` | Sleep for N milliseconds |
-| `L_RGB(r,g,b)` | Color macro (32-bit ARGB) |
-| `L_BLACK`, `L_WHITE`, `L_RED`, `L_GREEN`, `L_BLUE` | Predefined color constants |
+| **Canvas lifecycle** | |
+| `l_canvas_open(canvas, w, h, title)` | Open a window/framebuffer. Returns 0 on success. |
+| `l_canvas_close(canvas)` | Close and free resources |
+| `l_canvas_alive(canvas)` | Returns non-zero while the window is open |
+| `l_canvas_flush(canvas)` | Blit the pixel buffer to screen |
+| `l_canvas_clear(canvas, color)` | Fill the entire canvas with a color |
+| `l_canvas_key(canvas)` | Non-blocking key read (0 if none, ASCII code or ESC=27) |
+| **Drawing primitives** | |
+| `l_pixel(canvas, x, y, color)` | Set a single pixel |
+| `l_get_pixel(canvas, x, y)` | Read a pixel's color |
+| `l_line(canvas, x0, y0, x1, y1, color)` | Bresenham line |
+| `l_rect(canvas, x, y, w, h, color)` | Outline rectangle |
+| `l_fill_rect(canvas, x, y, w, h, color)` | Filled rectangle |
+| `l_circle(canvas, cx, cy, r, color)` | Outline circle (midpoint algorithm) |
+| `l_fill_circle(canvas, cx, cy, r, color)` | Filled circle |
+| **Text** | |
+| `l_draw_char(canvas, x, y, ch, color)` | Draw one character (8×8 bitmap font) |
+| `l_draw_text(canvas, x, y, str, color)` | Draw a string |
+| **Colors** | |
+| `L_RGB(r, g, b)` | Compose a 32-bit ARGB color |
+| `L_BLACK`, `L_WHITE`, `L_RED`, `L_GREEN`, `L_BLUE` | Predefined constants |
 
-## Scope
+**Platform backends:**
+- **Linux:** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland)
+- **Windows:** native GDI window (`user32.dll` + `gdi32.dll`)
 
-### Not Included (by Design)
-- `printf`/`sprintf` — use direct write syscalls or `l_snprintf`
-- `malloc`/`free` — no dynamic memory allocation
-- Networking functions — sockets and network I/O
-- Multithreading primitives — threads, mutexes, condition variables
+All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
 
 ## Example Programs
 
-The `test/` directory contains example programs that showcase `l_os.h` capabilities. Each compiles to a small, self-contained binary with no libc dependency.
+Every program in `test/` compiles to a small, self-contained binary with no libc dependency.
 
 ### Utilities
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **base64** | Base64 encoder/decoder (RFC 4648, -d decode, file input) | [base64.c](test/base64.c) |
-| **checksum** | Computes XOR and additive checksums of a file | [checksum.c](test/checksum.c) |
-| **countlines** | Counts lines in a file | [countlines.c](test/countlines.c) |
-| **grep** | Filters lines matching a substring pattern | [grep.c](test/grep.c) |
-| **hexdump** | Displays file contents in hex + ASCII format | [hexdump.c](test/hexdump.c) |
-| **ls** | Lists directory contents (-a, -l flags, case-insensitive sort) | [ls.c](test/ls.c) |
-| **printenv** | Prints environment variables (all or by name) | [printenv.c](test/printenv.c) |
-| **sort** | Line-based text sort (-r reverse, -f fold case, -n numeric, -u unique) | [sort.c](test/sort.c) |
-| **upper** | Converts text to uppercase | [upper.c](test/upper.c) |
-| **wc** | Counts lines, words, and bytes | [wc.c](test/wc.c) |
+| **base64** | Base64 encoder/decoder (RFC 4648) | [base64.c](test/base64.c) |
+| **checksum** | XOR and additive file checksums | [checksum.c](test/checksum.c) |
+| **countlines** | Line counter | [countlines.c](test/countlines.c) |
+| **grep** | Substring pattern filter | [grep.c](test/grep.c) |
+| **hexdump** | Hex + ASCII file dump | [hexdump.c](test/hexdump.c) |
+| **ls** | Directory listing (`-a`, `-l`) | [ls.c](test/ls.c) |
+| **printenv** | Print environment variables | [printenv.c](test/printenv.c) |
+| **sort** | Line sort (`-r`, `-f`, `-n`, `-u`) | [sort.c](test/sort.c) |
+| **upper** | Uppercase filter | [upper.c](test/upper.c) |
+| **wc** | Line/word/byte counter | [wc.c](test/wc.c) |
 
 ### Interactive Programs
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **led** | Modal text editor with vim keybindings (hjkl, insert/normal/command modes, :w/:q, search) | [led.c](test/led.c) |
-| **mandelbrot** | Interactive fractal renderer with pan/zoom (fixed-point, no floats) | [mandelbrot.c](test/mandelbrot.c) |
-| **sh** | Interactive shell with builtins (cd/pwd/exit/echo), PATH search, quoted args, I/O redirection, piping | [sh.c](test/sh.c) |
-| **snake** | Playable Snake console game with WASD controls and ANSI rendering | [snake.c](test/snake.c) |
+| **led** | Vim-style text editor (hjkl, insert/normal/command, :w/:q, search) | [led.c](test/led.c) |
+| **mandelbrot** | Fixed-point fractal renderer — pan, zoom, iteration control | [mandelbrot.c](test/mandelbrot.c) |
+| **sh** | Shell — builtins, PATH search, quotes, I/O redirection, pipes | [sh.c](test/sh.c) |
+| **snake** | Terminal Snake game with WASD controls | [snake.c](test/snake.c) |
 
-### Graphical Demos (l_gfx.h)
+### Graphical Demos (`l_gfx.h`)
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **life** | Conway's Game of Life — 80×60 grid, 4×4 pixel cells, pause/randomize/clear | [life.c](test/life.c) |
-| **plasma** | Classic plasma effect — animated rainbow sine-wave color cycling | [plasma.c](test/plasma.c) |
-| **starfield** | 3D starfield fly-through — 200 stars with perspective projection | [starfield.c](test/starfield.c) |
-| **fire** | Doom-style fire effect — bottom-up heat propagation with 37-color palette | [fire.c](test/fire.c) |
-| **clock** | Analog clock — hour/minute/second hands with fixed-point sin/cos tables | [clock.c](test/clock.c) |
+| **life** | Conway's Game of Life — 80×60 grid, pause/randomize/clear | [life.c](test/life.c) |
+| **plasma** | Rainbow plasma — animated sine-wave color cycling | [plasma.c](test/plasma.c) |
+| **starfield** | 3D starfield — 200 stars with perspective projection | [starfield.c](test/starfield.c) |
+| **fire** | Doom-style fire — bottom-up heat propagation | [fire.c](test/fire.c) |
+| **clock** | Analog clock — hour/minute/second hands, ticking in real time | [clock.c](test/clock.c) |
 
 ### Test Suite
 
-| Program | Description | Source |
-|---------|-------------|--------|
-| **gfx_test** | In-memory pixel graphics test suite (28 assertions) | [gfx_test.c](test/gfx_test.c) |
-| **test** | Comprehensive test suite (561 assertions on Windows, 572 on Linux/ARM/AArch64) | [test.c](test/test.c) |
+| Program | Assertions | Source |
+|---------|-----------|--------|
+| **test** | 572 (Linux/ARM/AArch64), 561 (Windows) | [test.c](test/test.c) |
+| **gfx_test** | 28 (in-memory pixel buffer tests) | [gfx_test.c](test/gfx_test.c) |
 
 ## Directory Structure
-- `l_os.h` — Minimal C/OS abstraction header
-- `l_gfx.h` — Pixel graphics header (framebuffer on Linux, GDI on Windows)
-- `test/` — Test programs for various functions
-- `bin/` — Compiled test binaries
-- `misc/` — Extra tools and experiments
-- `Taskfile` — Bash build and test automation
-- `test_all.bat` — Windows batch build and test script
+
+```
+l_os.h          — Core runtime header (strings, I/O, processes, terminal)
+l_gfx.h        — Pixel graphics header (drawing, font, canvas)
+test/           — All example programs and tests
+bin/            — Compiled binaries (generated)
+misc/           — Reference implementations using standard libc
+Taskfile        — Linux/macOS build automation (bash)
+build.bat       — Windows build script
+test_all.bat    — Windows build + test
+ci.ps1          — Cross-platform CI (PowerShell)
+```
 
 ## Building and Testing
 
-### On Linux/macOS (with bash):
+### Linux/macOS
 ```sh
-./Taskfile test
+./Taskfile test              # build + run all tests
+./Taskfile build clang 2     # build with clang at -O2
 ```
 
-### On Windows (with Git Bash and MinGW):
+### Windows
 ```bat
-test_all.bat
+test_all.bat                 :: build + run all tests
 ```
 
-Both commands also run deterministic smoke checks from `test/showcase_smoke/` for the showcase utilities. `snake` remains build-only; `led` and `sh` are exercised only through stable usage/help paths.
+### Full CI (all platforms from Windows via WSL)
 
-### Using ci.ps1 (PowerShell)
-
-`ci.ps1` provides unified cross-platform CI from PowerShell. It builds, tests, and verifies across Windows, Linux (gcc + clang), and ARM32 plus AArch64 (gcc + clang), delegating Linux and ARM targets to WSL.
-
-**Parameters:**
-- `-Target` — Build target: `windows`, `linux`, `arm`, or `all` (default: `all`)
-- `-Action` — Action to perform: `build`, `test`, `verify`, or `all` (default: `all`)
-- `-Compiler` — Compiler for Linux/ARM: `gcc`, `clang`, or `all` (default: `all` — runs both)
-- `-OptLevel` — Optimization level 0–3 (default: 3)
-
-**Examples:**
 ```powershell
-# Build, test, and verify all targets with all compilers (default)
-.\ci.ps1
-
-# Build and test Windows only
-.\ci.ps1 -Target windows -Action test
-
-# Build Linux with clang only at -O2
-.\ci.ps1 -Target linux -Action build -Compiler clang -OptLevel 2
-
-# Test ARM32 and AArch64 binaries (via WSL + QEMU)
-.\ci.ps1 -Target arm -Action test
+.\ci.ps1                                              # all targets, all compilers
+.\ci.ps1 -Target windows -Action test                 # Windows only
+.\ci.ps1 -Target linux -Compiler clang -OptLevel 2    # Linux clang -O2
+.\ci.ps1 -Target arm -Action test                     # ARM32 + AArch64 via QEMU
 ```
 
-**Requirements:**
-- Windows builds work natively (requires clang on PATH or Visual Studio Build Tools)
-- Linux and ARM builds require WSL (Windows Subsystem for Linux)
-- ARM target requires `arm-linux-gnueabihf-gcc` and `aarch64-linux-gnu-gcc` in WSL (these provide the sysroots for both gcc and clang cross-compilation)
-- ARM clang cross-compilation requires `clang` installed in WSL
+`ci.ps1` builds, tests, and verifies across **7 configurations**: Windows, Linux gcc, Linux clang, ARM gcc, ARM clang, AArch64 gcc, AArch64 clang. Linux and ARM targets run in WSL; ARM/AArch64 binaries execute via QEMU user-mode emulation.
 
-## Adding New Tests
-Add new `.c` files to the `test/` directory. They will be automatically built and run by the scripts.
+**Requirements:** clang on PATH (Windows), WSL with `gcc`, `clang`, `arm-linux-gnueabihf-gcc`, `aarch64-linux-gnu-gcc`, and `qemu-user` (Linux/ARM).
+
+## Scope — Not Included (by Design)
+- `printf`/`sprintf` — use `l_snprintf` or direct `l_write`
+- `malloc`/`free` — no heap allocation
+- Networking — no sockets
+- Threads — no multithreading primitives
 
 ## License
 MIT License
