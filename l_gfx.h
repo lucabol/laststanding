@@ -8,7 +8,7 @@
 
 #include "l_os.h"
 
-// Suppress clang warning for GNU statement expressions used in syscall macros
+// Suppress warnings for GNU statement expressions used in syscall macros
 #ifdef __clang__
 #pragma GCC diagnostic ignored "-Wgnu-statement-expression-from-macro-expansion"
 #endif
@@ -499,6 +499,11 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     l_memset(&vinfo, 0, sizeof(vinfo));
     l_memset(&finfo, 0, sizeof(finfo));
 
+    // GCC -Wpedantic warns about GNU statement expressions in my_syscall macros
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
     long vret = my_syscall3(__NR_ioctl, c->fb_fd, L_FBIOGET_VSCREENINFO, &vinfo);
     if (vret < 0) {
         l_close(c->fb_fd);
@@ -509,6 +514,9 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
         l_close(c->fb_fd);
         return -1;
     }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
     // Use requested size or framebuffer size, whichever is smaller
     c->width  = (width  > 0 && width  < (int)vinfo.xres) ? width  : (int)vinfo.xres;
