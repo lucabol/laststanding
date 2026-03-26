@@ -319,20 +319,29 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         if (c) {
             int key = 0;
             switch (wp) {
-            case VK_LEFT:  key = 1001; break;
-            case VK_RIGHT: key = 1002; break;
-            case VK_UP:    key = 1003; break;
-            case VK_DOWN:  key = 1004; break;
-            case VK_ESCAPE: key = 27;  break;
-            case VK_RETURN: key = 13;  break;
-            case VK_BACK:   key = 8;   break;
-            default:
-                key = (int)wp;
-                if (key >= 'A' && key <= 'Z' && !(GetKeyState(VK_SHIFT) & 0x8000))
-                    key += 32;  // lowercase
-                break;
+            case VK_LEFT:   key = 1001; break;
+            case VK_RIGHT:  key = 1002; break;
+            case VK_UP:     key = 1003; break;
+            case VK_DOWN:   key = 1004; break;
+            case VK_ESCAPE: key = 27;   break;
+            case VK_BACK:   key = 8;    break;
+            case VK_TAB:    key = 9;    break;
+            default: break;  // printable chars handled by WM_CHAR
             }
             if (key) {
+                int next = (c->key_head + 1) % 16;
+                if (next != c->key_tail) {
+                    c->keys[c->key_head] = key;
+                    c->key_head = next;
+                }
+            }
+        }
+        return 0;
+    case WM_CHAR:
+        if (c) {
+            int key = (int)wp;
+            // Accept printable ASCII and Enter (translated from VK_RETURN)
+            if ((key >= 32 && key <= 126) || key == 13) {
                 int next = (c->key_head + 1) % 16;
                 if (next != c->key_tail) {
                     c->keys[c->key_head] = key;
