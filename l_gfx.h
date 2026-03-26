@@ -8,6 +8,11 @@
 
 #include "l_os.h"
 
+// Suppress clang warning for GNU statement expressions used in syscall macros
+#ifdef __clang__
+#pragma GCC diagnostic ignored "-Wgnu-statement-expression-from-macro-expansion"
+#endif
+
 #ifdef _WIN32
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
