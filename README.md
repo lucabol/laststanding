@@ -233,7 +233,9 @@ int main(int argc, char *argv[]) {
 | `l_rect` / `l_fill_rect` | Outline and filled rectangles |
 | `l_circle` / `l_fill_circle` | Midpoint circle algorithm |
 | `l_draw_char` / `l_draw_text` | Embedded 8×8 bitmap font (ASCII 32–126) |
+| `l_sleep_ms` | Sleep for N milliseconds |
 | `L_RGB(r,g,b)` | Color macro (32-bit ARGB) |
+| `L_BLACK`, `L_WHITE`, `L_RED`, `L_GREEN`, `L_BLUE` | Predefined color constants |
 
 ## Scope
 
