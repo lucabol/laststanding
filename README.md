@@ -198,8 +198,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_tolower` | Converts c to lowercase; returns c unchanged if not an uppercase letter | All |
 | `l_atol` | Converts a string to a long integer, skipping leading whitespace | All |
 | `l_atoi` | Converts a string to an integer | All |
-| `l_strtoul` | Converts a string to an unsigned long, auto-detecting base (0x=hex, 0=octal) | All |
-| `l_strtol` | Converts a string to a long, auto-detecting base; handles leading sign | All |
+| `l_strtoul` | Converts a string to an unsigned long, auto-detecting base when base==0 (0x=hex, 0=octal, else decimal); sets *endptr past last digit | All |
+| `l_strtol` | Converts a string to a long, auto-detecting base when base==0; handles leading sign; sets *endptr past last digit | All |
 | `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
 | **Memory functions** | | |
 | `l_memmove` | Copies len bytes from src to dst, handling overlapping regions | All |
@@ -208,11 +208,11 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_memcpy` | Copies len bytes from src to dst | All |
 | `l_memchr` | Finds first occurrence of byte c in the first n bytes of s, or NULL | All |
 | `l_memrchr` | Finds last occurrence of byte c in the first n bytes of s, or NULL | All |
-| `l_strnlen` | Returns the length of s, but at most maxlen | All |
-| `l_memmem` | Finds first occurrence of needle in haystack, or NULL | All |
-| **Formatted output** (opt-in: `#define L_WITHSNPRINTF`) | | |
-| `l_vsnprintf` | `va_list` version of `l_snprintf` | All |
-| `l_snprintf` | Formats a string into buf (at most n bytes including NUL) | All |
+| `l_strnlen` | Returns the length of s, but at most maxlen (does not scan past maxlen bytes) | All |
+| `l_memmem` | Finds first occurrence of needle (needlelen bytes) in haystack (haystacklen bytes), or NULL | All |
+| **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | |
+| `l_vsnprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
+| `l_snprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
 | **System functions** | | |
 | `l_exit` | Terminates the process with the given status code | All |
 | `l_open` | Opens a file with the given flags and mode, returns file descriptor | All |
@@ -222,38 +222,49 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_puts` | Writes a string to stdout | All |
 | `l_exitif` | Exits with code and message if condition is true | All |
 | `l_getenv` | Returns value of environment variable, or NULL if not found | All |
-| `l_find_executable` | Searches PATH for an executable, returns 1 if found | All |
+| `l_getenv_init` | Initializes environment variable access (call from main) | All |
+| `l_env_start` | Begin iterating environment variables. Returns opaque handle (pass to l_env_end). | All |
+| `l_env_next` | Returns NULL when done. Caller must not free the returned pointer. | All |
+| `l_env_end` | End iteration and free resources. | All |
+| `l_find_executable` | Returns 1 if found (writes full path to out), 0 if not found. | All |
 | **Convenience file openers** | | |
 | `l_open_read` | Opens a file for reading | All |
 | `l_open_write` | Opens or creates a file for writing | All |
 | `l_open_readwrite` | Opens or creates a file for reading and writing | All |
 | `l_open_append` | Opens or creates a file for appending | All |
 | `l_open_trunc` | Opens or creates a file, truncating to zero length | All |
-| **Terminal and timing** | | |
+| **Terminal and timing functions (cross-platform)** | | |
 | `l_sleep_ms` | Sleeps for the given number of milliseconds | All |
-| `l_term_raw` | Sets stdin to raw mode, returns old mode for later restore | All |
-| `l_term_restore` | Restores terminal mode from value returned by `l_term_raw` | All |
-| `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data | All |
+| `l_term_raw` | Sets stdin to raw mode (no echo, no line buffering), returns old mode | All |
+| `l_term_restore` | Restores terminal mode from value returned by l_term_raw | All |
+| `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | All |
 | `l_term_size` | Gets terminal size in rows and columns | All |
-| **File system** | | |
-| `l_unlink` | Deletes a file | All |
-| `l_rmdir` | Removes an empty directory | All |
-| `l_rename` | Renames a file or directory | All |
-| `l_access` | Checks file access (`L_F_OK`, `L_R_OK`, `L_W_OK`, `L_X_OK`) | All |
-| `l_stat` / `l_fstat` | Gets file metadata (size, mode, timestamps) by path or fd | All |
-| `l_opendir` / `l_readdir` / `l_closedir` | Directory iteration | All |
-| `l_mmap` / `l_munmap` | Memory-mapped I/O | All |
-| `l_getcwd` / `l_chdir` | Working directory | All |
-| **Pipes and processes** | | |
-| `l_pipe` | Creates a pipe (fds[0]=read, fds[1]=write) | All |
-| `l_dup` / `l_dup2` | Duplicate file descriptors | All |
-| `l_spawn` | Spawns a child process | All |
-| `l_spawn_stdio` | Spawns with explicit stdin/stdout/stderr redirection | All |
-| `l_wait` | Waits for child process, returns exit code | All |
-| **Unix-only** | | |
-| `l_lseek` | Repositions file offset | Unix |
-| `l_mkdir` | Creates a directory | Unix |
-| `l_fork` / `l_execve` / `l_waitpid` | Traditional Unix process control | Unix |
+| **File system functions (cross-platform)** | | |
+| `l_unlink` | Deletes a file, returns 0 on success, -1 on error | All |
+| `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
+| `l_rename` | Renames (or moves) a file or directory. Returns 0 on success, -1 on error. | All |
+| `l_access` | Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error. | All |
+| `l_stat` | Gets file metadata by path. Returns 0 on success, -1 on error. | All |
+| `l_fstat` | Gets file metadata by open file descriptor. Returns 0 on success, -1 on error. | All |
+| `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
+| `l_readdir` | Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done. | All |
+| `l_closedir` | Closes a directory handle. | All |
+| `l_mmap` | Maps a file or anonymous memory into the process address space | All |
+| `l_munmap` | Unmaps a previously mapped region | All |
+| `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
+| `l_chdir` | Changes the current working directory | All |
+| `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
+| `l_dup` | Duplicates fd, returning a new descriptor on success or -1 on error. | All |
+| `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
+| `l_spawn` | path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit). | All |
+| `l_wait` | exitcode receives the process exit code. | All |
+| **Unix-only functions** | | |
+| `l_lseek` | Repositions the file offset of fd | Unix |
+| `l_mkdir` | Creates a directory with the given permissions | Unix |
+| `l_sched_yield` | Yields the processor to other threads | Unix |
+| `l_fork` | Fork the current process. Returns child pid to parent, 0 to child, -1 on error. | Unix |
+| `l_execve` | Replace the current process image. Does not return on success. | Unix |
+| `l_waitpid` | Wait for a child process. Returns child pid on success, -1 on error. | Unix |
 
 <!-- END FUNCTION REFERENCE -->
 
