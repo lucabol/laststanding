@@ -57,8 +57,9 @@ int main(int argc, char *argv[]) {
 #include "l_os.h"
 
 int main(int argc, char *argv[]) {
-    char *child_argv[] = { "ls", "-l", NULL };
-    L_FD pid = l_spawn("/bin/ls", child_argv, NULL);
+    // Run "upper" from the same bin/ directory
+    char *child_argv[] = { "upper", NULL };
+    L_FD pid = l_spawn("bin/upper", child_argv, NULL);
     int code;
     l_wait(pid, &code);
 
@@ -452,6 +453,8 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 | **countlines** | Line counter | [countlines.c](test/countlines.c) |
 | **grep** | Substring pattern filter | [grep.c](test/grep.c) |
 | **hexdump** | Hex + ASCII file dump | [hexdump.c](test/hexdump.c) |
+| **hello** | Hello world (README example) | [hello.c](test/hello.c) |
+| **file_io** | File read/write (README example) | [file_io.c](test/file_io.c) |
 | **ls** | Directory listing (`-a`, `-l`) | [ls.c](test/ls.c) |
 | **printenv** | Print environment variables | [printenv.c](test/printenv.c) |
 | **sort** | Line sort (`-r`, `-f`, `-n`, `-u`) | [sort.c](test/sort.c) |
@@ -471,6 +474,8 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 
 | Program | Description | Source |
 |---------|-------------|--------|
+| **gfx_demo** | Static drawing — rectangles, circles, text (README example) | [gfx_demo.c](test/gfx_demo.c) |
+| **bounce** | Bouncing ball animation (README example) | [bounce.c](test/bounce.c) |
 | **life** | Conway's Game of Life — 80×60 grid, pause/randomize/clear | [life.c](test/life.c) |
 | **plasma** | Rainbow plasma — animated sine-wave color cycling | [plasma.c](test/plasma.c) |
 | **starfield** | 3D starfield — 200 stars with perspective projection | [starfield.c](test/starfield.c) |
