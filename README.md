@@ -410,7 +410,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- END GFX REFERENCE -->
 
-Platform backends: **Linux** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland). **Windows** opens a native GDI window (`user32.dll` + `gdi32.dll`). All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
+Platform backends: **Linux** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland). You may need to grant access first: `sudo chmod 666 /dev/fb0`. **Windows** opens a native GDI window (`user32.dll` + `gdi32.dll`). All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
 
 ## Function Reference — `l_ui.h`
 
