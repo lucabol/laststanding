@@ -475,7 +475,7 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 | Program | Description | Source |
 |---------|-------------|--------|
 | **gfx_demo** | Static drawing — rectangles, circles, text (README example) | [gfx_demo.c](test/gfx_demo.c) |
-| **bounce** | Bouncing ball animation (README example) | [bounce.c](test/bounce.c) |
+| **bounce** | Bouncing ball animation — run with `-f` for fullscreen (README example) | [bounce.c](test/bounce.c) |
 | **life** | Conway's Game of Life — 80×60 grid, pause/randomize/clear | [life.c](test/life.c) |
 | **plasma** | Rainbow plasma — animated sine-wave color cycling | [plasma.c](test/plasma.c) |
 | **starfield** | 3D starfield — 200 stars with perspective projection | [starfield.c](test/starfield.c) |
