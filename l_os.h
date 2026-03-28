@@ -160,6 +160,8 @@ size_t l_strspn(const char *s, const char *accept);
 size_t l_strcspn(const char *s, const char *reject);
 /// Returns pointer to first occurrence in s of any character in accept, or NULL
 char *l_strpbrk(const char *s, const char *accept);
+/// Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant)
+char *l_strtok_r(char *str, const char *delim, char **saveptr);
 /// Returns pointer to the filename component of path (after last '/' or '\')
 const char *l_basename(const char *path);
 /// Writes the directory component of path into buf (up to bufsize), returns buf
@@ -607,6 +609,7 @@ int WINAPI mainCRTStartup(void)
 #  define strspn l_strspn
 #  define strcspn l_strcspn
 #  define strpbrk l_strpbrk
+#  define strtok_r l_strtok_r
 #  define basename l_basename
 #  define dirname l_dirname
 
@@ -1450,6 +1453,21 @@ inline char *l_strpbrk(const char *s, const char *accept) {
         }
     }
     return (char *)0;
+}
+
+inline char *l_strtok_r(char *str, const char *delim, char **saveptr) {
+    char *p;
+    if (str == (char *)0) str = *saveptr;
+    str += l_strspn(str, delim);
+    if (*str == '\0') { *saveptr = str; return (char *)0; }
+    p = str + l_strcspn(str, delim);
+    if (*p != '\0') {
+        *p = '\0';
+        *saveptr = p + 1;
+    } else {
+        *saveptr = p;
+    }
+    return str;
 }
 
 inline const char *l_basename(const char *path) {
