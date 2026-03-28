@@ -83,3 +83,48 @@ The `l_strstr("","")` divergence from libc is documented as known behavior. This
 - CI now catches compiler-specific bugs
 - `verify` and `verify_arm` pass through compiler args
 - README.md updated to reference `ci.ps1`
+
+---
+
+## l_getopt: No I/O from the parser
+**Author:** Dallas  
+**Date:** 2026-07-25  
+**Status:** Implemented
+
+### Decision
+
+`l_getopt` does no I/O — it returns `'?'` for unknown options and missing arguments, but never prints error messages itself. The `l_opterr` variable is kept for POSIX API compatibility but has no effect.
+
+### Rationale
+
+`l_getopt` lives in the `#ifndef L_OSH` section of l_os.h, while `l_puts` (and all I/O functions) are declared inside `#ifdef L_WITHDEFS`. Due to the multi-include pattern used by test.c (`#include "l_os.h"` without `L_MAINFILE` first, then with), `l_puts` isn't visible when `l_getopt` is compiled. Rather than adding a forward declaration or restructuring the file, keeping the function pure is cleaner for a freestanding library — callers already handle their own error output.
+
+### Impact
+
+Callers (sort.c, ls.c, etc.) must handle the `'?'` return themselves if they want error messages. Both refactored examples already do this via their `default:` switch case.
+
+---
+
+## Error Reporting Layer
+**Author:** Dallas  
+**Date:** 2026-07-25  
+**Status:** Implemented
+
+Added cross-platform error reporting: `l_errno()`, `l_strerror()`, error constants (`L_ENOENT`, `L_EACCES`, etc.), and Win32 error translation.
+
+### Design Notes
+
+- **Error constants** use POSIX values on all platforms (e.g., `L_ENOENT=2`). On Windows, `l_win_error_to_errno()` maps Win32 `GetLastError()` codes to our `L_E*` constants.
+- **l_last_errno** is a module-level `static int`. Accessed through `static inline` helpers (`l_errno()`, `l_set_errno()`, `l_set_errno_from_ret()`) to avoid `-Wstatic-in-inline` when called from external-linkage `inline` functions.
+- **Linux:** `l_set_errno_from_ret(ret)` extracts errno from negative syscall return values. Return values are unchanged (still return -errno, not -1).
+- **Windows:** Each I/O function explicitly calls `l_set_errno()` on failure with the translated Win32 error, and `l_set_errno(0)` on success.
+- **Override macros:** `errno`, `strerror`, and all `E*` constants are `#undef`'d before redefining to avoid conflicts with system headers.
+- **Thread safety:** Not thread-safe (single static variable). Acceptable for a freestanding single-threaded runtime without TLS.
+- **Important usage pattern:** `l_errno()` must be captured immediately after a failing call — any subsequent `l_write`/`puts` call will overwrite it.
+
+### Impact
+
+- `l_os.h`: ~80 new lines (constants, helpers, strerror, win32 mapper, errno-setting in 4 core I/O functions)
+- `test/test.c`: New `test_errno_strerror` function (~50 lines, 30 assertions)
+- No breaking changes to existing code
+- All 22 CI targets pass (Windows, Linux gcc/clang, ARM gcc/clang, AArch64 gcc/clang — build+test+verify)
