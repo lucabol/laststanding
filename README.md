@@ -334,6 +334,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_env_next` | Get next "KEY=VALUE" string. buf/bufsz provide conversion space (Windows). | All |
 | `l_env_end` | End iteration and free resources. | All |
 | `l_find_executable` | Finds an executable by name, searching PATH if needed. | All |
+| **Option parsing (single-threaded; state in static variables)** | | |
+| `l_getopt` | Parses command-line options. optstring lists valid option chars; trailing ':' means the option | All |
 | **Convenience file openers** | | |
 | `l_open_read` | Opens a file for reading | All |
 | `l_open_write` | Opens or creates a file for writing | All |

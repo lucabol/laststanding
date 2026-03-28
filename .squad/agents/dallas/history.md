@@ -74,10 +74,32 @@ Fixed ARM (32-bit armhf) build target — was completely broken because `l_os.h`
 
 **Verified:** All 3 test files compile to `ELF 32-bit LSB executable, ARM, EABI5, statically linked, stripped`. Linux x86_64 build+test still passes (no regressions). QEMU not installed in WSL so runtime tests skipped.
 
+## Work Session — 2026-07-25
+
+Implemented the error reporting layer for laststanding.
+
+**Changes to l_os.h:**
+1. **Error constants:** 12 cross-platform `L_E*` constants using POSIX values (e.g., `L_ENOENT=2`, `L_EACCES=13`).
+2. **`l_errno()` / `l_set_errno()`:** Static inline accessors for a module-level `l_last_errno` variable. `l_set_errno_from_ret()` extracts errno from negative Linux syscall returns.
+3. **`l_strerror(int)`:** Switch-based lookup returning human-readable strings for all 12 error codes plus "Success" and "Unknown error".
+4. **`l_win_error_to_errno(DWORD)`:** Maps Win32 `GetLastError()` codes to `L_E*` constants.
+5. **Linux integration:** Updated `l_open`, `l_read`, `l_write`, `l_close` to call `l_set_errno_from_ret()`.
+6. **Windows integration:** Updated `l_write`, `l_read`, `l_close`, `l_win_open_gen` to call `l_set_errno()` / `l_win_error_to_errno()`.
+7. **Override macros:** `errno`, `strerror`, and all `E*` constants with `#undef` before `#define` to avoid Windows header conflicts.
+
+**Changes to test/test.c:**
+- New `test_errno_strerror()` function: 30 assertions covering constant values, strerror output, errno after failed/successful opens.
+
+**Verified:** All 22 CI targets PASS (build+test+verify across Windows, Linux gcc/clang, ARM gcc/clang, AArch64 gcc/clang). Zero warnings.
+
 ## Learnings
 
+<!-- Append new learnings below. Each entry is something lasting about the project. -->
 - ARM 32-bit syscall macros must use `push {r7}` / `mov r7, <nr>` / `svc #0` / `pop {r7}` pattern (not `register ... asm("r7")`) because Thumb mode uses r7 as frame pointer. GCC rejects r7 in register constraints AND clobber lists when it's the frame pointer.
 - ARM file flags (O_RDONLY, O_WRONLY, O_CREAT, etc.) use the same values as x86_64. O_DIRECTORY is 0x4000 on ARM vs 0x10000 on aarch64.
+- When using static variables (like `l_last_errno`) from `inline` (external linkage) functions, clang emits `-Wstatic-in-inline`. Fix: access through `static inline` helper functions (`l_set_errno`, `l_set_errno_from_ret`). Same pattern as `l_win_fd_handle` accessing `l_win_fd_table`.
+- On Windows, `errno.h` constants (`ENOENT`, `EACCES`, etc.) and `errno` are pre-defined by system headers. Must `#undef` before redefining in the `L_DONTOVERRIDE` block.
+- `l_write` (and any I/O function) called from `TEST_ASSERT`→`puts` will clobber `l_errno()`. Always capture `l_errno()` into a local variable immediately after the failing call, before any assertion output.
 - `build.ps1` was already correctly wired — the ARM build failure was purely a missing code section in `l_os.h`, not a build script problem.
 
 ## Work Session — 2026-03-14
@@ -283,6 +305,23 @@ Created `test/sh.c` — a freestanding interactive shell, the ultimate laststand
 Implemented Windows I/O redirection (`>`, `>>`, `<`) and piping (`cmd1 | cmd2`) in `test/sh.c`.
 
 **Approach:** Direct `CreateProcessW` with `STARTF_USESTDHANDLES` in sh.c rather than modifying `l_spawn` in l_os.h. The shell already has `#ifdef _WIN32` sections so this keeps l_spawn simple.
+
+## Work Session — 2026-07-25 (l_getopt)
+
+Implemented `l_getopt` option parser in `l_os.h`. Getopt-compatible API: `int l_getopt(int argc, char *const argv[], const char *optstring)` with `l_optarg`, `l_optind`, `l_opterr`, `l_optopt` state variables.
+
+**Key design decisions:**
+- No I/O from l_getopt itself — function is pure, returns `'?'` for unknown/missing, callers handle error messages. This avoids forward-declaration issues since `l_puts` is in the `L_WITHDEFS` section but `l_getopt` lives in the `L_OSH` section.
+- Supports clustered short options (`-vfn`), options with arguments (separated or glued: `-o file` and `-ofile`), and `--` terminator.
+- `l__optpos` internal state tracks position within a cluster.
+
+**Changes:**
+1. `l_os.h` — added declaration, override macros (`getopt`, `optarg`, `optind`, `opterr`, `optopt`), implementation (~80 lines)
+2. `test/test.c` — 9 test cases covering flags, arguments, clusters, `--`, unknown options, mixed parsing, non-option stops
+3. `test/sort.c` — refactored from manual argv loop to l_getopt
+4. `test/ls.c` — refactored from manual argv loop to l_getopt
+
+**Verified:** All 22 CI targets pass (Windows, Linux gcc/clang, ARM gcc/clang, AArch64 gcc/clang — build, test, verify). 649 assertions on Linux/ARM, 638 on Windows.
 
 **Key implementation details:**
 - `build_cmdline()` helper: builds wide command line from argv with quoting (factored from l_spawn's pattern)

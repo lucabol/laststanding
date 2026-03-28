@@ -38,23 +38,32 @@ int main(int argc, char *argv[]) {
     int show_all = 0, long_fmt = 0;
     const char *path = ".";
 
-    for (int i = 1; i < argc; i++) {
-        if (argv[i][0] == '-') {
-            if (l_strcmp(argv[i], "--help") == 0) {
+    int c;
+    l_opterr = 1;
+    while ((c = l_getopt(argc, argv, "alh")) != -1) {
+        switch (c) {
+            case 'a': show_all = 1; break;
+            case 'l': long_fmt = 1; break;
+            case 'h':
                 l_puts("Usage: ls [-al] [directory]\n");
                 l_puts("List directory contents.\n\n");
                 l_puts("  -a        show hidden files (starting with '.')\n");
                 l_puts("  -l        long format (type, size, name)\n");
                 l_puts("  --help    display this help and exit\n");
                 return 0;
-            }
-            for (int j = 1; argv[i][j]; j++) {
-                if (argv[i][j] == 'a') show_all = 1;
-                else if (argv[i][j] == 'l') long_fmt = 1;
-            }
-        } else {
-            path = argv[i];
+            default: return 1;
         }
+    }
+    if (l_optind < argc) {
+        if (l_strcmp(argv[l_optind], "--help") == 0) {
+            l_puts("Usage: ls [-al] [directory]\n");
+            l_puts("List directory contents.\n\n");
+            l_puts("  -a        show hidden files (starting with '.')\n");
+            l_puts("  -l        long format (type, size, name)\n");
+            l_puts("  --help    display this help and exit\n");
+            return 0;
+        }
+        path = argv[l_optind];
     }
 
     L_Dir dir;

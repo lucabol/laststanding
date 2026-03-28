@@ -59,29 +59,21 @@ int main(int argc, char *argv[]) {
     const char *file = (const char *)0;
     opt_reverse = opt_fold = opt_numeric = opt_unique = 0;
 
-    for (int i = 1; i < argc; i++) {
-        if (argv[i][0] == '-' && argv[i][1] != '\0') {
-            if (l_strcmp(argv[i], "--help") == 0) {
-                usage();
-                return 0;
-            }
-            for (int j = 1; argv[i][j]; j++) {
-                char c = argv[i][j];
-                if (c == 'r') opt_reverse = 1;
-                else if (c == 'f') opt_fold = 1;
-                else if (c == 'n') opt_numeric = 1;
-                else if (c == 'u') opt_unique = 1;
-                else if (c == 'h') { usage(); return 0; }
-                else {
-                    l_puts("sort: unknown option '-");
-                    { char s[2] = {c, '\0'}; l_puts(s); }
-                    l_puts("'\n");
-                    return 1;
-                }
-            }
-        } else {
-            file = argv[i];
+    int c;
+    l_opterr = 1;
+    while ((c = l_getopt(argc, argv, "rfnuh")) != -1) {
+        switch (c) {
+            case 'r': opt_reverse = 1; break;
+            case 'f': opt_fold = 1; break;
+            case 'n': opt_numeric = 1; break;
+            case 'u': opt_unique = 1; break;
+            case 'h': usage(); return 0;
+            default: return 1;
         }
+    }
+    if (l_optind < argc) {
+        if (l_strcmp(argv[l_optind], "--help") == 0) { usage(); return 0; }
+        file = argv[l_optind];
     }
 
     L_FD fd = L_STDIN;

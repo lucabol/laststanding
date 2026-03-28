@@ -282,6 +282,12 @@ static void l_env_end(void *handle);
 /// Returns 1 if found (writes full path to out), 0 if not found.
 static int l_find_executable(const char *cmd, char *out, size_t outsz);
 
+// Option parsing (single-threaded; state in static variables)
+/// Parses command-line options. optstring lists valid option chars; trailing ':' means the option
+/// takes an argument. Returns the option char on match, '?' for unknown options, -1 when done.
+/// Sets l_optarg to the argument string (or NULL), l_optind to the next argv index.
+static inline int l_getopt(int argc, char *const argv[], const char *optstring);
+
 // Convenience file openers
 /// Opens a file for reading
 L_FD l_open_read(const char* file);
@@ -703,6 +709,11 @@ int WINAPI mainCRTStartup(void)
 
 #  define exitif l_exitif
 #  define getenv l_getenv
+#  define getopt l_getopt
+#  define optarg l_optarg
+#  define optind l_optind
+#  define opterr l_opterr
+#  define optopt l_optopt
 #  define open_read l_open_read
 #  define open_write l_open_write
 #  define open_readwrite l_open_readwrite
@@ -758,6 +769,81 @@ static inline void l_set_errno(int err) {
 
 static inline void l_set_errno_from_ret(long ret) {
     l_last_errno = (ret < 0) ? (int)(-ret) : 0;
+}
+
+// Option parser state (single-threaded; no TLS in freestanding)
+/// Points to the argument of the current option (set by l_getopt)
+static char *l_optarg;
+/// Index of the next argv element to process (starts at 1)
+static int   l_optind = 1;
+/// Reserved for POSIX compat; l_getopt itself does no I/O
+static int   l_opterr = 1;
+/// Set to the unknown option character when l_getopt returns '?'
+static int   l_optopt;
+static int   l__optpos;  /* position within a grouped short-option cluster */
+
+/// Parses command-line options. optstring lists valid option chars; trailing ':' means the option
+/// takes an argument. Returns the option char on match, '?' for unknown options, -1 when done.
+static inline int l_getopt(int argc, char *const argv[], const char *optstring) {
+    l_optarg = (char *)0;
+
+    if (l_optind >= argc)
+        return -1;
+
+    char *arg = argv[l_optind];
+
+    /* Not an option, or bare "-", or "--" → stop */
+    if (arg[0] != '-' || arg[1] == '\0') return -1;
+    if (arg[1] == '-' && arg[2] == '\0') { l_optind++; return -1; }
+
+    int pos = l__optpos ? l__optpos : 1;
+    char c = arg[pos];
+    l_optopt = c;
+
+    /* Search optstring */
+    const char *p = optstring;
+    while (*p) {
+        if (*p == c) break;
+        p++;
+        if (*p == ':') p++;   /* skip colon */
+    }
+
+    if (*p == '\0') {
+        /* Unknown option */
+        if (!arg[pos + 1]) { l_optind++; l__optpos = 0; }
+        else                { l__optpos = pos + 1; }
+        return '?';
+    }
+
+    /* Known option — does it need an argument? */
+    if (*(p + 1) == ':') {
+        /* Argument required */
+        if (arg[pos + 1]) {
+            /* Argument glued to option: -oFILE */
+            l_optarg = &arg[pos + 1];
+        } else if (l_optind + 1 < argc) {
+            /* Argument is next argv element: -o FILE */
+            l_optind++;
+            l_optarg = argv[l_optind];
+        } else {
+            /* Missing argument */
+            l_optind++;
+            l__optpos = 0;
+            return '?';
+        }
+        l_optind++;
+        l__optpos = 0;
+    } else {
+        /* No argument — advance within cluster or to next argv */
+        if (arg[pos + 1]) {
+            l__optpos = pos + 1;
+        } else {
+            l_optind++;
+            l__optpos = 0;
+        }
+    }
+
+    return c;
 }
 
 static inline const char *l_strerror(int errnum) {

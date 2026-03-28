@@ -2361,6 +2361,101 @@ void test_errno_strerror(void) {
     TEST_SECTION_PASS("l_errno / l_strerror");
 }
 
+void test_getopt(void) {
+    TEST_FUNCTION("l_getopt");
+
+    /* Basic flag parsing: -v returns 'v' */
+    {
+        char *args[] = {"prog", "-v", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c = l_getopt(2, args, "vf");
+        TEST_ASSERT(c == 'v', "single flag -v returns 'v'");
+        TEST_ASSERT(l_optind == 2, "optind advances past -v");
+    }
+
+    /* Option with argument: -o file */
+    {
+        char *args[] = {"prog", "-o", "myfile", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c = l_getopt(3, args, "o:");
+        TEST_ASSERT(c == 'o', "-o returns 'o'");
+        TEST_ASSERT(l_optarg != (char *)0, "-o sets optarg");
+        TEST_ASSERT(l_strcmp(l_optarg, "myfile") == 0, "optarg == \"myfile\"");
+        TEST_ASSERT(l_optind == 3, "optind advances past -o myfile");
+    }
+
+    /* Option with glued argument: -omyfile */
+    {
+        char *args[] = {"prog", "-omyfile", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c = l_getopt(2, args, "o:");
+        TEST_ASSERT(c == 'o', "-omyfile returns 'o'");
+        TEST_ASSERT(l_optarg != (char *)0, "-omyfile sets optarg");
+        TEST_ASSERT(l_strcmp(l_optarg, "myfile") == 0, "glued optarg == \"myfile\"");
+    }
+
+    /* Multiple flags clustered: -vf parses both */
+    {
+        char *args[] = {"prog", "-vf", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c1 = l_getopt(2, args, "vf");
+        int c2 = l_getopt(2, args, "vf");
+        TEST_ASSERT(c1 == 'v', "first in -vf cluster is 'v'");
+        TEST_ASSERT(c2 == 'f', "second in -vf cluster is 'f'");
+        TEST_ASSERT(l_optind == 2, "optind advances once for -vf cluster");
+    }
+
+    /* End of options returns -1 */
+    {
+        char *args[] = {"prog", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c = l_getopt(1, args, "vf");
+        TEST_ASSERT(c == -1, "no options returns -1");
+    }
+
+    /* "--" stops parsing */
+    {
+        char *args[] = {"prog", "--", "-v", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c = l_getopt(3, args, "v");
+        TEST_ASSERT(c == -1, "-- stops option parsing");
+        TEST_ASSERT(l_optind == 2, "optind points past --");
+    }
+
+    /* Unknown option returns '?' */
+    {
+        char *args[] = {"prog", "-x", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c = l_getopt(2, args, "vf");
+        TEST_ASSERT(c == '?', "unknown option returns '?'");
+        TEST_ASSERT(l_optopt == 'x', "optopt set to unknown char");
+    }
+
+    /* Mixed flags and arguments: -n 10 -v */
+    {
+        char *args[] = {"prog", "-n", "10", "-v", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c1 = l_getopt(4, args, "vn:");
+        TEST_ASSERT(c1 == 'n', "first option is 'n'");
+        TEST_ASSERT(l_optarg != (char *)0 && l_strcmp(l_optarg, "10") == 0, "n's arg is \"10\"");
+        int c2 = l_getopt(4, args, "vn:");
+        TEST_ASSERT(c2 == 'v', "second option is 'v'");
+        int c3 = l_getopt(4, args, "vn:");
+        TEST_ASSERT(c3 == -1, "done after all options");
+    }
+
+    /* Non-option argument stops parsing */
+    {
+        char *args[] = {"prog", "file.txt", "-v", (char *)0};
+        l_optind = 1; l__optpos = 0; l_opterr = 0;
+        int c = l_getopt(3, args, "v");
+        TEST_ASSERT(c == -1, "non-option stops parsing");
+        TEST_ASSERT(l_optind == 1, "optind stays at non-option");
+    }
+
+    TEST_SECTION_PASS("l_getopt");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -2445,6 +2540,9 @@ int main(int argc, char* argv[]) {
 
     // Error reporting
     test_errno_strerror();
+
+    // Option parsing
+    test_getopt();
 
     test_lseek();
     test_mkdir();
