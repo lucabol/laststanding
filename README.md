@@ -357,6 +357,9 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_rename` | Renames (or moves) a file or directory. Returns 0 on success, -1 on error. | All |
 | `l_access` | Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error. | All |
 | `l_chmod` | Changes permission bits of a file. Returns 0 on success, -1 on error. | All |
+| `l_symlink` | Creates a symbolic link at linkpath pointing to target. Returns 0 on success, -1 on error. | All |
+| `l_readlink` | Reads the target of a symbolic link into buf (up to bufsiz bytes). Returns number of bytes read, or -1 on error. | All |
+| `l_realpath` | Resolves path to its canonical absolute form into resolved (at least L_PATH_MAX bytes). Returns resolved on success, NULL on error. | All |
 | `l_stat` | Gets file metadata by path. Returns 0 on success, -1 on error. | All |
 | `l_fstat` | Gets file metadata by open file descriptor. Returns 0 on success, -1 on error. | All |
 | `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |

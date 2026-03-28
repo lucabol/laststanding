@@ -96,8 +96,11 @@ typedef struct {
 #define L_S_IFDIR  0040000
 #define L_S_IFREG  0100000
 #define L_S_ISDIR(m)  (((m) & 0170000) == L_S_IFDIR)
+#define L_S_IFLNK  0120000
 #define L_S_ISREG(m)  (((m) & 0170000) == L_S_IFREG)
+#define L_S_ISLNK(m)  (((m) & 0170000) == L_S_IFLNK)
 
+#define L_DT_LNK     10
 #define L_DT_UNKNOWN 0
 #define L_DT_REG     8
 #define L_DT_DIR     4
@@ -119,6 +122,9 @@ typedef struct {
 #define L_MAP_ANONYMOUS 0x20
 
 #define L_MAP_FAILED ((void *)-1)
+
+// Maximum path length
+#define L_PATH_MAX 4096
 
 // Cross-platform error codes (POSIX values on all platforms)
 /// No such file or directory
@@ -329,6 +335,12 @@ int l_rename(const char *oldpath, const char *newpath);
 int l_access(const char *path, int mode);
 /// Changes permission bits of a file. Returns 0 on success, -1 on error.
 int l_chmod(const char *path, mode_t mode);
+/// Creates a symbolic link at linkpath pointing to target. Returns 0 on success, -1 on error.
+int l_symlink(const char *target, const char *linkpath);
+/// Reads the target of a symbolic link into buf (up to bufsiz bytes). Returns number of bytes read, or -1 on error.
+ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz);
+/// Resolves path to its canonical absolute form into resolved (at least L_PATH_MAX bytes). Returns resolved on success, NULL on error.
+char *l_realpath(const char *path, char *resolved);
 /// Gets file metadata by path. Returns 0 on success, -1 on error.
 int l_stat(const char *path, L_Stat *st);
 /// Gets file metadata by open file descriptor. Returns 0 on success, -1 on error.
@@ -695,6 +707,10 @@ int WINAPI mainCRTStartup(void)
 #  define rename l_rename
 #  define access l_access
 #  define chmod l_chmod
+#  define symlink l_symlink
+#  define readlink l_readlink
+#  define realpath l_realpath
+#  define PATH_MAX L_PATH_MAX
 #  define F_OK L_F_OK
 #  define R_OK L_R_OK
 #  define W_OK L_W_OK
@@ -2477,6 +2493,102 @@ inline int l_chmod(const char *path, mode_t mode)
 #endif
 }
 
+inline int l_symlink(const char *target, const char *linkpath)
+{
+#ifdef __NR_symlinkat
+    long ret = my_syscall3(__NR_symlinkat, target, AT_FDCWD, linkpath);
+#elif defined(__NR_symlink)
+    long ret = my_syscall2(__NR_symlink, target, linkpath);
+#else
+    /* symlinkat syscall numbers by arch */
+#if defined(__x86_64__)
+    long ret = my_syscall3(265 /*__NR_symlinkat*/, target, AT_FDCWD, linkpath);
+#elif defined(__aarch64__)
+    long ret = my_syscall3(36 /*__NR_symlinkat*/, target, AT_FDCWD, linkpath);
+#elif defined(__arm__)
+    long ret = my_syscall3(331 /*__NR_symlinkat*/, target, AT_FDCWD, linkpath);
+#else
+#error Unsupported architecture for l_symlink
+#endif
+#endif
+    l_set_errno_from_ret(ret);
+    return (int)ret;
+}
+
+inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
+{
+#ifdef __NR_readlinkat
+    long ret = my_syscall4(__NR_readlinkat, AT_FDCWD, path, buf, bufsiz);
+#elif defined(__NR_readlink)
+    long ret = my_syscall3(__NR_readlink, path, buf, bufsiz);
+#else
+#if defined(__x86_64__)
+    long ret = my_syscall4(267 /*__NR_readlinkat*/, AT_FDCWD, path, buf, bufsiz);
+#elif defined(__aarch64__)
+    long ret = my_syscall4(78 /*__NR_readlinkat*/, AT_FDCWD, path, buf, bufsiz);
+#elif defined(__arm__)
+    long ret = my_syscall4(332 /*__NR_readlinkat*/, AT_FDCWD, path, buf, bufsiz);
+#else
+#error Unsupported architecture for l_readlink
+#endif
+#endif
+    l_set_errno_from_ret(ret);
+    return (ptrdiff_t)ret;
+}
+
+inline char *l_realpath(const char *path, char *resolved)
+{
+    /* Open the path with O_PATH (no actual I/O, just resolve) */
+    long fd;
+#ifdef __NR_openat
+    fd = my_syscall4(__NR_openat, AT_FDCWD, path, 0x200000 /*O_PATH*/, 0);
+#elif defined(__NR_open)
+    fd = my_syscall3(__NR_open, path, 0x200000 /*O_PATH*/, 0);
+#else
+#if defined(__x86_64__)
+    fd = my_syscall4(257 /*__NR_openat*/, AT_FDCWD, path, 0x200000 /*O_PATH*/, 0);
+#elif defined(__aarch64__)
+    fd = my_syscall4(56 /*__NR_openat*/, AT_FDCWD, path, 0x200000 /*O_PATH*/, 0);
+#elif defined(__arm__)
+    fd = my_syscall4(322 /*__NR_openat*/, AT_FDCWD, path, 0x200000 /*O_PATH*/, 0);
+#else
+#error Unsupported architecture for l_realpath
+#endif
+#endif
+    if (fd < 0) { l_set_errno_from_ret(fd); return (char *)0; }
+
+    /* Read the resolved path from /proc/self/fd/<N> */
+    char proc_path[64];
+    /* Build "/proc/self/fd/<fd>" manually — l_snprintf not yet available */
+    {
+        const char *prefix = "/proc/self/fd/";
+        int i = 0;
+        while (prefix[i]) { proc_path[i] = prefix[i]; i++; }
+        /* Convert fd number to string (fd is non-negative here) */
+        char digits[20];
+        int d = 0;
+        long tmp = fd;
+        if (tmp == 0) { digits[d++] = '0'; }
+        else { while (tmp > 0) { digits[d++] = (char)('0' + (tmp % 10)); tmp /= 10; } }
+        while (d > 0) { proc_path[i++] = digits[--d]; }
+        proc_path[i] = '\0';
+    }
+    long n;
+#if defined(__x86_64__)
+    n = my_syscall4(267 /*__NR_readlinkat*/, AT_FDCWD, proc_path, resolved, L_PATH_MAX - 1);
+#elif defined(__aarch64__)
+    n = my_syscall4(78 /*__NR_readlinkat*/, AT_FDCWD, proc_path, resolved, L_PATH_MAX - 1);
+#elif defined(__arm__)
+    n = my_syscall4(332 /*__NR_readlinkat*/, AT_FDCWD, proc_path, resolved, L_PATH_MAX - 1);
+#else
+#error Unsupported architecture for l_realpath
+#endif
+    my_syscall1(__NR_close, fd);
+    if (n < 0) { l_set_errno_from_ret(n); return (char *)0; }
+    resolved[n] = '\0';
+    return resolved;
+}
+
 inline int l_stat(const char *path, L_Stat *st)
 {
 #if defined(__x86_64__)
@@ -3359,6 +3471,97 @@ inline int l_chmod(const char *path, mode_t mode) {
     else
         attr |= (DWORD)1 /*FILE_ATTRIBUTE_READONLY*/;
     return SetFileAttributesW(wpath, attr) ? 0 : -1;
+}
+
+inline int l_symlink(const char *target, const char *linkpath) {
+    wchar_t wtarget[1024], wlink[1024];
+    if (!l_utf8_to_wide(target, wtarget, 1024)) return -1;
+    if (!l_utf8_to_wide(linkpath, wlink, 1024)) return -1;
+    /* Check if target is a directory for the SYMBOLIC_LINK_FLAG_DIRECTORY flag */
+    DWORD flags = 0x2; /* SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE */
+    DWORD attr = GetFileAttributesW(wtarget);
+    if (attr != (DWORD)-1 && (attr & FILE_ATTRIBUTE_DIRECTORY))
+        flags |= 0x1; /* SYMBOLIC_LINK_FLAG_DIRECTORY */
+    if (CreateSymbolicLinkW(wlink, wtarget, flags))
+        return 0;
+    l_set_errno(l_win_error_to_errno(GetLastError()));
+    return -1;
+}
+
+inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz) {
+    wchar_t wpath[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    HANDLE h = CreateFileW(wpath,
+        0 /*no access needed*/,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL, OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        l_set_errno(l_win_error_to_errno(GetLastError()));
+        return -1;
+    }
+    /* Use GetFinalPathNameByHandleW on the actual target, but we need the
+       raw symlink target. Read reparse data instead. */
+    char rdbuf[16384]; /* REPARSE_DATA_BUFFER is variable-length */
+    DWORD returned = 0;
+    /* DeviceIoControl with FSCTL_GET_REPARSE_POINT */
+    if (!DeviceIoControl(h, 0x000900A8 /*FSCTL_GET_REPARSE_POINT*/,
+                         NULL, 0, rdbuf, sizeof(rdbuf), &returned, NULL)) {
+        DWORD err = GetLastError();
+        CloseHandle(h);
+        l_set_errno(l_win_error_to_errno(err));
+        return -1;
+    }
+    CloseHandle(h);
+    /* Parse REPARSE_DATA_BUFFER for IO_REPARSE_TAG_SYMLINK (0xA000000C) */
+    DWORD tag;
+    l_memcpy(&tag, rdbuf, 4);
+    if (tag != 0xA000000CUL) {
+        l_set_errno(L_EINVAL);
+        return -1;
+    }
+    /* Offsets in REPARSE_DATA_BUFFER SymbolicLinkReparseBuffer:
+       +8:  SubstituteNameOffset (USHORT)
+       +10: SubstituteNameLength (USHORT)
+       +12: PrintNameOffset (USHORT)
+       +14: PrintNameLength (USHORT)
+       +16: Flags (ULONG)
+       +20: PathBuffer (WCHAR[]) */
+    unsigned short pname_off, pname_len;
+    l_memcpy(&pname_off, rdbuf + 12, 2);
+    l_memcpy(&pname_len, rdbuf + 14, 2);
+    wchar_t *pname = (wchar_t *)(rdbuf + 20 + pname_off);
+    int wchars = pname_len / 2;
+    /* Null-terminate for conversion */
+    wchar_t saved = pname[wchars];
+    pname[wchars] = L'\0';
+    int written = l_wide_to_utf8(pname, buf, (int)bufsiz);
+    pname[wchars] = saved;
+    if (written <= 0) { l_set_errno(L_EINVAL); return -1; }
+    /* wide_to_utf8 includes null terminator in count; readlink doesn't */
+    return (ptrdiff_t)(written - 1);
+}
+
+inline char *l_realpath(const char *path, char *resolved) {
+    wchar_t wpath[1024], wresolved[1024];
+    if (!l_utf8_to_wide(path, wpath, 1024)) return (char *)0;
+    HANDLE h = CreateFileW(wpath, 0 /*no access*/,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        l_set_errno(l_win_error_to_errno(GetLastError()));
+        return (char *)0;
+    }
+    DWORD len = GetFinalPathNameByHandleW(h, wresolved, 1024, 0 /*VOLUME_NAME_DOS*/);
+    CloseHandle(h);
+    if (len == 0 || len >= 1024) { l_set_errno(L_EINVAL); return (char *)0; }
+    /* Strip \\?\ prefix if present */
+    wchar_t *src = wresolved;
+    if (len >= 4 && src[0] == L'\\' && src[1] == L'\\' && src[2] == L'?' && src[3] == L'\\')
+        src += 4;
+    if (!l_wide_to_utf8(src, resolved, L_PATH_MAX)) return (char *)0;
+    return resolved;
 }
 
 inline int l_stat(const char *path, L_Stat *st) {

@@ -1939,6 +1939,73 @@ void test_getcwd_chdir(void) {
     TEST_SECTION_PASS("l_getcwd / l_chdir");
 }
 
+// ===================== l_symlink / l_readlink / l_realpath =====================
+
+void test_symlink_readlink(void) {
+    TEST_FUNCTION("l_symlink / l_readlink / l_realpath");
+
+    // Create a regular file as symlink target
+    const char *target_file = "test_symlink_target";
+    const char *link_name   = "test_symlink_link";
+    L_FD fd = l_open_write(target_file);
+    TEST_ASSERT(fd >= 0, "create symlink target file");
+    l_write(fd, "symlink test data", 17);
+    l_close(fd);
+
+    // Create symlink — may fail on Windows without developer mode
+    int ret = l_symlink(target_file, link_name);
+#ifdef _WIN32
+    if (ret != 0) {
+        l_puts("  SKIP: l_symlink not available (requires developer mode on Windows)\n");
+        l_unlink(target_file);
+        return;
+    }
+#else
+    TEST_ASSERT(ret == 0, "symlink created successfully");
+#endif
+
+    // Verify the symlink exists
+    TEST_ASSERT(l_access(link_name, L_F_OK) == 0, "symlink exists");
+
+    // Read symlink target
+    char buf[L_PATH_MAX];
+    l_memset(buf, 0, sizeof(buf));
+    ptrdiff_t n = l_readlink(link_name, buf, L_PATH_MAX);
+    TEST_ASSERT(n > 0, "readlink returns positive count");
+    TEST_ASSERT(l_strstr(buf, target_file) != 0, "readlink target matches");
+
+    // readlink on a non-symlink should fail
+    ptrdiff_t bad = l_readlink(target_file, buf, L_PATH_MAX);
+    TEST_ASSERT(bad < 0, "readlink on regular file fails");
+
+    // Dangling symlink: target doesn't exist but symlink creation should succeed
+    const char *dangling_link = "test_symlink_dangling";
+    ret = l_symlink("nonexistent_target_xyz", dangling_link);
+    TEST_ASSERT(ret == 0, "dangling symlink creation succeeds");
+    l_unlink(dangling_link);
+
+    // l_realpath: resolve path through symlink
+    char resolved[L_PATH_MAX];
+    l_memset(resolved, 0, sizeof(resolved));
+    char *rp = l_realpath(link_name, resolved);
+    TEST_ASSERT(rp != 0, "realpath returns non-null");
+    TEST_ASSERT(l_strlen(resolved) > 0, "realpath returns non-empty string");
+    TEST_ASSERT(l_strstr(resolved, target_file) != 0, "realpath contains target filename");
+
+    // Also test realpath on the target directly
+    char resolved2[L_PATH_MAX];
+    char *rp2 = l_realpath(target_file, resolved2);
+    TEST_ASSERT(rp2 != 0, "realpath on regular file returns non-null");
+    // Both should resolve to the same canonical path
+    TEST_ASSERT(l_strcmp(resolved, resolved2) == 0, "realpath through symlink matches direct path");
+
+    // Clean up
+    l_unlink(link_name);
+    l_unlink(target_file);
+
+    TEST_SECTION_PASS("l_symlink / l_readlink / l_realpath");
+}
+
 // ===================== l_pipe / l_dup2 =====================
 
 void test_pipe_dup2(void) {
@@ -2529,6 +2596,7 @@ int main(int argc, char* argv[]) {
     test_opendir_readdir();
     test_mmap();
     test_getcwd_chdir();
+    test_symlink_readlink();
     test_pipe_dup2();
     test_dup();
     test_spawn_wait();
