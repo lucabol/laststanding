@@ -90,10 +90,10 @@ steps:
       mkdir -p /tmp/gh-aw
 
       # Fetch open issues with labels (up to 500)
-      gh issue list --state open --limit 500 --json number,labels > /tmp/gh-aw/issues.json
+      gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json number,labels > /tmp/gh-aw/issues.json
 
       # Fetch open PRs with titles (up to 200)
-      gh pr list --state open --limit 200 --json number,title > /tmp/gh-aw/prs.json
+      gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json number,title > /tmp/gh-aw/prs.json
 
       # Compute task weights and select two tasks for this run
       python3 - << 'EOF'
