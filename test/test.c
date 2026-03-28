@@ -2305,6 +2305,62 @@ void test_find_executable(void) {
     TEST_SECTION_PASS("l_find_executable");
 }
 
+// ===================== l_errno / l_strerror =====================
+
+void test_errno_strerror(void) {
+    TEST_FUNCTION("l_errno / l_strerror");
+
+    // Error constants have expected POSIX values
+    TEST_ASSERT(L_ENOENT == 2, "L_ENOENT == 2");
+    TEST_ASSERT(L_EACCES == 13, "L_EACCES == 13");
+    TEST_ASSERT(L_EBADF == 9, "L_EBADF == 9");
+    TEST_ASSERT(L_EEXIST == 17, "L_EEXIST == 17");
+    TEST_ASSERT(L_EINVAL == 22, "L_EINVAL == 22");
+    TEST_ASSERT(L_ENOMEM == 12, "L_ENOMEM == 12");
+    TEST_ASSERT(L_EAGAIN == 11, "L_EAGAIN == 11");
+    TEST_ASSERT(L_EPIPE == 32, "L_EPIPE == 32");
+    TEST_ASSERT(L_ENOSPC == 28, "L_ENOSPC == 28");
+    TEST_ASSERT(L_ENOTDIR == 20, "L_ENOTDIR == 20");
+    TEST_ASSERT(L_EISDIR == 21, "L_EISDIR == 21");
+    TEST_ASSERT(L_ENOTEMPTY == 39, "L_ENOTEMPTY == 39");
+
+    // l_strerror returns non-empty strings for all known codes
+    TEST_ASSERT(l_strlen(l_strerror(0)) > 0, "strerror(0) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_ENOENT)) > 0, "strerror(ENOENT) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_EACCES)) > 0, "strerror(EACCES) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_EBADF)) > 0, "strerror(EBADF) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_EEXIST)) > 0, "strerror(EEXIST) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_EINVAL)) > 0, "strerror(EINVAL) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_ENOMEM)) > 0, "strerror(ENOMEM) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_EAGAIN)) > 0, "strerror(EAGAIN) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_EPIPE)) > 0, "strerror(EPIPE) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_ENOSPC)) > 0, "strerror(ENOSPC) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_ENOTDIR)) > 0, "strerror(ENOTDIR) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_EISDIR)) > 0, "strerror(EISDIR) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(L_ENOTEMPTY)) > 0, "strerror(ENOTEMPTY) non-empty");
+    TEST_ASSERT(l_strlen(l_strerror(9999)) > 0, "strerror(unknown) non-empty");
+
+    // Distinct strings for different error codes
+    TEST_ASSERT(l_strcmp(l_strerror(L_ENOENT), l_strerror(L_EACCES)) != 0,
+                "strerror(ENOENT) != strerror(EACCES)");
+
+    // l_errno() returns ENOENT after opening a nonexistent file
+    L_FD fd = l_open_read("__nonexistent_file_for_errno_test__");
+    int saved_errno = l_errno();
+    TEST_ASSERT(fd < 0, "open nonexistent file fails");
+    TEST_ASSERT(saved_errno == L_ENOENT, "errno is ENOENT after open of missing file");
+
+    // l_errno() is 0 after a successful operation
+    fd = l_open_write("test_errno_tmpfile");
+    saved_errno = l_errno();
+    TEST_ASSERT(fd >= 0, "open for write succeeds");
+    TEST_ASSERT(saved_errno == 0, "errno is 0 after successful open");
+    l_close(fd);
+    l_unlink("test_errno_tmpfile");
+
+    TEST_SECTION_PASS("l_errno / l_strerror");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -2386,6 +2442,9 @@ int main(int argc, char* argv[]) {
     test_spawn_stdio();
     test_spawn_stdio_child_fd_cleanup();
     test_find_executable();
+
+    // Error reporting
+    test_errno_strerror();
 
     test_lseek();
     test_mkdir();

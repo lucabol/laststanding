@@ -120,6 +120,32 @@ typedef struct {
 
 #define L_MAP_FAILED ((void *)-1)
 
+// Cross-platform error codes (POSIX values on all platforms)
+/// No such file or directory
+#define L_ENOENT      2
+/// Permission denied
+#define L_EACCES     13
+/// Bad file descriptor
+#define L_EBADF       9
+/// File exists
+#define L_EEXIST     17
+/// Invalid argument
+#define L_EINVAL     22
+/// Cannot allocate memory
+#define L_ENOMEM     12
+/// Resource temporarily unavailable
+#define L_EAGAIN     11
+/// Broken pipe
+#define L_EPIPE      32
+/// No space left on device
+#define L_ENOSPC     28
+/// Not a directory
+#define L_ENOTDIR    20
+/// Is a directory
+#define L_EISDIR     21
+/// Directory not empty
+#define L_ENOTEMPTY  39
+
 // CLang warns for 'asm'
 #ifdef __clang__
 #pragma GCC diagnostic ignored "-Wlanguage-extension-token"
@@ -267,6 +293,12 @@ L_FD l_open_readwrite(const char* file);
 L_FD l_open_append(const char* file);
 /// Opens or creates a file, truncating to zero length
 L_FD l_open_trunc(const char* file);
+
+// Error reporting
+/// Returns the error code from the most recent failed syscall (0 if last call succeeded)
+static inline int l_errno(void);
+/// Returns a human-readable string for the given error code
+static inline const char *l_strerror(int errnum);
 
 // Terminal and timing functions (cross-platform)
 /// Sleeps for the given number of milliseconds
@@ -681,7 +713,71 @@ int WINAPI mainCRTStartup(void)
 #define STDOUT   L_STDOUT
 #define STDERR   L_STDERR
 
+#  undef strerror
+#  define strerror l_strerror
+#  undef errno
+#  define errno    l_errno()
+
+#  undef ENOENT
+#  define ENOENT   L_ENOENT
+#  undef EACCES
+#  define EACCES   L_EACCES
+#  undef EBADF
+#  define EBADF    L_EBADF
+#  undef EEXIST
+#  define EEXIST   L_EEXIST
+#  undef EINVAL
+#  define EINVAL   L_EINVAL
+#  undef ENOMEM
+#  define ENOMEM   L_ENOMEM
+#  undef EAGAIN
+#  define EAGAIN   L_EAGAIN
+#  undef EPIPE
+#  define EPIPE    L_EPIPE
+#  undef ENOSPC
+#  define ENOSPC   L_ENOSPC
+#  undef ENOTDIR
+#  define ENOTDIR  L_ENOTDIR
+#  undef EISDIR
+#  define EISDIR   L_EISDIR
+#  undef ENOTEMPTY
+#  define ENOTEMPTY L_ENOTEMPTY
+
 #endif // L_DONT_OVERRIDE
+
+// Error state (single-threaded; no TLS in freestanding)
+static int l_last_errno;
+
+static inline int l_errno(void) {
+    return l_last_errno;
+}
+
+static inline void l_set_errno(int err) {
+    l_last_errno = err;
+}
+
+static inline void l_set_errno_from_ret(long ret) {
+    l_last_errno = (ret < 0) ? (int)(-ret) : 0;
+}
+
+static inline const char *l_strerror(int errnum) {
+    switch (errnum) {
+        case 0:            return "Success";
+        case L_ENOENT:     return "No such file or directory";
+        case L_EACCES:     return "Permission denied";
+        case L_EBADF:      return "Bad file descriptor";
+        case L_EEXIST:     return "File exists";
+        case L_EINVAL:     return "Invalid argument";
+        case L_ENOMEM:     return "Cannot allocate memory";
+        case L_EAGAIN:     return "Resource temporarily unavailable";
+        case L_EPIPE:      return "Broken pipe";
+        case L_ENOSPC:     return "No space left on device";
+        case L_ENOTDIR:    return "Not a directory";
+        case L_EISDIR:     return "Is a directory";
+        case L_ENOTEMPTY:  return "Directory not empty";
+        default:           return "Unknown error";
+    }
+}
 
 inline size_t l_wcslen(const wchar_t *s) {
     size_t len = 0;
@@ -2075,7 +2171,9 @@ inline char *l_getcwd(char *buf, size_t size)
 
 inline int l_close(L_FD fd)
 {
-    return my_syscall1(__NR_close, fd);
+    int ret = my_syscall1(__NR_close, fd);
+    l_set_errno_from_ret(ret);
+    return ret;
 }
 
 inline int l_dup(L_FD fd)
@@ -2457,18 +2555,23 @@ inline int l_munmap(void *addr, size_t length)
 
 inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
+    long ret;
 #ifdef __NR_openat
-    return my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
+    ret = my_syscall4(__NR_openat, AT_FDCWD, path, flags, mode);
 #elif defined(__NR_open)
-    return my_syscall3(__NR_open, path, flags, mode);
+    ret = my_syscall3(__NR_open, path, flags, mode);
 #else
 #error Neither __NR_openat nor __NR_open defined, cannot implement sys_open()
 #endif
+    l_set_errno_from_ret(ret);
+    return ret;
 }
 
 inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
-    return my_syscall3(__NR_read, fd, buf, count);
+    long ret = my_syscall3(__NR_read, fd, buf, count);
+    l_set_errno_from_ret(ret);
+    return ret;
 }
 
 inline int l_sched_yield(void)
@@ -2545,7 +2648,9 @@ inline void l_term_size(int *rows, int *cols)
 
 inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
-    return my_syscall3(__NR_write, fd, buf, count);
+    long ret = my_syscall3(__NR_write, fd, buf, count);
+    l_set_errno_from_ret(ret);
+    return ret;
 }
 
 #pragma GCC diagnostic pop
@@ -2593,6 +2698,28 @@ noreturn inline void l_exit(int status)
 
 static inline int l_utf8_to_wide(const char *path, wchar_t *wbuf, size_t wbuf_len);
 static inline int l_wide_to_utf8(const wchar_t *wbuf, char *buf, int buf_len);
+
+/// Maps a Win32 error code (from GetLastError) to an L_E* constant
+static inline int l_win_error_to_errno(DWORD err)
+{
+    switch (err) {
+        case ERROR_FILE_NOT_FOUND:
+        case ERROR_PATH_NOT_FOUND:     return L_ENOENT;
+        case ERROR_ACCESS_DENIED:      return L_EACCES;
+        case ERROR_INVALID_HANDLE:     return L_EBADF;
+        case ERROR_FILE_EXISTS:
+        case ERROR_ALREADY_EXISTS:     return L_EEXIST;
+        case ERROR_INVALID_PARAMETER:  return L_EINVAL;
+        case ERROR_NOT_ENOUGH_MEMORY:
+        case ERROR_OUTOFMEMORY:        return L_ENOMEM;
+        case ERROR_BROKEN_PIPE:        return L_EPIPE;
+        case ERROR_DISK_FULL:
+        case ERROR_HANDLE_DISK_FULL:   return L_ENOSPC;
+        case ERROR_DIRECTORY:          return L_ENOTDIR;
+        case ERROR_DIR_NOT_EMPTY:      return L_ENOTEMPTY;
+        default:                       return L_EINVAL;
+    }
+}
 
 static inline HANDLE l_win_dup_handle(HANDLE src, BOOL inherit)
 {
@@ -2798,7 +2925,9 @@ inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
     DWORD written;
     HANDLE out = l_win_fd_handle(fd);
     BOOL result = WriteFile(out, buf, count, &written, NULL);
-    RETURN_CHECK(written);
+    if (result) { l_set_errno(0); return written; }
+    l_set_errno(l_win_error_to_errno(GetLastError()));
+    return -1;
 }
 
 inline ssize_t l_read(L_FD fd, void *buf, size_t count)
@@ -2806,17 +2935,20 @@ inline ssize_t l_read(L_FD fd, void *buf, size_t count)
     DWORD readden;
     HANDLE in = l_win_fd_handle(fd);
     BOOL result = ReadFile(in, buf, count, &readden, NULL);
-    RETURN_CHECK(readden);
+    if (result) { l_set_errno(0); return readden; }
+    l_set_errno(l_win_error_to_errno(GetLastError()));
+    return -1;
 }
 
 
 inline int l_close(L_FD fd) {
     HANDLE handle = l_win_fd_handle(fd);
     BOOL result;
-    if (handle == INVALID_HANDLE_VALUE) return -1;
+    if (handle == INVALID_HANDLE_VALUE) { l_set_errno(L_EBADF); return -1; }
     result = CloseHandle(handle);
-    if (!result) return -1;
+    if (!result) { l_set_errno(l_win_error_to_errno(GetLastError())); return -1; }
     l_win_fd_clear(fd);
+    l_set_errno(0);
     return 0;
 }
 
@@ -3289,7 +3421,7 @@ static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared,
                      utf16Len                // size of destination buffer, in WCHAR's
                  );
 
-    if(!result) return -1;
+    if(!result) { l_set_errno(L_EINVAL); return -1; }
 
     HANDLE hFile = CreateFileW(buffer,        // file to open
                                desired,          // open for reading
@@ -3299,13 +3431,15 @@ static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared,
                                FILE_ATTRIBUTE_NORMAL, // normal file
                                NULL);                 // no attr. template
 
-    if(hFile == INVALID_HANDLE_VALUE) return -1;
+    if(hFile == INVALID_HANDLE_VALUE) { l_set_errno(l_win_error_to_errno(GetLastError())); return -1; }
     {
         L_FD fd = l_win_alloc_fd(hFile);
         if (fd < 0) {
             CloseHandle(hFile);
+            l_set_errno(L_ENOMEM);
             return -1;
         }
+        l_set_errno(0);
         return fd;
     }
 }

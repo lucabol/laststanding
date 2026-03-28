@@ -340,6 +340,9 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_open_readwrite` | Opens or creates a file for reading and writing | All |
 | `l_open_append` | Opens or creates a file for appending | All |
 | `l_open_trunc` | Opens or creates a file, truncating to zero length | All |
+| **Error reporting** | | |
+| `l_errno` | Returns the error code from the most recent failed syscall (0 if last call succeeded) | All |
+| `l_strerror` | Returns a human-readable string for the given error code | All |
 | **Terminal and timing functions (cross-platform)** | | |
 | `l_sleep_ms` | Sleeps for the given number of milliseconds | All |
 | `l_term_raw` | Sets stdin to raw mode (no echo, no line buffering), returns old mode | All |
