@@ -290,6 +290,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strspn` | Returns length of initial segment of s consisting entirely of bytes in accept | All |
 | `l_strcspn` | Returns length of initial segment of s consisting entirely of bytes NOT in reject | All |
 | `l_strpbrk` | Returns pointer to first occurrence in s of any character in accept, or NULL | All |
+| `l_strtok_r` | Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant) | All |
 | `l_basename` | Returns pointer to the filename component of path (after last '/' or '\') | All |
 | `l_dirname` | Writes the directory component of path into buf (up to bufsize), returns buf | All |
 | `l_reverse` | Reverses a string in place | All |
