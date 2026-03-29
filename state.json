@@ -1,18 +1,18 @@
 {
-  "last_run": "2026-03-29T01:25:35Z",
-  "last_run_id": "23698544738",
-  "monthly_activity_issue": "2026-03 (open, created this run)",
+  "last_run": "2026-03-29T13:19:48Z",
+  "last_run_id": "23709934258",
+  "monthly_activity_issue": "2026-03 (open, #77)",
   "open_prs": [
     {
-      "branch": "repo-assist/perf-and-strtoll-2026-03-29",
-      "title": "[Repo Assist] perf: word-at-a-time l_memchr/l_memcmp; add l_strtoull/l_strtoll",
+      "branch": "repo-assist/improve-getpid-kill-llabs",
+      "title": "[Repo Assist] feat: add l_getpid, l_getppid, l_kill, l_llabs + signal constants",
       "created": "2026-03-29"
     }
   ],
   "backlog_cursor": {
-    "issues": "all_processed_no_open_issues",
+    "issues": "all_processed_no_human_issues",
     "prs": "all_processed_no_open_prs"
   },
   "checked_off_items": [],
-  "notes": "No open issues. Created perf PR for memchr/memcmp word-at-a-time + strtoull/strtoll 64-bit parsing. Monthly activity issue created for 2026-03."
+  "notes": "No human-authored issues. l_getpid/l_getppid/l_kill/l_llabs PR submitted. Previous PR #76 (perf+strtoll) was merged. Next candidates: l_strtod/l_atof (float parsing), or buffered I/O helpers."
 }
