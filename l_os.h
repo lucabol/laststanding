@@ -752,7 +752,9 @@ int WINAPI mainCRTStartup(void)
 #  define symlink l_symlink
 #  define readlink l_readlink
 #  define realpath l_realpath
-#  define PATH_MAX L_PATH_MAX
+#  ifndef PATH_MAX
+#    define PATH_MAX L_PATH_MAX
+#  endif
 #  define F_OK L_F_OK
 #  define R_OK L_R_OK
 #  define W_OK L_W_OK
@@ -857,7 +859,7 @@ static char *l_optarg;
 /// Index of the next argv element to process (starts at 1)
 static int   l_optind = 1;
 /// Reserved for POSIX compat; l_getopt itself does no I/O
-static int   l_opterr = 1;
+static int   l_opterr __attribute__((unused)) = 1;
 /// Set to the unknown option character when l_getopt returns '?'
 static int   l_optopt;
 static int   l__optpos;  /* position within a grouped short-option cluster */
