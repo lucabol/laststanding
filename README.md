@@ -321,13 +321,6 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_memrchr` | Finds last occurrence of byte c in the first n bytes of s, or NULL | All |
 | `l_strnlen` | Returns the length of s, but at most maxlen (does not scan past maxlen bytes) | All |
 | `l_memmem` | Finds first occurrence of needle (needlelen bytes) in haystack (haystacklen bytes), or NULL | All |
-| **Math macros and functions** | | |
-| ``L_MIN`` | Returns the minimum of two values | All |
-| ``L_MAX`` | Returns the maximum of two values | All |
-| ``L_CLAMP`` | Clamps a value between lo and hi | All |
-| **Sorting and searching** | | |
-| ``l_qsort`` | Sorts an array in-place using Shell sort (no malloc, no recursion) | All |
-| ``l_bsearch`` | Binary search in a sorted array. Returns pointer to matching element, or NULL | All |
 | **Random number generation (xorshift32, single-threaded)** | | |
 | `l_srand` | Seeds the pseudo-random number generator | All |
 | `l_rand` | Returns a pseudo-random unsigned int (xorshift32) | All |
