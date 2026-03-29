@@ -2758,6 +2758,30 @@ void test_read_line(void) {
 
 // ===================== main =====================
 
+void test_getpid_kill_llabs(void) {
+    TEST_FUNCTION("l_getpid / l_llabs");
+
+    L_PID pid = l_getpid();
+    TEST_ASSERT(pid > 0, "l_getpid returns positive value");
+
+#ifndef _WIN32
+    L_PID ppid = l_getppid();
+    TEST_ASSERT(ppid > 0, "l_getppid returns positive value");
+    TEST_ASSERT(ppid != pid, "ppid differs from pid");
+
+    /* Send signal 0 to self — exists check, no signal delivered */
+    int kr = l_kill(pid, 0);
+    TEST_ASSERT(kr == 0, "l_kill(pid, 0) succeeds for own process");
+#endif
+
+    TEST_ASSERT(l_llabs(0LL) == 0LL, "llabs(0) == 0");
+    TEST_ASSERT(l_llabs(42LL) == 42LL, "llabs(42) == 42");
+    TEST_ASSERT(l_llabs(-42LL) == 42LL, "llabs(-42) == 42");
+    TEST_ASSERT(l_llabs(-9223372036854775807LL) == 9223372036854775807LL, "llabs(LLONG_MIN+1)");
+
+    TEST_SECTION_PASS("l_getpid / l_llabs");
+}
+
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
 
@@ -2858,6 +2882,7 @@ int main(int argc, char* argv[]) {
     test_time();
     test_dprintf();
     test_read_line();
+    test_getpid_kill_llabs();
 
     puts("\n");
     puts("=====================================\n");
