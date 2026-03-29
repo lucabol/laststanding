@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
 REM Auto-detect a C compiler. Works from any cmd.exe window.
 
@@ -39,12 +39,7 @@ exit /b 1
 echo Using compiler: %CC%
 if not exist bin mkdir bin
 
-for %%f in (test\*.c) do (
-    echo   %%~nf
-    "%CC%" -I. "%%f" -Oz -lkernel32 -ffreestanding -o "bin\%%~nf.exe"
-    if errorlevel 1 (
-        echo FAILED: %%~nf
-        exit /b 1
-    )
-)
+REM --- Parallel compilation via PowerShell ---
+powershell -NoProfile -ExecutionPolicy Bypass -File build_parallel.ps1 -CC "%CC%"
+if errorlevel 1 exit /b 1
 echo Build complete.

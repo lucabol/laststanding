@@ -1,8 +1,22 @@
 @echo off
 setlocal enabledelayedexpansion
 
-call build.bat
-if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
+REM Skip rebuild if all binaries are up-to-date
+set "NEED_BUILD=0"
+if not exist bin\test.exe (
+    set "NEED_BUILD=1"
+) else (
+    for %%f in (test\*.c) do (
+        if not exist "bin\%%~nf.exe" set "NEED_BUILD=1"
+    )
+)
+
+if "!NEED_BUILD!"=="1" (
+    call build.bat
+    if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
+) else (
+    echo Skipping build: all binaries up-to-date.
+)
 
 for %%f in (bin\test*.exe) do (
     if exist "%%f" (

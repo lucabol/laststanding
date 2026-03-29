@@ -4,28 +4,42 @@
 
 A freestanding C runtime — minimal reimplementations of libc functions with direct syscall wrappers. No libc/glibc dependency. Binaries are statically linked, stripped, and stdlib-free. Targets Linux (x86_64, ARM, AArch64) and Windows.
 
+## Workflow
+
+**Always follow this sequence for any code change:**
+1. Run `powershell -NoProfile -ExecutionPolicy Bypass -File ci.ps1` (full cross-platform CI)
+2. If CI passes, update README via `powershell -NoProfile -ExecutionPolicy Bypass -File gen-docs.ps1`
+3. Commit and push
+
+Never commit without running CI first. Never skip ARM/AArch64 targets — they catch real bugs.
+
+**Treat compiler warnings as errors.** Code must compile cleanly with `-Wall -Wextra -Wpedantic` on all 7 targets. If CI shows warnings, fix them before committing.
+
 ## Build & Test
 
-### Linux/macOS
+### Full CI (recommended)
 
 ```sh
-./Taskfile test              # build and run all tests (gcc, -O3 by default)
-./Taskfile build clang 2     # build with clang at -O2
-./Taskfile build_arm         # cross-compile for ARM
-./Taskfile test_arm           # build + run ARM tests via QEMU
-./Taskfile verify            # check binaries have no stdlib deps, are stripped, etc.
+powershell -NoProfile -ExecutionPolicy Bypass -File ci.ps1           # all 7 targets
+powershell -NoProfile -ExecutionPolicy Bypass -File ci.ps1 -Target windows  # Windows only
+powershell -NoProfile -ExecutionPolicy Bypass -File ci.ps1 -Target linux    # Linux gcc+clang
+powershell -NoProfile -ExecutionPolicy Bypass -File ci.ps1 -Target arm      # ARM+AArch64 gcc+clang
 ```
 
-### Windows
+### Individual platforms
 
 ```bat
-REM Requires x64 Native Tools Command Prompt or clang on PATH
-build.bat                    # build test binaries
-test_all.bat                 # build + run all tests
-verify.bat                   # check binaries for stdlib independence
+cmd /c "call test_all.bat"   # Windows: build + test + smoke
+cmd /c "call verify.bat"     # Windows: check stdlib independence
 ```
 
-There is no single-test runner. Each `.c` file in `test/` compiles to one binary in `bin/`. Run a single test by building and then executing `bin\<name>` directly.
+```sh
+./Taskfile test              # Linux: build + test (gcc, -Oz by default)
+./Taskfile test_arm          # ARM32: build + test via QEMU
+./Taskfile test_aarch64      # AArch64: build + test via QEMU
+```
+
+There is no single-test runner. Each `.c` file in `test/` compiles to one binary in `bin/`. Run a single test by building and then executing `bin/<name>` directly.
 
 ## Architecture
 
@@ -57,3 +71,14 @@ Each architecture has its own set of `my_syscall0`–`my_syscall6` macros (inlin
 - Test programs write `main()` as usual — the startup code in `l_os.h` calls it.
 - The `misc/` directory contains reference implementations using standard libc for comparison.
 - Strings are handled as UTF-8 internally, including on Windows (converted from UTF-16 at the entry point).
+
+### Header ordering in l_os.h
+
+Functions in `l_os.h` must be ordered after any `l_*` functions they call — the `L_OSH` block compiles top-to-bottom on first include. Adding new functions that call existing ones requires placing them below their dependencies. All function declarations AND definitions must use `static inline`.
+
+### ARM32 constraints
+
+- ARM32 has no hardware integer divide. `l_os.h` provides `__aeabi_uidiv`/`__aeabi_idiv` (32-bit) and `__aeabi_ldivmod`/`__aeabi_uldivmod` (64-bit) plus shift helpers (`__aeabi_llsl`/`__aeabi_llsr`/`__aeabi_lasr`).
+- GCC defaults to **Thumb mode** on ARM32. Any naked asm functions using conditional instructions (`movmi`, `movpl`) must have `__attribute__((target("arm")))`.
+- All `__aeabi_*` helpers need `__attribute__((used))` to survive LTO + gc-sections.
+- ARM/AArch64 tests run under QEMU — requires `qemu-arm` and `qemu-aarch64` to be installed (via WSL on Windows).

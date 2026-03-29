@@ -36,7 +36,10 @@ param(
 
     [switch]$ShowAll,
 
-    [switch]$Help
+    [switch]$Help,
+
+    # Internal: used by parallel execution to mark sub-process invocations
+    [switch]$SubProcess
 )
 
 if ($Help) {
@@ -94,6 +97,9 @@ function Add-Result {
         Action = $Action
         Status = $Status
     })
+    if ($SubProcess) {
+        Write-Output "##CI_RESULT##$Target##$Action##$Status##"
+    }
 }
 
 # --- Step summary helpers (concise mode) ---
@@ -522,6 +528,7 @@ function Invoke-WindowsVerify {
 $script:CrlfFixed = $false
 function Invoke-CrlfFix {
     if ($RunningOnLinux) { return }  # Not needed on native Linux
+    if ($SubProcess) { return }      # Parent already did CRLF fix
     if ($script:CrlfFixed) { return }
     if ($ShowAll) { Write-Host "  Stripping CRLF for WSL..." -ForegroundColor DarkGray }
     $targets = Get-ChildItem -Path $RepoRoot -Include '*.c','*.h' -Recurse -File
@@ -792,42 +799,134 @@ function Invoke-Target {
 
 # --- Main execution ---
 $targets = if ($Target -eq 'all') { @('windows', 'linux', 'arm') } else { @($Target) }
-foreach ($t in $targets) {
+
+$windowsTargets = @($targets | Where-Object { $_ -eq 'windows' })
+$wslTargets = @($targets | Where-Object { $_ -ne 'windows' })
+
+# Windows targets run sequentially (native, fast)
+foreach ($t in $windowsTargets) {
     Invoke-Target $t $Action
+}
+
+# WSL targets: run in parallel when multiple targets on Windows
+if ($wslTargets.Count -gt 1 -and $RunningOnWindows -and -not $SubProcess) {
+    # CRLF fix once before any WSL work
+    Invoke-CrlfFix
+
+    $wslProcs = @()
+    foreach ($t in $wslTargets) {
+        $logFile = Join-Path $RepoRoot "bin\.ci_${t}.log"
+        $showAllStr = if ($ShowAll) { ' -ShowAll' } else { '' }
+
+        # Build sub-process command; use -EncodedCommand to avoid quoting issues
+        $psCmd = @"
+`$ErrorActionPreference = 'Continue'
+Start-Transcript -Path '$logFile' -Force | Out-Null
+& '$PSCommandPath' -Target '$t' -Action '$Action' -Compiler '$Compiler' -OptLevel '$OptLevel' -SubProcess$showAllStr
+`$rc = `$LASTEXITCODE
+Stop-Transcript | Out-Null
+exit `$rc
+"@
+        $bytes = [System.Text.Encoding]::Unicode.GetBytes($psCmd)
+        $encoded = [Convert]::ToBase64String($bytes)
+
+        $psi = [System.Diagnostics.ProcessStartInfo]::new()
+        $psi.FileName = 'powershell'
+        $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded"
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.WorkingDirectory = $RepoRoot
+
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $wslProcs += @{ Target = $t; Proc = $proc; LogFile = $logFile }
+    }
+
+    # Wait for all WSL sub-processes and collect results
+    foreach ($wp in $wslProcs) {
+        $wp.Proc.WaitForExit()
+        $exitCode = $wp.Proc.ExitCode
+
+        if (Test-Path $wp.LogFile) {
+            $rawLines = @(Get-Content $wp.LogFile)
+
+            # Strip transcript header/footer (delimited by **** lines)
+            $starIndices = @()
+            for ($i = 0; $i -lt $rawLines.Count; $i++) {
+                if ($rawLines[$i] -match '^\*{4,}') { $starIndices += $i }
+            }
+            if ($starIndices.Count -ge 4) {
+                $bodyStart = $starIndices[1] + 1
+                $bodyEnd = $starIndices[$starIndices.Count - 2] - 1
+                $bodyLines = @($rawLines[$bodyStart..$bodyEnd])
+            } else {
+                $bodyLines = $rawLines
+            }
+
+            # Display output, parse structured result markers
+            foreach ($line in $bodyLines) {
+                if ($line -match '^##CI_RESULT##(.+?)##(.+?)##(.+?)##$') {
+                    Add-Result $Matches[1] $Matches[2] $Matches[3]
+                } else {
+                    Write-Host $line
+                }
+            }
+
+            Remove-Item $wp.LogFile -ErrorAction SilentlyContinue
+        }
+
+        # If sub-process failed and no results were parsed, add a generic FAIL
+        if ($exitCode -ne 0) {
+            $targetResults = @($Results | Where-Object { $_.Target -match [regex]::Escape($wp.Target) })
+            if ($targetResults.Count -eq 0) {
+                Add-Result $wp.Target "All" "FAIL"
+            }
+        }
+    }
+} else {
+    # Sequential: single WSL target, running on Linux, or sub-process mode
+    foreach ($t in $wslTargets) {
+        Invoke-Target $t $Action
+    }
 }
 
 # ============================================================
 #  Binary size comparison table
 # ============================================================
-Write-BinarySizeTable
+if (-not $SubProcess) {
+    Write-BinarySizeTable
+}
 
 # ============================================================
 #  Documentation regeneration
 # ============================================================
-Write-Host ""
-Write-Host "  Regenerating docs..." -NoNewline
-try {
-    & (Join-Path $PSScriptRoot 'gen-docs.ps1')
-    $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Generate'; Status = 'PASS' }
-} catch {
-    Write-Host "  FAILED: $_" -ForegroundColor Red
-    $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Generate'; Status = 'FAIL' }
+if (-not $SubProcess) {
+    Write-Host ""
+    Write-Host "  Regenerating docs..." -NoNewline
+    try {
+        & (Join-Path $PSScriptRoot 'gen-docs.ps1')
+        $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Generate'; Status = 'PASS' }
+    } catch {
+        Write-Host "  FAILED: $_" -ForegroundColor Red
+        $Results += [PSCustomObject]@{ Target = 'Docs'; Action = 'Generate'; Status = 'FAIL' }
+    }
 }
 
 # ============================================================
 #  Summary
 # ============================================================
-Write-Host ""
-Write-Host "=== Summary ===" -ForegroundColor Cyan
-Write-Host ("{0,-16} {1,-10} {2}" -f "Target", "Action", "Result")
-Write-Host ("{0,-16} {1,-10} {2}" -f "------", "------", "------")
-foreach ($r in $Results) {
-    $color = switch ($r.Status) {
-        'PASS' { 'Green'  }
-        'FAIL' { 'Red'    }
-        'SKIP' { 'Yellow' }
+if (-not $SubProcess) {
+    Write-Host ""
+    Write-Host "=== Summary ===" -ForegroundColor Cyan
+    Write-Host ("{0,-16} {1,-10} {2}" -f "Target", "Action", "Result")
+    Write-Host ("{0,-16} {1,-10} {2}" -f "------", "------", "------")
+    foreach ($r in $Results) {
+        $color = switch ($r.Status) {
+            'PASS' { 'Green'  }
+            'FAIL' { 'Red'    }
+            'SKIP' { 'Yellow' }
+        }
+        Write-Host ("{0,-16} {1,-10} {2}" -f $r.Target, $r.Action, $r.Status) -ForegroundColor $color
     }
-    Write-Host ("{0,-16} {1,-10} {2}" -f $r.Target, $r.Action, $r.Status) -ForegroundColor $color
 }
 
 Pop-Location

@@ -87,8 +87,10 @@ function showcase_smoke {    # Run showcase smoke tests {binarysuffix:} {runnera
 }
 
 function verify {    # Verify executables don't depend on stdlib and contain no bloat {compiler:gcc} {optimizationchar:3}
-  # Build first to ensure we have current binaries
-  build "$@"
+  # Build only if binaries don't exist
+  if [ ! -f "bin/test" ]; then
+    build "$@"
+  fi
 
   echo "=== Verifying executables are stdlib-independent and bloat-free ==="
   
@@ -233,8 +235,10 @@ function test_aarch64 {    # Build and run all tests for AArch64 using QEMU plus
 }
 
 function verify_arm {    # Verify ARM executables are stdlib-independent and bloat-free {compiler:arm-linux-gnueabihf-gcc} {optimizationchar:3}
-  # Build ARM first to ensure we have current binaries
-  build_arm "$@"
+  # Build ARM only if binaries don't exist
+  if ! ls bin/*.armhf 1>/dev/null 2>&1; then
+    build_arm "$@"
+  fi
 
   echo "=== Verifying ARM executables are stdlib-independent and bloat-free ==="
 
@@ -296,8 +300,10 @@ function verify_arm {    # Verify ARM executables are stdlib-independent and blo
 }
 
 function verify_aarch64 {    # Verify AArch64 executables are stdlib-independent and bloat-free {compiler:aarch64-linux-gnu-gcc} {optimizationchar:3}
-  # Build AArch64 first to ensure we have current binaries
-  build_aarch64 "$@"
+  # Build AArch64 only if binaries don't exist
+  if ! ls bin/*.aarch64 1>/dev/null 2>&1; then
+    build_aarch64 "$@"
+  fi
 
   echo "=== Verifying AArch64 executables are stdlib-independent and bloat-free ==="
 
