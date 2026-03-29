@@ -558,10 +558,10 @@ function Invoke-LinuxBuildWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Build" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile build $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile build $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build $CC $OptLevel 2>&1"
         }
     }
 }
@@ -570,10 +570,10 @@ function Invoke-LinuxTestWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Test" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile test $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile test $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test $CC $OptLevel 2>&1"
         }
     }
 }
@@ -582,10 +582,10 @@ function Invoke-LinuxVerifyWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Verify" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile verify $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile verify $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify $CC $OptLevel 2>&1"
         }
     }
 }
@@ -597,10 +597,10 @@ function Invoke-ArmBuildWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Build" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile build_arm $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile build_arm $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_arm $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_arm $CC $OptLevel 2>&1"
         }
     }
 }
@@ -612,10 +612,10 @@ function Invoke-Aarch64BuildWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Build" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel 2>&1"
         }
     }
 }
@@ -630,10 +630,10 @@ function Invoke-Aarch64TestWith {
     }
     Invoke-Step $Label "Test" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile test_aarch64 $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile test_aarch64 $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test_aarch64 $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test_aarch64 $CC $OptLevel 2>&1"
         }
     }
 }
@@ -642,10 +642,10 @@ function Invoke-Aarch64VerifyWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Verify" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile verify_aarch64 $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile verify_aarch64 $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_aarch64 $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_aarch64 $CC $OptLevel 2>&1"
         }
     }
 }
@@ -660,10 +660,10 @@ function Invoke-ArmTestWith {
     }
     Invoke-Step $Label "Test" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile test_arm $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile test_arm $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test_arm $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test_arm $CC $OptLevel 2>&1"
         }
     }
 }
@@ -672,10 +672,10 @@ function Invoke-ArmVerifyWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Verify" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile verify_arm $CC $OptLevel"
+            bash -c "cd '$RepoRoot' && ./Taskfile verify_arm $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_arm $CC $OptLevel"
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_arm $CC $OptLevel 2>&1"
         }
     }
 }
