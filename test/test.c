@@ -691,6 +691,75 @@ void test_strtoul_strtol(void) {
     TEST_SECTION_PASS("l_strtoul / l_strtol");
 }
 
+// ===================== l_strtoull / l_strtoll =====================
+
+void test_strtoull_strtoll(void) {
+    char *ep;
+
+    TEST_FUNCTION("l_strtoull / l_strtoll");
+
+    /* strtoull: basic decimal */
+    TEST_ASSERT(l_strtoull("0",   NULL, 10) == 0ULL,  "strtoull '0' base 10");
+    TEST_ASSERT(l_strtoull("123", NULL, 10) == 123ULL, "strtoull '123' base 10");
+    TEST_ASSERT(l_strtoull("  42", NULL, 10) == 42ULL, "strtoull leading spaces");
+    TEST_ASSERT(l_strtoull("+99", NULL, 10) == 99ULL,  "strtoull leading plus");
+
+    /* strtoull: hex */
+    TEST_ASSERT(l_strtoull("ff",   NULL, 16) == 255ULL, "strtoull 'ff' base 16");
+    TEST_ASSERT(l_strtoull("0xff", NULL,  0) == 255ULL, "strtoull '0xff' base 0");
+    TEST_ASSERT(l_strtoull("0XFF", NULL,  0) == 255ULL, "strtoull '0XFF' base 0");
+
+    /* strtoull: 64-bit values beyond ULONG_MAX on 32-bit platforms */
+    TEST_ASSERT(l_strtoull("4294967296", NULL, 10) == 4294967296ULL, "strtoull 2^32");
+    TEST_ASSERT(l_strtoull("18446744073709551615", NULL, 10) == 18446744073709551615ULL,
+                "strtoull ULLONG_MAX");
+
+    /* strtoull: overflow -> ULLONG_MAX */
+    TEST_ASSERT(l_strtoull("99999999999999999999999999", NULL, 10) == 18446744073709551615ULL,
+                "strtoull overflow -> ULLONG_MAX");
+
+    /* strtoull: endptr */
+    ep = NULL;
+    l_strtoull("123abc", &ep, 10);
+    TEST_ASSERT(ep != NULL && ep[0] == 'a', "strtoull endptr stops at non-digit");
+
+    ep = NULL;
+    l_strtoull("no-digits", &ep, 10);
+    TEST_ASSERT(ep != NULL && ep[0] == 'n', "strtoull endptr stays at start when no digits");
+
+    /* strtoll: positive */
+    TEST_ASSERT(l_strtoll("42",  NULL, 10) == 42LL,  "strtoll '42'");
+    TEST_ASSERT(l_strtoll(" 42", NULL, 10) == 42LL,  "strtoll leading space");
+    TEST_ASSERT(l_strtoll("+7",  NULL, 10) == 7LL,   "strtoll leading plus");
+
+    /* strtoll: negative */
+    TEST_ASSERT(l_strtoll("-1",   NULL, 10) == -1LL,   "strtoll '-1'");
+    TEST_ASSERT(l_strtoll("-123", NULL, 10) == -123LL, "strtoll '-123'");
+
+    /* strtoll: 64-bit values */
+    TEST_ASSERT(l_strtoll("9223372036854775807",  NULL, 10) == 9223372036854775807LL,
+                "strtoll LLONG_MAX");
+    TEST_ASSERT(l_strtoll("-9223372036854775808", NULL, 10) == (-9223372036854775807LL - 1LL),
+                "strtoll LLONG_MIN");
+
+    /* strtoll: overflow/underflow */
+    TEST_ASSERT(l_strtoll("99999999999999999999999",  NULL, 10) == 9223372036854775807LL,
+                "strtoll overflow -> LLONG_MAX");
+    TEST_ASSERT(l_strtoll("-99999999999999999999999", NULL, 10) == (-9223372036854775807LL - 1LL),
+                "strtoll underflow -> LLONG_MIN");
+
+    /* strtoll: hex / octal via base 0 */
+    TEST_ASSERT(l_strtoll("0x10", NULL, 0) == 16LL, "strtoll '0x10' base 0");
+    TEST_ASSERT(l_strtoll("010",  NULL, 0) == 8LL,  "strtoll '010' base 0 -> octal");
+
+    /* strtoll: endptr */
+    ep = NULL;
+    l_strtoll("-99xyz", &ep, 10);
+    TEST_ASSERT(ep != NULL && ep[0] == 'x', "strtoll endptr after digits");
+
+    TEST_SECTION_PASS("l_strtoull / l_strtoll");
+}
+
 // ===================== l_itoa =====================
 
 void test_itoa(void) {
@@ -2563,6 +2632,7 @@ int main(int argc, char* argv[]) {
     test_char_classification();
     test_atoi_atol();
     test_strtoul_strtol();
+    test_strtoull_strtoll();
     test_itoa();
     test_itoa_atoi_roundtrip();
 

@@ -226,6 +226,10 @@ int l_atoi(const char *s);
 unsigned long l_strtoul(const char *nptr, char **endptr, int base);
 /// Converts a string to a long, auto-detecting base when base==0; handles leading sign; sets *endptr past last digit
 long l_strtol(const char *nptr, char **endptr, int base);
+/// Converts a string to an unsigned long long (64-bit); auto-detects base when base==0; sets *endptr past last digit
+unsigned long long l_strtoull(const char *nptr, char **endptr, int base);
+/// Converts a string to a long long (64-bit); auto-detects base when base==0; handles leading sign; sets *endptr past last digit
+long long l_strtoll(const char *nptr, char **endptr, int base);
 /// Converts an integer to a string in the given radix (2-36)
 char *l_itoa(int in, char* buffer, int radix);
 
@@ -675,6 +679,8 @@ int WINAPI mainCRTStartup(void)
 #  define atoi l_atoi
 #  define strtoul l_strtoul
 #  define strtol l_strtol
+#  define strtoull l_strtoull
+#  define strtoll l_strtoll
 #  define itoa l_itoa
 
 #  define memmove l_memmove
@@ -995,13 +1001,39 @@ inline void *l_memset(void *dst, int b, size_t len)
 
 inline int l_memcmp(const void *s1, const void *s2, size_t n)
 {
-    size_t ofs = 0;
-    int c1 = 0;
+    const unsigned char *a = (const unsigned char *)s1;
+    const unsigned char *b = (const unsigned char *)s2;
 
-    while (ofs < n && !(c1 = ((unsigned char *)s1)[ofs] - ((unsigned char *)s2)[ofs])) {
-        ofs++;
+    /* Align a to word boundary one byte at a time. */
+    while (n && ((uintptr_t)a & (sizeof(uintptr_t) - 1U))) {
+        if (*a != *b)
+            return *a - *b;
+        a++; b++; n--;
     }
-    return c1;
+
+    /* Word-at-a-time comparison when b is also word-aligned.
+     * Compare one machine word per iteration; bail out on mismatch. */
+    if (n >= sizeof(uintptr_t) && !((uintptr_t)b & (sizeof(uintptr_t) - 1U))) {
+        typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+        const uptr_alias *wa = (const uptr_alias *)(const void *)a;
+        const uptr_alias *wb = (const uptr_alias *)(const void *)b;
+        while (n >= sizeof(uintptr_t)) {
+            if (*wa != *wb)
+                break;
+            wa++; wb++;
+            n -= sizeof(uintptr_t);
+        }
+        a = (const unsigned char *)(const void *)wa;
+        b = (const unsigned char *)(const void *)wb;
+    }
+
+    /* Tail bytes (or bail-out from word loop). */
+    while (n--) {
+        if (*a != *b)
+            return *a - *b;
+        a++; b++;
+    }
+    return 0;
 }
 
 inline char *l_strcpy(char *dst, const char *src)
@@ -1276,6 +1308,96 @@ inline long l_strtol(const char *nptr, char **endptr, int base)
     return (long)uval;
 }
 
+inline unsigned long long l_strtoull(const char *nptr, char **endptr, int base)
+{
+    const char *s = nptr;
+    unsigned long long acc = 0;
+    int overflow = 0;
+    int any = 0;
+
+    while (l_isspace((unsigned char)*s))
+        s++;
+
+    if (*s == '+')
+        s++;
+
+    if ((base == 0 || base == 16) && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        s += 2;
+        base = 16;
+    } else if (base == 0) {
+        base = (s[0] == '0') ? 8 : 10;
+    }
+
+    if (base < 2 || base > 36) {
+        if (endptr)
+            *endptr = (char *)nptr;
+        return 0;
+    }
+
+    for (;;) {
+        unsigned char c = (unsigned char)*s;
+        int digit;
+        if (c >= '0' && c <= '9')
+            digit = c - '0';
+        else if (c >= 'a' && c <= 'z')
+            digit = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'Z')
+            digit = c - 'A' + 10;
+        else
+            break;
+        if (digit >= base)
+            break;
+        any = 1;
+        if (!overflow) {
+            if (acc > (ULLONG_MAX - (unsigned long long)digit) / (unsigned long long)base) {
+                overflow = 1;
+                acc = ULLONG_MAX;
+            } else {
+                acc = acc * (unsigned long long)base + (unsigned long long)digit;
+            }
+        }
+        s++;
+    }
+
+    if (endptr)
+        *endptr = (char *)(any ? s : nptr);
+    return acc;
+}
+
+inline long long l_strtoll(const char *nptr, char **endptr, int base)
+{
+    const char *s = nptr;
+    int neg = 0;
+    unsigned long long uval;
+    char *ep;
+
+    while (l_isspace((unsigned char)*s))
+        s++;
+
+    if (*s == '-') {
+        neg = 1;
+        s++;
+    } else if (*s == '+') {
+        s++;
+    }
+
+    uval = l_strtoull(s, &ep, base);
+
+    if (ep == s)
+        ep = (char *)nptr;
+    if (endptr)
+        *endptr = ep;
+
+    if (neg) {
+        if (uval > (unsigned long long)LLONG_MAX + 1ULL)
+            return LLONG_MIN;
+        return -(long long)uval;
+    }
+    if (uval > (unsigned long long)LLONG_MAX)
+        return LLONG_MAX;
+    return (long long)uval;
+}
+
 //function to reverse a string
 inline void l_reverse(char str[], int length)
 {
@@ -1365,6 +1487,39 @@ inline void *l_memchr(const void *s, int c, size_t n)
     const unsigned char *p = (const unsigned char *)s;
     const unsigned char uc = (unsigned char)c;
 
+    /* Align to word boundary one byte at a time. */
+    while (n && ((uintptr_t)p & (sizeof(uintptr_t) - 1U))) {
+        if (*p == uc)
+            return (void *)p;
+        p++;
+        n--;
+    }
+
+    /* Word-at-a-time search: replicate target byte into every byte of a word,
+     * XOR each buffer word with it, then use the Hacker's Delight has-zero-byte
+     * trick to detect a match.  (x ^ repeated == 0 iff x == target byte.) */
+    if (n >= sizeof(uintptr_t)) {
+        typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+        const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;
+        const uintptr_t highs = lones << 7;
+        uintptr_t repeated = uc;
+        repeated |= repeated << 8;
+        repeated |= repeated << 16;
+#if UINTPTR_MAX > 0xFFFFFFFFU
+        repeated |= repeated << 32;
+#endif
+        const uptr_alias *wp = (const uptr_alias *)(const void *)p;
+        while (n >= sizeof(uintptr_t)) {
+            uintptr_t xw = *wp ^ repeated;
+            if ((xw - lones) & ~xw & highs)
+                break;
+            wp++;
+            n -= sizeof(uintptr_t);
+        }
+        p = (const unsigned char *)(const void *)wp;
+    }
+
+    /* Tail scan (or scan within the word that triggered). */
     while (n--) {
         if (*p == uc)
             return (void *)p;
