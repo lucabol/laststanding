@@ -248,8 +248,8 @@ function Get-StepSummary {
 function Write-BinarySizeTable {
     $targets = @($script:BinarySizes.Keys | Sort-Object @{
         Expression = {
-            if ($script:BinarySizes[$_].ContainsKey('countlines')) {
-                $script:BinarySizes[$_]['countlines']
+            if ($script:BinarySizes[$_].ContainsKey('hello')) {
+                $script:BinarySizes[$_]['hello']
             } else { [int]::MaxValue }
         }
     })
@@ -266,11 +266,12 @@ function Write-BinarySizeTable {
         'AArch64 (clang)' = 'A64/clang'
     }
 
-    # Collect all binary names across targets
+    # Show only representative binaries (smallest CLI + UI) to keep table readable
+    $showBinaries = @('hello', 'ui_controls')
     $allBinaries = @()
     foreach ($t in $targets) {
         foreach ($name in $script:BinarySizes[$t].Keys) {
-            if ($name -notin $allBinaries) { $allBinaries += $name }
+            if ($name -in $showBinaries -and $name -notin $allBinaries) { $allBinaries += $name }
         }
     }
     $allBinaries = $allBinaries | Sort-Object

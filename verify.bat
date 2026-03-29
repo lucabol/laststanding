@@ -62,21 +62,44 @@ for %%f in (bin\*.exe) do (
         echo   Dependencies: SKIP [no tool]
     )
 
-    REM --- Stdlib symbols ---
-    if defined HAS_STRINGS (
-        strings "%%f" | findstr /I "libc glibc stdlib printf malloc free msvcrt" >nul 2>&1
-        if !errorlevel! neq 0 (
-            echo   Stdlib symbols: PASS
-        ) else (
-            echo   Stdlib symbols: FAIL
-            strings "%%f" | findstr /I "libc glibc stdlib printf malloc free msvcrt"
+    REM --- Stdlib symbols (DLL import check + string patterns) ---
+    set "STDLIB_FAIL="
+
+    REM Primary check: look for CRT DLL imports via dependency tool
+    if "!DEP_TOOL!"=="dumpbin" (
+        dumpbin /dependents "%%f" 2>nul | findstr /I "msvcrt ucrtbase vcruntime api-ms-win-crt" >nul 2>&1
+        if !errorlevel! equ 0 (
+            set "STDLIB_FAIL=1"
+            echo   Stdlib symbols: FAIL [CRT DLL import detected]
+            dumpbin /dependents "%%f" 2>nul | findstr /I "msvcrt ucrtbase vcruntime api-ms-win-crt"
         )
-    ) else (
-        findstr /L "msvcrt libc stdlib" "%%f" >nul 2>&1
-        if !errorlevel! neq 0 (
-            echo   Stdlib symbols: PASS [basic check]
+    )
+    if "!DEP_TOOL!"=="objdump" (
+        objdump -p "%%f" 2>nul | findstr /I "msvcrt ucrtbase vcruntime api-ms-win-crt" >nul 2>&1
+        if !errorlevel! equ 0 (
+            set "STDLIB_FAIL=1"
+            echo   Stdlib symbols: FAIL [CRT DLL import detected]
+            objdump -p "%%f" 2>nul | findstr /I "msvcrt ucrtbase vcruntime api-ms-win-crt"
+        )
+    )
+
+    REM Secondary check: string patterns (only if primary didn't already FAIL)
+    if not defined STDLIB_FAIL (
+        if defined HAS_STRINGS (
+            strings "%%f" | findstr /I "msvcrt ucrtbase vcruntime __libc glibc" >nul 2>&1
+            if !errorlevel! neq 0 (
+                echo   Stdlib symbols: PASS
+            ) else (
+                echo   Stdlib symbols: FAIL [CRT string found]
+                strings "%%f" | findstr /I "msvcrt ucrtbase vcruntime __libc glibc"
+            )
         ) else (
-            echo   Stdlib symbols: WARN [possible refs]
+            findstr /L "msvcrt ucrtbase vcruntime __libc glibc" "%%f" >nul 2>&1
+            if !errorlevel! neq 0 (
+                echo   Stdlib symbols: PASS [basic check]
+            ) else (
+                echo   Stdlib symbols: WARN [possible CRT refs]
+            )
         )
     )
 

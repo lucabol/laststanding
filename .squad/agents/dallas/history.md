@@ -336,6 +336,15 @@ Implemented `l_getopt` option parser in `l_os.h`. Getopt-compatible API: `int l_
 
 Build and full test suite pass on Windows.
 
+## Learnings
+
+- `l_read_line` alias can't be `read_line` — sh.c defines its own `read_line` with different signature. Kept as `l_read_line` only.
+- Static inline functions in l_os.h that call other l_os.h functions (like l_memcpy, l_read, l_write) must be ordered AFTER those functions in the header. The first `#include "l_os.h"` (without L_MAINFILE) compiles the L_OSH block top-to-bottom.
+- Platform-dependent functions (l_time) need separate Unix/Windows implementations inside the respective `#ifdef` blocks. Platform-independent ones (l_rand, l_qsort, l_bsearch) go in the L_OSH section before the platform split.
+- l_dprintf must be guarded by `#ifdef L_WITHSNPRINTF` and placed after l_write is defined (cross-platform section), not inside the snprintf implementation block.
+- For ARM32, use `clock_gettime64` (syscall 403) with 64-bit timespec for Y2038 safety, not `clock_gettime`.
+- sort.c refactored to use `l_qsort` with a `compare_ptr` wrapper (qsort takes `const void*` pairs, sort.c's comparator takes `const char*`).
+
 ## Work Session — 2026-03-25
 
 Implemented deterministic showcase smoke tests end-to-end for the demo binaries.
