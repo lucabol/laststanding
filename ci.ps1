@@ -241,6 +241,17 @@ function Collect-BinarySizes {
     }
 }
 
+function Emit-BinarySizeMarkers {
+    param([string]$TargetName)
+    if (-not $SubProcess) { return }
+    if (-not $script:BinarySizes.ContainsKey($TargetName)) { return }
+    $pairs = @()
+    foreach ($k in $script:BinarySizes[$TargetName].Keys) {
+        $pairs += "${k}:$($script:BinarySizes[$TargetName][$k])"
+    }
+    Write-Output "##CI_SIZES##$TargetName##$($pairs -join ',')##"
+}
+
 function Get-StepSummary {
     param([string]$TargetName, [string]$ActionName, [string]$Output)
     switch ($ActionName) {
@@ -455,6 +466,7 @@ function Invoke-Step {
             Add-Result $TargetName $ActionName "PASS"
             if ($ActionName -eq 'Verify') {
                 Collect-BinarySizes $TargetName $outputStr
+                Emit-BinarySizeMarkers $TargetName
             }
         } catch {
             Write-Host "FAIL: $_" -ForegroundColor Red
@@ -490,6 +502,9 @@ function Invoke-Step {
             }
             Write-Host "PASS" -ForegroundColor Green
             Add-Result $TargetName $ActionName "PASS"
+            if ($ActionName -eq 'Verify') {
+                Emit-BinarySizeMarkers $TargetName
+            }
         } catch {
             Write-Host "FAIL: $_" -ForegroundColor Red
             Add-Result $TargetName $ActionName "FAIL"
@@ -862,12 +877,46 @@ exit `$rc
                 $bodyLines = $rawLines
             }
 
-            # Display output, parse structured result markers
-            foreach ($line in $bodyLines) {
+            # Display output, parse structured markers, reconstruct one-liners
+            $lineIdx = 0
+            while ($lineIdx -lt $bodyLines.Count) {
+                $line = $bodyLines[$lineIdx]
                 if ($line -match '^##CI_RESULT##(.+?)##(.+?)##(.+?)##$') {
                     Add-Result $Matches[1] $Matches[2] $Matches[3]
+                    $lineIdx++
+                } elseif ($line -match '^##CI_SIZES##(.+?)##(.+?)##$') {
+                    $sizesTarget = $Matches[1]
+                    $sizesPairs = $Matches[2] -split ','
+                    $sizes = @{}
+                    foreach ($pair in $sizesPairs) {
+                        $parts = $pair -split ':'
+                        if ($parts.Count -eq 2) {
+                            $sizes[$parts[0]] = [int64]$parts[1]
+                        }
+                    }
+                    if ($sizes.Count -gt 0) {
+                        $script:BinarySizes[$sizesTarget] = $sizes
+                    }
+                    $lineIdx++
+                } elseif ($line -match '^\s+(Building|Testing|Verifying)\s') {
+                    # Accumulate concise step lines into a single one-liner
+                    $oneLiner = $line.TrimEnd()
+                    $lineIdx++
+                    while ($lineIdx -lt $bodyLines.Count) {
+                        $nextLine = $bodyLines[$lineIdx]
+                        if ($nextLine -match '^##CI_') { break }
+                        if ($nextLine -match '^\s+(Building|Testing|Verifying)\s') { break }
+                        $trimmed = $nextLine.Trim()
+                        if ($trimmed -ne '') {
+                            $oneLiner += "  $trimmed"
+                        }
+                        $lineIdx++
+                        if ($trimmed -match '\b(PASS|FAIL)\b') { break }
+                    }
+                    Write-Host $oneLiner
                 } else {
                     Write-Host $line
+                    $lineIdx++
                 }
             }
 

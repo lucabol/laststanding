@@ -506,3 +506,21 @@ Added path and link primitives: `l_symlink`, `l_readlink`, `l_realpath`.
 - `symlinkat` syscall numbers: x86_64=265, aarch64=36, arm=331. `readlinkat`: x86_64=267, aarch64=78, arm=332.
 - Windows symlinks require developer mode or admin. `SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE` (0x2) enables unprivileged creation when developer mode is on.
 - Windows `FSCTL_GET_REPARSE_POINT` (0x000900A8) returns raw reparse data. For symlinks (tag 0xA000000C), PrintName at offset +12 (offset) and +14 (length) in the SymbolicLinkReparseBuffer gives the display target.
+
+## Work Session — Dallas
+
+Fixed three issues:
+
+1. **l_strtoll/l_strtol LLONG_MIN/LONG_MIN UB (l_os.h):** Changed `>` to `>=` in the negative-overflow guard so `uval == LLONG_MAX+1` returns `LLONG_MIN` directly instead of casting to `long long` (undefined behavior on ARM32 clang). Same fix applied to `l_strtol`.
+
+2. **CI output formatting (ci.ps1):** WSL sub-process transcript lines were split across multiple lines. Rewrote parent-side transcript parser to accumulate lines starting with Building/Testing/Verifying through PASS/FAIL into single one-liners.
+
+3. **Binary size table missing WSL architectures (ci.ps1):** Added `Emit-BinarySizeMarkers` function that emits `##CI_SIZES##` structured markers from sub-processes. Parent parses these markers to populate `$script:BinarySizes`. Binary size table now shows all 7 configurations.
+
+**Verified:** Full CI 22/22 PASS. Binary size table shows all architectures.
+
+## Learnings
+
+- Casting `LLONG_MAX+1` to `long long` is UB; ARM32 clang exposes this while x86_64 doesn't. Always return `LLONG_MIN`/`LONG_MIN` directly for the exact boundary value.
+- PowerShell `Start-Transcript` captures each `Write-Host` call as a separate line — `Write-Host -NoNewline` doesn't preserve single-line output in transcripts. Must reconstruct one-liners in the parent.
+- Sub-process state (`$script:BinarySizes`) doesn't survive across process boundaries. Use structured markers in transcript output to transfer data back to the parent.

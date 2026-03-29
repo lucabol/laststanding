@@ -1365,7 +1365,7 @@ inline long l_strtol(const char *nptr, char **endptr, int base)
         *endptr = ep;
 
     if (neg) {
-        if (uval > (unsigned long)LONG_MAX + 1UL)
+        if (uval >= (unsigned long)LONG_MAX + 1UL)
             return LONG_MIN;
         return -(long)uval;
     }
@@ -1455,7 +1455,7 @@ inline long long l_strtoll(const char *nptr, char **endptr, int base)
         *endptr = ep;
 
     if (neg) {
-        if (uval > (unsigned long long)LLONG_MAX + 1ULL)
+        if (uval >= (unsigned long long)LLONG_MAX + 1ULL)
             return LLONG_MIN;
         return -(long long)uval;
     }
