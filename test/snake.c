@@ -17,15 +17,6 @@ static Pos apple;
 static int score;
 static int game_over;
 
-static unsigned int rng_state;
-
-static unsigned int rng_next(void) {
-    rng_state ^= rng_state << 13;
-    rng_state ^= rng_state >> 17;
-    rng_state ^= rng_state << 5;
-    return rng_state;
-}
-
 static void write_str(const char *s) {
     write(STDOUT, s, strlen(s));
 }
@@ -47,8 +38,8 @@ static void move_cursor(int row, int col) {
 static void place_apple(void) {
     int tries = 0;
     do {
-        apple.x = (rng_next() % (W - 2)) + 1;
-        apple.y = (rng_next() % (H - 2)) + 1;
+        apple.x = (l_rand() % (W - 2)) + 1;
+        apple.y = (l_rand() % (H - 2)) + 1;
         int on_snake = 0;
         for (int i = 0; i < snake_len; i++) {
             if (snake[i].x == apple.x && snake[i].y == apple.y) {
@@ -69,7 +60,7 @@ static void init_game(void) {
         snake[i].x = 5 - i;
         snake[i].y = H / 2;
     }
-    rng_state = 12345;
+    l_srand(12345);
     place_apple();
 }
 
@@ -140,7 +131,7 @@ static void update(void) {
         for (int i = snake_len - 1; i > 0; i--)
             snake[i] = snake[i - 1];
         score += 10;
-        rng_state += score;
+        l_srand(l_rand_state + (unsigned int)score);
         place_apple();
     }
 

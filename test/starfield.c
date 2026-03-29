@@ -16,16 +16,8 @@ static int star_x[NUM_STARS];
 static int star_y[NUM_STARS];
 static int star_z[NUM_STARS];
 
-static uint32_t rng_state = 54321;
-static uint32_t rng_next(void) {
-    rng_state ^= rng_state << 13;
-    rng_state ^= rng_state >> 17;
-    rng_state ^= rng_state << 5;
-    return rng_state;
-}
-
 static int rng_range(int lo, int hi) {
-    return lo + (int)(rng_next() % (uint32_t)(hi - lo + 1));
+    return lo + (int)(l_rand() % (unsigned int)(hi - lo + 1));
 }
 
 static void spawn_star(int i) {

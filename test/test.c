@@ -2523,6 +2523,170 @@ void test_getopt(void) {
     TEST_SECTION_PASS("l_getopt");
 }
 
+// ===================== new feature tests =====================
+
+static int int_cmp(const void *a, const void *b) {
+    return *(const int *)a - *(const int *)b;
+}
+
+void test_min_max_clamp_abs(void) {
+    TEST_FUNCTION("L_MIN/L_MAX/L_CLAMP/l_abs");
+    TEST_ASSERT(L_MIN(3, 5) == 3, "min(3,5)");
+    TEST_ASSERT(L_MIN(5, 3) == 3, "min(5,3)");
+    TEST_ASSERT(L_MAX(3, 5) == 5, "max(3,5)");
+    TEST_ASSERT(L_MAX(5, 3) == 5, "max(5,3)");
+    TEST_ASSERT(L_CLAMP(2, 1, 10) == 2, "clamp in range");
+    TEST_ASSERT(L_CLAMP(-5, 0, 10) == 0, "clamp below");
+    TEST_ASSERT(L_CLAMP(20, 0, 10) == 10, "clamp above");
+    TEST_ASSERT(l_abs(5) == 5, "abs positive");
+    TEST_ASSERT(l_abs(-5) == 5, "abs negative");
+    TEST_ASSERT(l_abs(0) == 0, "abs zero");
+    TEST_ASSERT(l_labs(-100000L) == 100000L, "labs negative");
+    TEST_SECTION_PASS("L_MIN/L_MAX/L_CLAMP/l_abs");
+}
+
+void test_isprint_isxdigit(void) {
+    TEST_FUNCTION("l_isprint/l_isxdigit");
+    TEST_ASSERT(l_isprint(' '), "space is printable");
+    TEST_ASSERT(l_isprint('A'), "A is printable");
+    TEST_ASSERT(l_isprint('~'), "tilde is printable");
+    TEST_ASSERT(!l_isprint('\n'), "newline not printable");
+    TEST_ASSERT(!l_isprint(0x7f), "DEL not printable");
+    TEST_ASSERT(!l_isprint(0x00), "NUL not printable");
+    TEST_ASSERT(l_isxdigit('0'), "0 is hex");
+    TEST_ASSERT(l_isxdigit('9'), "9 is hex");
+    TEST_ASSERT(l_isxdigit('a'), "a is hex");
+    TEST_ASSERT(l_isxdigit('f'), "f is hex");
+    TEST_ASSERT(l_isxdigit('A'), "A is hex");
+    TEST_ASSERT(l_isxdigit('F'), "F is hex");
+    TEST_ASSERT(!l_isxdigit('g'), "g not hex");
+    TEST_ASSERT(!l_isxdigit('G'), "G not hex");
+    TEST_SECTION_PASS("l_isprint/l_isxdigit");
+}
+
+void test_rand_srand(void) {
+    TEST_FUNCTION("l_rand/l_srand");
+    l_srand(42);
+    unsigned int r1 = l_rand();
+    unsigned int r2 = l_rand();
+    TEST_ASSERT(r1 != r2, "consecutive calls differ");
+    l_srand(42);
+    TEST_ASSERT(l_rand() == r1, "same seed same sequence");
+    TEST_ASSERT(l_rand() == r2, "same seed same sequence (2)");
+    int has_nonzero = 0;
+    for (int i = 0; i < 100; i++) if (l_rand() != 0) has_nonzero = 1;
+    TEST_ASSERT(has_nonzero, "produces nonzero values");
+    TEST_SECTION_PASS("l_rand/l_srand");
+}
+
+void test_qsort_bsearch(void) {
+    TEST_FUNCTION("l_qsort/l_bsearch");
+    {
+        int arr[] = {5, 3, 1, 4, 2};
+        l_qsort(arr, 5, sizeof(int), int_cmp);
+        TEST_ASSERT(arr[0] == 1 && arr[1] == 2 && arr[2] == 3 && arr[3] == 4 && arr[4] == 5, "qsort int ascending");
+    }
+    {
+        int arr[] = {42};
+        l_qsort(arr, 1, sizeof(int), int_cmp);
+        TEST_ASSERT(arr[0] == 42, "qsort single element");
+    }
+    {
+        int arr[] = {1, 2, 3, 4, 5};
+        l_qsort(arr, 5, sizeof(int), int_cmp);
+        TEST_ASSERT(arr[0] == 1 && arr[4] == 5, "qsort already sorted");
+    }
+    {
+        int arr[] = {1, 2, 3, 4, 5};
+        int key = 3;
+        int *found = (int *)l_bsearch(&key, arr, 5, sizeof(int), int_cmp);
+        TEST_ASSERT(found != (void *)0 && *found == 3, "bsearch found");
+        key = 6;
+        found = (int *)l_bsearch(&key, arr, 5, sizeof(int), int_cmp);
+        TEST_ASSERT(found == (void *)0, "bsearch not found");
+    }
+    TEST_SECTION_PASS("l_qsort/l_bsearch");
+}
+
+void test_time(void) {
+    TEST_FUNCTION("l_time");
+    {
+        long long t1 = l_time((long long *)0);
+        TEST_ASSERT(t1 > 1700000000LL, "time is after 2023");
+        long long t2 = 0;
+        long long t3 = l_time(&t2);
+        TEST_ASSERT(t2 == t3, "pointer and return match");
+        TEST_ASSERT(t2 >= t1, "time doesn't go backward");
+    }
+    TEST_SECTION_PASS("l_time");
+}
+
+void test_dprintf(void) {
+    TEST_FUNCTION("l_dprintf");
+    {
+        L_FD fd = l_open_write("_dprintf_test.txt");
+        TEST_ASSERT(fd >= 0, "open for dprintf");
+        int n = l_dprintf(fd, "hello %d world %s\n", 42, "foo");
+        TEST_ASSERT(n > 0, "dprintf returns positive");
+        l_close(fd);
+
+        fd = l_open_read("_dprintf_test.txt");
+        char buf[128];
+        int nr = (int)l_read(fd, buf, sizeof(buf));
+        l_close(fd);
+        buf[nr] = 0;
+        TEST_ASSERT(l_strcmp(buf, "hello 42 world foo\n") == 0, "dprintf content correct");
+        l_unlink("_dprintf_test.txt");
+    }
+    TEST_SECTION_PASS("l_dprintf");
+}
+
+void test_read_line(void) {
+    TEST_FUNCTION("l_read_line");
+    {
+        L_FD fd = l_open_write("_readline_test.txt");
+        l_write(fd, "hello\nworld\nlast", 16);
+        l_close(fd);
+
+        fd = l_open_read("_readline_test.txt");
+        char buf[64];
+        ptrdiff_t n;
+
+        n = l_read_line(fd, buf, sizeof(buf));
+        TEST_ASSERT(n == 5, "first line length");
+        TEST_ASSERT(l_strcmp(buf, "hello") == 0, "first line content");
+
+        n = l_read_line(fd, buf, sizeof(buf));
+        TEST_ASSERT(n == 5, "second line length");
+        TEST_ASSERT(l_strcmp(buf, "world") == 0, "second line content");
+
+        n = l_read_line(fd, buf, sizeof(buf));
+        TEST_ASSERT(n == 4, "last line (no newline) length");
+        TEST_ASSERT(l_strcmp(buf, "last") == 0, "last line content");
+
+        n = l_read_line(fd, buf, sizeof(buf));
+        TEST_ASSERT(n == -1, "EOF returns -1");
+
+        l_close(fd);
+        l_unlink("_readline_test.txt");
+    }
+    {
+        L_FD fd = l_open_write("_readline_crlf.txt");
+        l_write(fd, "line1\r\nline2\r\n", 14);
+        l_close(fd);
+
+        fd = l_open_read("_readline_crlf.txt");
+        char buf[64];
+        l_read_line(fd, buf, sizeof(buf));
+        TEST_ASSERT(l_strcmp(buf, "line1") == 0, "CRLF line1");
+        l_read_line(fd, buf, sizeof(buf));
+        TEST_ASSERT(l_strcmp(buf, "line2") == 0, "CRLF line2");
+        l_close(fd);
+        l_unlink("_readline_crlf.txt");
+    }
+    TEST_SECTION_PASS("l_read_line");
+}
+
 // ===================== main =====================
 
 int main(int argc, char* argv[]) {
@@ -2615,6 +2779,15 @@ int main(int argc, char* argv[]) {
     test_lseek();
     test_mkdir();
     test_sched_yield();
+
+    // New features
+    test_min_max_clamp_abs();
+    test_isprint_isxdigit();
+    test_rand_srand();
+    test_qsort_bsearch();
+    test_time();
+    test_dprintf();
+    test_read_line();
 
     puts("\n");
     puts("=====================================\n");

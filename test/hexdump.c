@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
 
         // ASCII section
         for (int i = 0; i < n; i++) {
-            char c = (buf[i] >= 0x20 && buf[i] <= 0x7e) ? buf[i] : '.';
+            char c = l_isprint(buf[i]) ? buf[i] : '.';
             write(STDOUT, &c, 1);
         }
 

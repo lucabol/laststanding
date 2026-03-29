@@ -14,18 +14,10 @@
 static uint8_t grid[GH][GW];
 static uint8_t next[GH][GW];
 
-static uint32_t rng_state = 12345;
-static uint32_t rng_next(void) {
-    rng_state ^= rng_state << 13;
-    rng_state ^= rng_state >> 17;
-    rng_state ^= rng_state << 5;
-    return rng_state;
-}
-
 static void randomize(void) {
     for (int y = 0; y < GH; y++)
         for (int x = 0; x < GW; x++)
-            grid[y][x] = (rng_next() & 3) == 0 ? 1 : 0;
+            grid[y][x] = (l_rand() & 3) == 0 ? 1 : 0;
 }
 
 static void clear_grid(void) {
@@ -82,7 +74,7 @@ int main(int argc, char *argv[]) {
         int key = l_canvas_key(&canvas);
         if (key == 'q' || key == 'Q' || key == 27) break;
         if (key == ' ') paused = !paused;
-        if (key == 'r' || key == 'R') { rng_state += 7777; randomize(); }
+        if (key == 'r' || key == 'R') { l_srand(l_rand_state + 7777); randomize(); }
         if (key == 'c' || key == 'C') clear_grid();
 
         if (!paused) step();

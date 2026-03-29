@@ -26,23 +26,8 @@ static int compare(const char *a, const char *b) {
     return r;
 }
 
-/* Shell sort with Knuth's gap sequence — avoids quicksort worst case */
-static void shell_sort(int n) {
-    int gap = 1;
-    while (gap * 3 + 1 < n) gap = gap * 3 + 1;
-
-    while (gap > 0) {
-        for (int i = gap; i < n; i++) {
-            char *tmp = lines[i];
-            int j = i;
-            while (j >= gap && compare(lines[j - gap], tmp) > 0) {
-                lines[j] = lines[j - gap];
-                j -= gap;
-            }
-            lines[j] = tmp;
-        }
-        gap = gap / 3; /* constant divisor — compiler uses multiply-shift, ARM-safe */
-    }
+static int compare_ptr(const void *a, const void *b) {
+    return compare(*(const char *const *)a, *(const char *const *)b);
 }
 
 static void usage(void) {
@@ -113,7 +98,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    shell_sort(nlines);
+    l_qsort(lines, (size_t)nlines, sizeof(char *), compare_ptr);
 
     /* Output with optional unique filtering */
     for (int i = 0; i < nlines; i++) {

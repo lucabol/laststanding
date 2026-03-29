@@ -303,6 +303,10 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_islower` | Returns non-zero if c is a lowercase letter ('a'-'z') | All |
 | `l_toupper` | Converts c to uppercase; returns c unchanged if not a lowercase letter | All |
 | `l_tolower` | Converts c to lowercase; returns c unchanged if not an uppercase letter | All |
+| `l_isprint` | Returns non-zero if c is a printable ASCII character (0x20-0x7e) | All |
+| `l_isxdigit` | Returns non-zero if c is a hexadecimal digit (0-9, a-f, A-F) | All |
+| `l_abs` | Returns the absolute value of an integer | All |
+| `l_labs` | Returns the absolute value of a long | All |
 | `l_atol` | Converts a string to a long integer, skipping leading whitespace | All |
 | `l_atoi` | Converts a string to an integer | All |
 | `l_strtoul` | Converts a string to an unsigned long, auto-detecting base when base==0 (0x=hex, 0=octal, else decimal); sets *endptr past last digit | All |
@@ -317,15 +321,28 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_memrchr` | Finds last occurrence of byte c in the first n bytes of s, or NULL | All |
 | `l_strnlen` | Returns the length of s, but at most maxlen (does not scan past maxlen bytes) | All |
 | `l_memmem` | Finds first occurrence of needle (needlelen bytes) in haystack (haystacklen bytes), or NULL | All |
+| **Math macros and functions** | | |
+| ``L_MIN`` | Returns the minimum of two values | All |
+| ``L_MAX`` | Returns the maximum of two values | All |
+| ``L_CLAMP`` | Clamps a value between lo and hi | All |
+| **Sorting and searching** | | |
+| ``l_qsort`` | Sorts an array in-place using Shell sort (no malloc, no recursion) | All |
+| ``l_bsearch`` | Binary search in a sorted array. Returns pointer to matching element, or NULL | All |
+| **Random number generation (xorshift32, single-threaded)** | | |
+| `l_srand` | Seeds the pseudo-random number generator | All |
+| `l_rand` | Returns a pseudo-random unsigned int (xorshift32) | All |
 | **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | |
 | `l_vsnprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
 | `l_snprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
+| `l_dprintf` | Writes formatted output to file descriptor fd. Returns number of bytes written. | All |
 | **System functions** | | |
 | `l_exit` | Terminates the process with the given status code | All |
 | `l_open` | Opens a file with the given flags and mode, returns file descriptor | All |
 | `l_close` | Closes a file descriptor | All |
 | `l_read` | Reads up to count bytes from fd into buf | All |
 | `l_write` | Writes up to count bytes from buf to fd | All |
+| `l_read_line` | Reads one line from fd into buf (up to bufsz-1 bytes). Strips the newline. | All |
+| `l_time` | Returns current Unix timestamp (seconds since 1970-01-01). Also writes to *t if non-NULL. | All |
 | `l_puts` | Writes a string to stdout | All |
 | `l_exitif` | Exits with code and message if condition is true | All |
 | `l_getenv` | Returns value of environment variable, or NULL if not found | All |
@@ -502,7 +519,7 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 
 | Program | Assertions | Source |
 |---------|-----------|--------|
-| **test** | 572 (Linux/ARM/AArch64), 561 (Windows) | [test.c](test/test.c) |
+| **test** | 710 (Linux/ARM/AArch64), 688 (Windows) | [test.c](test/test.c) |
 | **gfx_test** | 28 (in-memory pixel buffer tests) | [gfx_test.c](test/gfx_test.c) |
 | **ui_test** | UI widget logic tests (simulated canvas) | [ui_test.c](test/ui_test.c) |
 

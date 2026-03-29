@@ -32,14 +32,6 @@ static void init_palette(void) {
         fire_palette[i] = L_RGB(pal[i][0], pal[i][1], pal[i][2]);
 }
 
-static uint32_t rng_state = 98765;
-static uint32_t rng_next(void) {
-    rng_state ^= rng_state << 13;
-    rng_state ^= rng_state >> 17;
-    rng_state ^= rng_state << 5;
-    return rng_state;
-}
-
 static void init_fire(void) {
     l_memset(fire, 0, sizeof(fire));
     // Set bottom row to max heat
@@ -51,12 +43,12 @@ static void spread_fire(void) {
     for (int y = 0; y < H - 1; y++) {
         for (int x = 0; x < W; x++) {
             int src_y = y + 1;
-            int rand_offset = (int)(rng_next() % 3) - 1;  // -1, 0, or 1
+            int rand_offset = (int)(l_rand() % 3) - 1;  // -1, 0, or 1
             int src_x = x + rand_offset;
             if (src_x < 0) src_x = 0;
             if (src_x >= W) src_x = W - 1;
 
-            int decay = (int)(rng_next() & 1);  // 0 or 1
+            int decay = (int)(l_rand() & 1);  // 0 or 1
             int val = fire[src_y][src_x] - decay;
             if (val < 0) val = 0;
             fire[y][x] = (uint8_t)val;

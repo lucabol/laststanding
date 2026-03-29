@@ -126,6 +126,11 @@ typedef struct {
 // Maximum path length
 #define L_PATH_MAX 4096
 
+// Common utility macros
+#define L_MIN(a, b) ((a) < (b) ? (a) : (b))
+#define L_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define L_CLAMP(v, lo, hi) ((v) < (lo) ? (lo) : (v) > (hi) ? (hi) : (v))
+
 // Cross-platform error codes (POSIX values on all platforms)
 /// No such file or directory
 #define L_ENOENT      2
@@ -218,6 +223,14 @@ int l_islower(int c);
 int l_toupper(int c);
 /// Converts c to lowercase; returns c unchanged if not an uppercase letter
 int l_tolower(int c);
+/// Returns non-zero if c is a printable ASCII character (0x20-0x7e)
+static inline int l_isprint(int c);
+/// Returns non-zero if c is a hexadecimal digit (0-9, a-f, A-F)
+static inline int l_isxdigit(int c);
+/// Returns the absolute value of an integer
+static inline int l_abs(int x);
+/// Returns the absolute value of a long
+static inline long l_labs(long x);
 /// Converts a string to a long integer, skipping leading whitespace
 long l_atol(const char *s);
 /// Converts a string to an integer
@@ -247,12 +260,26 @@ size_t l_strnlen(const char *s, size_t maxlen);
 /// Finds first occurrence of needle (needlelen bytes) in haystack (haystacklen bytes), or NULL
 void *l_memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen);
 
+// Random number generation (xorshift32, single-threaded)
+/// Seeds the pseudo-random number generator
+static inline void l_srand(unsigned int seed);
+/// Returns a pseudo-random unsigned int (xorshift32)
+static inline unsigned int l_rand(void);
+
+// Sorting and searching
+/// Sorts an array in-place using Shell sort (no malloc, no recursion)
+static inline void l_qsort(void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *));
+/// Binary search in a sorted array. Returns pointer to matching element, or NULL.
+static inline void *l_bsearch(const void *key, const void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *));
+
 // Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)
 #ifdef L_WITHSNPRINTF
 /// Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written
 static int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap);
 /// Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written
 static int l_snprintf(char *buf, size_t n, const char *fmt, ...);
+/// Writes formatted output to file descriptor fd. Returns number of bytes written.
+static inline int l_dprintf(L_FD fd, const char *fmt, ...);
 #endif
 
 // System functions
@@ -266,6 +293,11 @@ int l_close(L_FD fd);
 ssize_t l_read(L_FD fd, void *buf, size_t count);
 /// Writes up to count bytes from buf to fd
 ssize_t l_write(L_FD fd, const void *buf, size_t count);
+/// Reads one line from fd into buf (up to bufsz-1 bytes). Strips the newline.
+/// Returns number of bytes read (excluding newline), or -1 on error/EOF with no data.
+static inline ptrdiff_t l_read_line(L_FD fd, char *buf, size_t bufsz);
+/// Returns current Unix timestamp (seconds since 1970-01-01). Also writes to *t if non-NULL.
+static inline long long l_time(long long *t);
 /// Writes a string to stdout
 void l_puts(const char* s);
 /// Exits with code and message if condition is true
@@ -671,6 +703,10 @@ int WINAPI mainCRTStartup(void)
 #  define islower l_islower
 #  define toupper l_toupper
 #  define tolower l_tolower
+#  define isprint l_isprint
+#  define isxdigit l_isxdigit
+#  define abs l_abs
+#  define labs l_labs
 #  define atol l_atol
 #  define atoi l_atoi
 #  define strtoul l_strtoul
@@ -686,8 +722,14 @@ int WINAPI mainCRTStartup(void)
 #  define strnlen l_strnlen
 #  define memmem  l_memmem
 
+#  define rand l_rand
+#  define srand l_srand
+#  define qsort l_qsort
+#  define bsearch l_bsearch
+
 #  define vsnprintf l_vsnprintf
 #  define snprintf  l_snprintf
+#  define dprintf   l_dprintf
 
 #  define exit l_exit
 #  define close l_close
@@ -785,6 +827,28 @@ static inline void l_set_errno(int err) {
 
 static inline void l_set_errno_from_ret(long ret) {
     l_last_errno = (ret < 0) ? (int)(-ret) : 0;
+}
+
+// Character classification (platform-independent)
+static inline int l_isprint(int c) { return c >= 0x20 && c <= 0x7e; }
+static inline int l_isxdigit(int c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); }
+
+// Absolute value (platform-independent)
+static inline int l_abs(int x) { return x < 0 ? -x : x; }
+static inline long l_labs(long x) { return x < 0 ? -x : x; }
+
+// Random number generation (xorshift32, single-threaded)
+static unsigned int l_rand_state = 1;
+
+static inline void l_srand(unsigned int seed) {
+    l_rand_state = seed;
+}
+
+static inline unsigned int l_rand(void) {
+    l_rand_state ^= l_rand_state << 13;
+    l_rand_state ^= l_rand_state >> 17;
+    l_rand_state ^= l_rand_state << 5;
+    return l_rand_state;
 }
 
 // Option parser state (single-threaded; no TLS in freestanding)
@@ -1358,6 +1422,42 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
     while (len--)
         *d++ = *s++;
     return dst;
+}
+
+// Shell sort — in-place, no recursion, no malloc, stack-safe
+static inline void l_qsort(void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *)) {
+    if (nmemb < 2) return;
+    char *b = (char *)base;
+    char tmp[256];
+
+    size_t gap = 1;
+    while (gap < nmemb / 3) gap = gap * 3 + 1;
+
+    for (; gap > 0; gap = (gap - 1) / 3) {
+        for (size_t i = gap; i < nmemb; i++) {
+            l_memcpy(tmp, b + i * size, size);
+            size_t j = i;
+            while (j >= gap && cmp(b + (j - gap) * size, tmp) > 0) {
+                l_memcpy(b + j * size, b + (j - gap) * size, size);
+                j -= gap;
+            }
+            l_memcpy(b + j * size, tmp, size);
+        }
+    }
+}
+
+// Binary search in a sorted array
+static inline void *l_bsearch(const void *key, const void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *)) {
+    const char *b = (const char *)base;
+    size_t lo = 0, hi = nmemb;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        int c = cmp(key, b + mid * size);
+        if (c == 0) return (void *)(b + mid * size);
+        if (c < 0) hi = mid;
+        else lo = mid + 1;
+    }
+    return (void *)0;
 }
 
 inline void *l_memchr(const void *s, int c, size_t n)
@@ -2238,6 +2338,116 @@ __attribute__((used)) long long __aeabi_idivmod(int num, int den) {
     int r = num - q * den;
     return (unsigned)q | ((unsigned long long)(unsigned)r << 32);
 }
+
+/* ARM EABI 64-bit shift helpers — ARM32 has no 64-bit shift instructions.
+   All use naked asm with only native 32-bit ARM ops, so no recursion risk.
+   target("arm") forces ARM mode — these use conditional instructions that
+   are not valid in Thumb mode (GCC defaults to Thumb on ARM).
+   Input:  r0:r1 = value (low:high), r2 = shift amount
+   Output: r0:r1 = result (low:high) */
+__attribute__((naked, used, target("arm")))
+void __aeabi_llsl(void) {
+    __asm__ volatile(
+        "subs r3, r2, #32\n\t"
+        "rsb ip, r2, #32\n\t"
+        "movmi r1, r1, lsl r2\n\t"
+        "orrmi r1, r1, r0, lsr ip\n\t"
+        "movpl r1, r0, lsl r3\n\t"
+        "mov r0, r0, lsl r2\n\t"
+        "bx lr\n\t"
+    );
+}
+
+__attribute__((naked, used, target("arm")))
+void __aeabi_llsr(void) {
+    __asm__ volatile(
+        "subs r3, r2, #32\n\t"
+        "rsb ip, r2, #32\n\t"
+        "movmi r0, r0, lsr r2\n\t"
+        "orrmi r0, r0, r1, lsl ip\n\t"
+        "movpl r0, r1, lsr r3\n\t"
+        "mov r1, r1, lsr r2\n\t"
+        "bx lr\n\t"
+    );
+}
+
+__attribute__((naked, used, target("arm")))
+void __aeabi_lasr(void) {
+    __asm__ volatile(
+        "subs r3, r2, #32\n\t"
+        "rsb ip, r2, #32\n\t"
+        "movmi r0, r0, lsr r2\n\t"
+        "orrmi r0, r0, r1, lsl ip\n\t"
+        "movpl r0, r1, asr r3\n\t"
+        "mov r1, r1, asr r2\n\t"
+        "bx lr\n\t"
+    );
+}
+
+/* 64-bit unsigned division helper: returns quotient, stores remainder via pointer.
+   Bit-by-bit long division — no hardware divide needed, no recursion into __aeabi_*. */
+__attribute__((used))
+unsigned long long __udivmoddi4(unsigned long long num, unsigned long long den, unsigned long long *rem) {
+    if (den == 0) { if (rem) *rem = 0; return 0; }
+    unsigned long long quot = 0, r = 0;
+    for (int i = 63; i >= 0; i--) {
+        r = (r << 1) | ((num >> i) & 1);
+        if (r >= den) { r -= den; quot |= (1ULL << i); }
+    }
+    if (rem) *rem = r;
+    return quot;
+}
+
+/* 64-bit signed division helper: returns quotient, stores remainder via pointer. */
+__attribute__((used))
+long long __sdivmoddi4(long long num, long long den, long long *rem) {
+    int neg_quot = 0, neg_rem = 0;
+    unsigned long long unum, uden, urem;
+    if (num < 0) { unum = -(unsigned long long)num; neg_quot = 1; neg_rem = 1; }
+    else { unum = (unsigned long long)num; }
+    if (den < 0) { uden = -(unsigned long long)den; neg_quot ^= 1; }
+    else { uden = (unsigned long long)den; }
+    unsigned long long q = __udivmoddi4(unum, uden, &urem);
+    if (rem) *rem = neg_rem ? -(long long)urem : (long long)urem;
+    return neg_quot ? -(long long)q : (long long)q;
+}
+
+/* ARM EABI 64-bit unsigned divmod.
+   Input:  r0:r1 = numerator, r2:r3 = denominator
+   Output: r0:r1 = quotient,  r2:r3 = remainder
+   Naked wrapper calls __udivmoddi4 and places remainder in r2:r3. */
+__attribute__((naked, used, target("arm")))
+void __aeabi_uldivmod(void) {
+    __asm__ volatile(
+        "push {r4, lr}\n\t"
+        "sub sp, sp, #16\n\t"
+        "add r4, sp, #8\n\t"
+        "str r4, [sp]\n\t"
+        "bl __udivmoddi4\n\t"
+        "ldr r2, [sp, #8]\n\t"
+        "ldr r3, [sp, #12]\n\t"
+        "add sp, sp, #16\n\t"
+        "pop {r4, pc}\n\t"
+    );
+}
+
+/* ARM EABI 64-bit signed divmod.
+   Input:  r0:r1 = numerator, r2:r3 = denominator
+   Output: r0:r1 = quotient,  r2:r3 = remainder */
+__attribute__((naked, used, target("arm")))
+void __aeabi_ldivmod(void) {
+    __asm__ volatile(
+        "push {r4, lr}\n\t"
+        "sub sp, sp, #16\n\t"
+        "add r4, sp, #8\n\t"
+        "str r4, [sp]\n\t"
+        "bl __sdivmoddi4\n\t"
+        "ldr r2, [sp, #8]\n\t"
+        "ldr r3, [sp, #12]\n\t"
+        "add sp, sp, #16\n\t"
+        "pop {r4, pc}\n\t"
+    );
+}
 #endif
 
 #pragma GCC diagnostic push
@@ -2791,6 +3001,24 @@ inline void l_sleep_ms(unsigned int ms)
     my_syscall2(__NR_nanosleep, &ts, (void*)0);
 }
 
+static inline long long l_time(long long *t) {
+#if defined(__arm__)
+    // ARM32: use clock_gettime64 (syscall 403) for Y2038 safety
+    struct { long long tv_sec; long long tv_nsec; } ts64;
+    long ret = my_syscall2(403, 0, (long)&ts64);
+    if (ret < 0) { if (t) *t = 0; return 0; }
+    long long val = ts64.tv_sec;
+#else
+    // x86_64: __NR_clock_gettime = 228, AArch64: __NR_clock_gettime = 113
+    struct l_timespec ts;
+    long ret = my_syscall2(__NR_clock_gettime, 0, (long)&ts);
+    if (ret < 0) { if (t) *t = 0; return 0; }
+    long long val = (long long)ts.tv_sec;
+#endif
+    if (t) *t = val;
+    return val;
+}
+
 // termios constants for raw mode
 #define L_TCGETS   0x5401
 #define L_TCSETS   0x5402
@@ -3154,6 +3382,15 @@ inline int l_close(L_FD fd) {
 inline void l_sleep_ms(unsigned int ms)
 {
     Sleep(ms);
+}
+
+static inline long long l_time(long long *t) {
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    unsigned long long ticks = ((unsigned long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+    long long val = (long long)((ticks - 116444736000000000ULL) / 10000000ULL);
+    if (t) *t = val;
+    return val;
 }
 
 static DWORD l_saved_console_mode;
@@ -3807,6 +4044,41 @@ inline void l_exitif(bool condition, int code, char *message) {
 inline void puts(const char* s) {
   l_write(L_STDOUT, s, strlen(s));
 }
+
+// Unbuffered line reader — reads one byte at a time until newline or buffer full
+static inline ptrdiff_t l_read_line(L_FD fd, char *buf, size_t bufsz) {
+    if (bufsz == 0) return -1;
+    size_t pos = 0;
+    while (pos < bufsz - 1) {
+        char c;
+        ptrdiff_t n = (ptrdiff_t)l_read(fd, &c, 1);
+        if (n <= 0) {
+            if (pos > 0) break;
+            return -1;
+        }
+        if (c == '\n') break;
+        if (c == '\r') continue;
+        buf[pos++] = c;
+    }
+    buf[pos] = '\0';
+    return (ptrdiff_t)pos;
+}
+
+#ifdef L_WITHSNPRINTF
+/// Writes formatted output to file descriptor fd. Returns number of bytes written.
+static inline int l_dprintf(L_FD fd, const char *fmt, ...) {
+    char buf[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = l_vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    if (n > 0) {
+        int written = (int)l_write(fd, buf, (size_t)(n < (int)sizeof(buf) ? n : (int)sizeof(buf) - 1));
+        return written;
+    }
+    return 0;
+}
+#endif // L_WITHSNPRINTF
 
 // l_getenv: look up environment variable by name.
 // On Unix: walks envp derived from argv (call l_getenv_init from main first).

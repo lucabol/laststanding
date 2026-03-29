@@ -117,13 +117,16 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // Demo mode: start at 10:10:00 and advance
-    int hours = 10, minutes = 10, seconds = 0;
-    int frame = 0;
-
     while (l_canvas_alive(&canvas)) {
         int key = l_canvas_key(&canvas);
         if (key == 'q' || key == 'Q' || key == 27) break;
+
+        // Get real system time
+        long long now = l_time((long long *)0);
+        int total_secs = (int)(now % 86400);  // seconds since midnight UTC
+        int hours   = total_secs / 3600;
+        int minutes = (total_secs % 3600) / 60;
+        int seconds = total_secs % 60;
 
         l_canvas_clear(&canvas, L_BLACK);
         draw_face(&canvas);
@@ -156,16 +159,6 @@ int main(int argc, char *argv[]) {
 
         l_canvas_flush(&canvas);
         l_sleep_ms(16);
-
-        // Advance time: ~60 frames per second, tick once per second
-        frame++;
-        if (frame >= 60) {
-            frame = 0;
-            seconds++;
-            if (seconds >= 60) { seconds = 0; minutes++; }
-            if (minutes >= 60) { minutes = 0; hours++; }
-            if (hours >= 24) hours = 0;
-        }
     }
 
     l_canvas_close(&canvas);
