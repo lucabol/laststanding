@@ -7,7 +7,7 @@ static int test_count = 0;
 
 // In-memory canvas for widget tests (no display needed)
 static uint32_t test_pixels[64 * 64];
-static L_Canvas test_canvas = { 64, 64, 64 * 4, test_pixels, 0, 0, 0 };
+static L_Canvas test_canvas = { .width = 64, .height = 64, .stride = 64 * 4, .pixels = test_pixels };
 
 // Helper: set up UI with simulated input (bypasses l_ui_begin which calls l_canvas_mouse/key)
 static void sim_begin(L_UI *ui, int mx, int my, int mbtn, int key) {
