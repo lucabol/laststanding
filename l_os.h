@@ -1106,6 +1106,41 @@ inline char *l_strcpy(char *dst, const char *src)
 {
     char *ret = dst;
 
+    /* Byte-copy until dst is word-aligned. */
+    while ((uintptr_t)dst & (sizeof(uintptr_t) - 1U)) {
+        if (!(*dst++ = *src++))
+            return ret;
+    }
+
+    /* Word-at-a-time copy when src is also word-aligned.
+     * Copy a whole word, then check for a zero byte using the
+     * Hacker's Delight has-zero-byte trick.  When a zero is found we
+     * return immediately — the null byte was already written as part of
+     * the word copy, so no byte-level tail work is needed. */
+    if (!((uintptr_t)src & (sizeof(uintptr_t) - 1U))) {
+        typedef uintptr_t __attribute__((may_alias)) word_alias;
+        const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;
+        const uintptr_t highs = lones << 7;
+        word_alias       *dp = (word_alias *)(void *)dst;
+        const word_alias *sp = (const word_alias *)(const void *)src;
+        for (;;) {
+            uintptr_t w = *sp++;
+            *dp++ = w;
+            if ((w - lones) & ~w & highs)
+                return ret; /* null was inside this word — done */
+        }
+    }
+
+    /* Tail: byte-by-byte for unaligned src. */
+    while ((*dst++ = *src++));
+    return ret;
+}
+
+inline char *l_strcat(char *dst, const char *src)
+{
+    char *ret = dst;
+
+    dst += l_strlen(dst); /* word-at-a-time scan to end */
     while ((*dst++ = *src++));
     return ret;
 }
@@ -1119,16 +1154,6 @@ inline char *l_strncpy(char *dst, const char *src, size_t n)
         dst[i] = src[i];
     for (; i < n; i++)
         dst[i] = '\0';
-    return ret;
-}
-
-inline char *l_strcat(char *dst, const char *src)
-{
-    char *ret = dst;
-
-    while (*dst)
-        dst++;
-    while ((*dst++ = *src++));
     return ret;
 }
 
