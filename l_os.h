@@ -157,6 +157,19 @@ typedef struct {
 /// Directory not empty
 #define L_ENOTEMPTY  39
 
+// Signal numbers (POSIX values; Windows does not support these)
+#ifndef _WIN32
+#define L_SIGHUP    1
+#define L_SIGINT    2
+#define L_SIGQUIT   3
+#define L_SIGKILL   9
+#define L_SIGPIPE  13
+#define L_SIGTERM  15
+#define L_SIGUSR1  10
+#define L_SIGUSR2  12
+#define L_SIGCHLD  17
+#endif
+
 // CLang warns for 'asm'
 #ifdef __clang__
 #pragma GCC diagnostic ignored "-Wlanguage-extension-token"
@@ -231,6 +244,8 @@ static inline int l_isxdigit(int c);
 static inline int l_abs(int x);
 /// Returns the absolute value of a long
 static inline long l_labs(long x);
+/// Returns the absolute value of a long long
+static inline long long l_llabs(long long x);
 /// Converts a string to a long integer, skipping leading whitespace
 long l_atol(const char *s);
 /// Converts a string to an integer
@@ -407,6 +422,9 @@ int l_dup(L_FD fd);
 /// Duplicates oldfd onto newfd. Returns newfd on success, -1 on error.
 int l_dup2(L_FD oldfd, L_FD newfd);
 
+/// Returns the current process ID.
+L_PID l_getpid(void);
+
 /// Spawns a new process with explicit stdio. Use L_SPAWN_INHERIT to keep the parent's stream.
 static L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
                     L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd);
@@ -434,6 +452,10 @@ L_PID l_fork(void);
 int l_execve(const char *path, char *const argv[], char *const envp[]);
 /// Wait for a child process. Returns child pid on success, -1 on error.
 L_PID l_waitpid(L_PID pid, int *status, int options);
+/// Returns the parent process ID.
+L_PID l_getppid(void);
+/// Sends signal sig to process pid. Returns 0 on success, -1 on error.
+int l_kill(L_PID pid, int sig);
 #endif
 
 #endif // L_WITHDEFS
@@ -711,6 +733,7 @@ int WINAPI mainCRTStartup(void)
 #  define isxdigit l_isxdigit
 #  define abs l_abs
 #  define labs l_labs
+#  define llabs l_llabs
 #  define atol l_atol
 #  define atoi l_atoi
 #  define strtoul l_strtoul
@@ -750,6 +773,11 @@ int WINAPI mainCRTStartup(void)
 #  define pipe l_pipe
 #  define dup2 l_dup2
 #  define sched_yield l_sched_yield
+#  define getpid l_getpid
+#  ifndef _WIN32
+#    define getppid l_getppid
+#    define kill l_kill
+#  endif
 #  define unlink l_unlink
 #  define rmdir l_rmdir
 #  define rename l_rename
@@ -844,6 +872,7 @@ static inline int l_isxdigit(int c) { return (c >= '0' && c <= '9') || (c >= 'a'
 // Absolute value (platform-independent)
 static inline int l_abs(int x) { return x < 0 ? -x : x; }
 static inline long l_labs(long x) { return x < 0 ? -x : x; }
+static inline long long l_llabs(long long x) { return x < 0 ? -x : x; }
 
 // Random number generation (xorshift32, single-threaded)
 static unsigned int l_rand_state = 1;
@@ -3169,6 +3198,23 @@ inline int l_sched_yield(void)
     return my_syscall0(__NR_sched_yield);
 }
 
+inline L_PID l_getpid(void)
+{
+    return (L_PID)my_syscall0(__NR_getpid);
+}
+
+inline L_PID l_getppid(void)
+{
+    return (L_PID)my_syscall0(__NR_getppid);
+}
+
+inline int l_kill(L_PID pid, int sig)
+{
+    long ret = my_syscall2(__NR_kill, (long)pid, sig);
+    l_set_errno_from_ret(ret);
+    return (int)(ret < 0 ? -1 : 0);
+}
+
 // Terminal and timing support for Unix
 struct l_timespec {
     long tv_sec;
@@ -3850,6 +3896,11 @@ inline int l_wait(L_PID pid, int *exitcode)
     if (exitcode) *exitcode = (int)code;
     CloseHandle(proc);
     return 0;
+}
+
+inline L_PID l_getpid(void)
+{
+    return (L_PID)GetCurrentProcessId();
 }
 
 inline int l_unlink(const char *path) {
