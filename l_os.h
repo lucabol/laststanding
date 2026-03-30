@@ -1548,24 +1548,46 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
     return dst;
 }
 
-// Shell sort — in-place, no recursion, no malloc, stack-safe
+/* Byte-swap helper used by l_qsort for elements too large for the stack buffer. */
+static inline void l__swap_bytes(char *a, char *b, size_t size)
+{
+    char t;
+    while (size--) { t = *a; *a++ = *b; *b++ = t; }
+}
+
+/* Shell sort — in-place, no recursion, no malloc.
+ * For elements <= 256 bytes: fast shift-based insertion (fewer copies).
+ * For elements >  256 bytes: swap-based insertion with no extra buffer. */
 static inline void l_qsort(void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *)) {
     if (nmemb < 2) return;
     char *b = (char *)base;
-    char tmp[256];
 
     size_t gap = 1;
     while (gap < nmemb / 3) gap = gap * 3 + 1;
 
-    for (; gap > 0; gap = (gap - 1) / 3) {
-        for (size_t i = gap; i < nmemb; i++) {
-            l_memcpy(tmp, b + i * size, size);
-            size_t j = i;
-            while (j >= gap && cmp(b + (j - gap) * size, tmp) > 0) {
-                l_memcpy(b + j * size, b + (j - gap) * size, size);
-                j -= gap;
+    if (size <= 256) {
+        char tmp[256];
+        for (; gap > 0; gap = (gap - 1) / 3) {
+            for (size_t i = gap; i < nmemb; i++) {
+                l_memcpy(tmp, b + i * size, size);
+                size_t j = i;
+                while (j >= gap && cmp(b + (j - gap) * size, tmp) > 0) {
+                    l_memcpy(b + j * size, b + (j - gap) * size, size);
+                    j -= gap;
+                }
+                l_memcpy(b + j * size, tmp, size);
             }
-            l_memcpy(b + j * size, tmp, size);
+        }
+    } else {
+        /* Swap-based: works for any element size without a stack buffer. */
+        for (; gap > 0; gap = (gap - 1) / 3) {
+            for (size_t i = gap; i < nmemb; i++) {
+                size_t j = i;
+                while (j >= gap && cmp(b + (j - gap) * size, b + j * size) > 0) {
+                    l__swap_bytes(b + j * size, b + (j - gap) * size, size);
+                    j -= gap;
+                }
+            }
         }
     }
 }
