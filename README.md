@@ -313,6 +313,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strtol` | Converts a string to a long, auto-detecting base when base==0; handles leading sign; sets *endptr past last digit | All |
 | `l_strtoull` | Converts a string to an unsigned long long (64-bit); auto-detects base when base==0; sets *endptr past last digit | All |
 | `l_strtoll` | Converts a string to a long long (64-bit); auto-detects base when base==0; handles leading sign; sets *endptr past last digit | All |
+| `l_strtod` | Converts a string to a double; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit | All |
+| `l_atof` | Converts a string to a double (convenience wrapper around l_strtod) | All |
 | `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
 | **Memory functions** | | |
 | `l_memmove` | Copies len bytes from src to dst, handling overlapping regions | All |

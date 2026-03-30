@@ -243,6 +243,10 @@ long l_strtol(const char *nptr, char **endptr, int base);
 unsigned long long l_strtoull(const char *nptr, char **endptr, int base);
 /// Converts a string to a long long (64-bit); auto-detects base when base==0; handles leading sign; sets *endptr past last digit
 long long l_strtoll(const char *nptr, char **endptr, int base);
+/// Converts a string to a double; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit
+double l_strtod(const char *nptr, char **endptr);
+/// Converts a string to a double (convenience wrapper around l_strtod)
+static inline double l_atof(const char *s);
 /// Converts an integer to a string in the given radix (2-36)
 char *l_itoa(int in, char* buffer, int radix);
 
@@ -717,6 +721,8 @@ int WINAPI mainCRTStartup(void)
 #  define strtol l_strtol
 #  define strtoull l_strtoull
 #  define strtoll l_strtoll
+#  define strtod  l_strtod
+#  define atof    l_atof
 #  define itoa l_itoa
 
 #  define memmove l_memmove
@@ -1464,6 +1470,73 @@ inline long long l_strtoll(const char *nptr, char **endptr, int base)
     return (long long)uval;
 }
 
+inline double l_strtod(const char *nptr, char **endptr)
+{
+    const char *s = nptr;
+    while (l_isspace((unsigned char)*s)) s++;
+
+    int neg = 0;
+    if (*s == '-') { neg = 1; s++; }
+    else if (*s == '+') { s++; }
+
+    /* infinity */
+    if ((s[0] == 'i' || s[0] == 'I') &&
+        (s[1] == 'n' || s[1] == 'N') &&
+        (s[2] == 'f' || s[2] == 'F')) {
+        if (endptr) *endptr = (char *)(s + 3);
+        return neg ? -__builtin_inf() : __builtin_inf();
+    }
+    /* NaN */
+    if ((s[0] == 'n' || s[0] == 'N') &&
+        (s[1] == 'a' || s[1] == 'A') &&
+        (s[2] == 'n' || s[2] == 'N')) {
+        if (endptr) *endptr = (char *)(s + 3);
+        return __builtin_nan("");
+    }
+
+    const char *start = s;
+    double val = 0.0;
+
+    /* integer part */
+    while (*s >= '0' && *s <= '9')
+        val = val * 10.0 + (double)(*s++ - '0');
+
+    /* fractional part */
+    if (*s == '.') {
+        s++;
+        double frac = 0.1;
+        while (*s >= '0' && *s <= '9') {
+            val += (double)(*s++ - '0') * frac;
+            frac *= 0.1;
+        }
+    }
+
+    /* exponent */
+    if (*s == 'e' || *s == 'E') {
+        const char *es = s + 1;
+        int eneg = 0;
+        if (*es == '-') { eneg = 1; es++; }
+        else if (*es == '+') { es++; }
+        if (*es >= '0' && *es <= '9') {
+            s = es;
+            int exp = 0;
+            while (*s >= '0' && *s <= '9')
+                exp = exp * 10 + (*s++ - '0');
+            if (exp > 308) exp = 308; /* avoid infinite-loop for huge exponents */
+            double epow = 1.0;
+            for (int i = 0; i < exp; i++) epow *= 10.0;
+            if (eneg) val /= epow;
+            else      val *= epow;
+        }
+    }
+
+    if (s == start) { if (endptr) *endptr = (char *)nptr; return 0.0; }
+    if (endptr) *endptr = (char *)s;
+    return neg ? -val : val;
+}
+
+static inline double l_atof(const char *s) { return l_strtod(s, (char **)0); }
+
 //function to reverse a string
 inline void l_reverse(char str[], int length)
 {
@@ -1690,6 +1763,116 @@ static inline unsigned long long l__divmod64(unsigned long long val, unsigned in
     return q;
 }
 
+/* Format a non-negative finite double into buf[0..bufsz-1] (NUL-terminated).
+   use_e=0: fixed  "%f" style,  prec digits after decimal point.
+   use_e=1: scientific "%e" style, prec digits after decimal point.
+   strip_zeros: remove trailing '0' (and lone '.') from fractional part.
+   upper: use 'E' instead of 'e'.
+   Returns number of characters written (excluding NUL). */
+static inline int l__fmt_double(char *buf, int bufsz, double val,
+                                int use_e, int prec, int strip_zeros, int upper)
+{
+    int pos = 0;
+#define L_FMT_EMIT(c) do { if (pos < bufsz - 1) buf[pos] = (char)(c); pos++; } while(0)
+
+    int exp10 = 0;
+
+    if (use_e) {
+        double mant = val;
+        /* Normalise mantissa to [1.0, 10.0) and record exponent */
+        if (mant > 0.0) {
+            while (mant >= 10.0) { mant /= 10.0; exp10++; }
+            while (mant < 1.0)   { mant *= 10.0; exp10--; }
+        }
+        /* Round mantissa at prec decimal place */
+        double rounder = 0.5;
+        for (int i = 0; i < prec; i++) rounder *= 0.1;
+        mant += rounder;
+        if (mant >= 10.0) { mant /= 10.0; exp10++; } /* carry */
+
+        /* Integer digit */
+        int d = (int)mant;
+        if (d > 9) d = 9;
+        L_FMT_EMIT('0' + d);
+        mant -= (double)d;
+
+        /* Fractional digits */
+        int fstart = pos + 1; /* position after the '.' for strip_zeros */
+        if (prec > 0) {
+            L_FMT_EMIT('.');
+            fstart = pos;
+            for (int i = 0; i < prec; i++) {
+                mant *= 10.0;
+                d = (int)mant;
+                if (d > 9) d = 9;
+                L_FMT_EMIT('0' + d);
+                mant -= (double)d;
+            }
+            if (strip_zeros) {
+                while (pos > fstart && buf[pos - 1] == '0') pos--;
+                if (pos > 0 && buf[pos - 1] == '.') pos--;
+            }
+        }
+
+        /* Exponent */
+        L_FMT_EMIT(upper ? 'E' : 'e');
+        L_FMT_EMIT(exp10 >= 0 ? '+' : '-');
+        int ae = exp10 >= 0 ? exp10 : -exp10;
+        if (ae >= 100) { L_FMT_EMIT('0' + ae / 100); ae %= 100; }
+        L_FMT_EMIT('0' + ae / 10);
+        L_FMT_EMIT('0' + ae % 10);
+
+    } else {
+        /* Fixed-point: round, then split integer / fractional */
+        double rounder = 0.5;
+        for (int i = 0; i < prec; i++) rounder *= 0.1;
+        val += rounder;
+
+        /* Integer part — guard against overflow into ULL */
+        unsigned long long ipart = (val < 1.8446744073709552e19)
+                                   ? (unsigned long long)val
+                                   : 18446744073709551615ULL;
+        double fpart = val - (double)ipart;
+
+        char ibuf[24]; int ilen = 0;
+        if (ipart == 0ULL) {
+            ibuf[ilen++] = '0';
+        } else {
+            unsigned long long v = ipart;
+            while (v) {
+                unsigned int dig;
+                v = l__divmod64(v, 10U, &dig);
+                ibuf[ilen++] = (char)('0' + dig);
+            }
+            for (int a = 0, b = ilen - 1; a < b; a++, b--) {
+                char t = ibuf[a]; ibuf[a] = ibuf[b]; ibuf[b] = t;
+            }
+        }
+        for (int i = 0; i < ilen; i++) L_FMT_EMIT(ibuf[i]);
+
+        /* Fractional digits */
+        if (prec > 0) {
+            L_FMT_EMIT('.');
+            int fstart = pos;
+            for (int i = 0; i < prec; i++) {
+                fpart *= 10.0;
+                int d = (int)fpart;
+                if (d > 9) d = 9;
+                L_FMT_EMIT('0' + d);
+                fpart -= (double)d;
+            }
+            if (strip_zeros) {
+                while (pos > fstart && buf[pos - 1] == '0') pos--;
+                if (pos > 0 && buf[pos - 1] == '.') pos--;
+            }
+        }
+    }
+
+    if (pos < bufsz) buf[pos] = '\0';
+    return pos;
+#undef L_FMT_EMIT
+}
+
 static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
 {
     size_t pos = 0;
@@ -1789,6 +1972,77 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
         } else if (spec == 'p') {
             base = 16; is_ptr = 1;
             uval = (unsigned long long)(uintptr_t)va_arg(ap, void *);
+        } else if (spec == 'f' || spec == 'F' ||
+                   spec == 'e' || spec == 'E' ||
+                   spec == 'g' || spec == 'G') {
+            double dval = va_arg(ap, double);
+            char lspec = (spec >= 'A' && spec <= 'Z') ? (char)(spec - 'A' + 'a') : spec;
+            int upper_f = (spec != lspec);
+            if (prec < 0) prec = 6;
+            if (prec == 0 && lspec == 'g') prec = 1;
+
+            /* sign */
+            int dneg = 0;
+            if (dval < 0.0) { dneg = 1; dval = -dval; }
+
+            /* NaN */
+            if (dval != dval) {
+                const char *ns = upper_f ? "NAN" : "nan";
+                int fpad = width - 3; if (fpad < 0) fpad = 0;
+                if (!flag_minus) for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
+                L_SNPRINTF_EMIT(ns[0]); L_SNPRINTF_EMIT(ns[1]); L_SNPRINTF_EMIT(ns[2]);
+                if (flag_minus) for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
+                continue;
+            }
+
+            /* Inf: any finite double <= DBL_MAX, so > DBL_MAX means infinity */
+            if (dval > DBL_MAX) {
+                const char *is2 = upper_f ? "INF" : "inf";
+                int fcont = (dneg ? 1 : 0) + 3;
+                int fpad = width - fcont; if (fpad < 0) fpad = 0;
+                char fpc = (!flag_minus && flag_zero) ? '0' : ' ';
+                if (!flag_minus && fpc == ' ') for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
+                if (dneg) L_SNPRINTF_EMIT('-');
+                if (!flag_minus && fpc == '0') for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT('0');
+                L_SNPRINTF_EMIT(is2[0]); L_SNPRINTF_EMIT(is2[1]); L_SNPRINTF_EMIT(is2[2]);
+                if (flag_minus) for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
+                continue;
+            }
+
+            /* Determine format for %g/%G */
+            int use_e_fmt = (lspec == 'e');
+            int strip_z = 0;
+            int fprec = prec;
+            if (lspec == 'g') {
+                /* exp10 = floor(log10(dval)) */
+                int exp10 = 0;
+                if (dval > 0.0) {
+                    double tmp = dval;
+                    while (tmp >= 10.0) { tmp /= 10.0; exp10++; }
+                    while (tmp < 1.0)   { tmp *= 10.0; exp10--; }
+                }
+                use_e_fmt = (exp10 < -4 || exp10 >= prec);
+                strip_z = 1;
+                if (use_e_fmt) {
+                    fprec = prec - 1;
+                } else {
+                    fprec = prec - (exp10 + 1);
+                    if (fprec < 0) fprec = 0;
+                }
+            }
+
+            char fbuf[64];
+            int flen = l__fmt_double(fbuf, (int)sizeof(fbuf), dval,
+                                     use_e_fmt, fprec, strip_z, upper_f);
+            int fcont2 = (dneg ? 1 : 0) + flen;
+            int fpad2 = width - fcont2; if (fpad2 < 0) fpad2 = 0;
+            char fpc2 = (!flag_minus && flag_zero) ? '0' : ' ';
+            if (!flag_minus && fpc2 == ' ') for (int i = 0; i < fpad2; i++) L_SNPRINTF_EMIT(' ');
+            if (dneg) L_SNPRINTF_EMIT('-');
+            if (!flag_minus && fpc2 == '0') for (int i = 0; i < fpad2; i++) L_SNPRINTF_EMIT('0');
+            for (int i = 0; i < flen; i++) L_SNPRINTF_EMIT(fbuf[i]);
+            if (flag_minus) for (int i = 0; i < fpad2; i++) L_SNPRINTF_EMIT(' ');
+            continue;
         } else {
             L_SNPRINTF_EMIT(spec); continue;
         }
