@@ -1,29 +1,14 @@
 {
-  "last_run": "2026-03-30T13:24:09Z",
-  "last_run_id": "23746930327",
+  "last_run": "2026-03-31T01:25:32Z",
+  "last_run_id": "23775942684",
   "monthly_activity_issue": "2026-03 (open, #77)",
   "open_prs": [
     {
-      "number": 80,
-      "branch": "repo-assist/feat-strtod-float-fmt-2026-03-30-f8379f450b5c6389",
-      "title": "[Repo Assist] feat: add l_strtod, l_atof, and %f/%e/%g in l_snprintf",
-      "created": "2026-03-30"
-    },
-    {
-      "number": 79,
-      "branch": "repo-assist/improve-getpid-kill-llabs-a0043f85d64b723f",
-      "title": "[Repo Assist] feat: add l_getpid, l_getppid, l_kill, l_llabs + signal constants",
-      "created": "2026-03-29"
-    },
-    {
-      "branch": "repo-assist/fix-qsort-overflow-2026-03-30",
+      "number": 82,
+      "branch": "repo-assist/fix-qsort-overflow-2026-03-30-8b7b02526ff984de",
       "title": "[Repo Assist] fix: l_qsort stack buffer overflow for elements > 256 bytes",
-      "created": "2026-03-30"
-    },
-    {
-      "branch": "repo-assist/perf-strcpy-strcat-2026-03-30",
-      "title": "[Repo Assist] perf: word-at-a-time l_strcpy; l_strcat reuses l_strlen",
-      "created": "2026-03-30"
+      "created": "2026-03-30",
+      "rebased": "2026-03-31"
     }
   ],
   "backlog_cursor": {
@@ -31,5 +16,5 @@
     "prs": "all_processed_no_open_prs"
   },
   "checked_off_items": [],
-  "notes": "No human-authored issues. Four open Repo Assist PRs: #80 (strtod/float-fmt), #79 (getpid/kill/llabs), qsort-overflow fix, strcpy-perf. Next candidates: l_printf direct fd write with format (convenience), l_strtof (float32), or buffered I/O helpers."
+  "notes": "No human-authored issues. One open Repo Assist PR: #82 (qsort UB fix, rebased onto main 2026-03-31). PRs #76/#79/#80/#83 all merged. Next candidates: l_strtof (float32 parsing), buffered I/O helpers."
 }
