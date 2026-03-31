@@ -307,12 +307,15 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_isxdigit` | Returns non-zero if c is a hexadecimal digit (0-9, a-f, A-F) | All |
 | `l_abs` | Returns the absolute value of an integer | All |
 | `l_labs` | Returns the absolute value of a long | All |
+| `l_llabs` | Returns the absolute value of a long long | All |
 | `l_atol` | Converts a string to a long integer, skipping leading whitespace | All |
 | `l_atoi` | Converts a string to an integer | All |
 | `l_strtoul` | Converts a string to an unsigned long, auto-detecting base when base==0 (0x=hex, 0=octal, else decimal); sets *endptr past last digit | All |
 | `l_strtol` | Converts a string to a long, auto-detecting base when base==0; handles leading sign; sets *endptr past last digit | All |
 | `l_strtoull` | Converts a string to an unsigned long long (64-bit); auto-detects base when base==0; sets *endptr past last digit | All |
 | `l_strtoll` | Converts a string to a long long (64-bit); auto-detects base when base==0; handles leading sign; sets *endptr past last digit | All |
+| `l_strtod` | Converts a string to a double; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit | All |
+| `l_atof` | Converts a string to a double (convenience wrapper around l_strtod) | All |
 | `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
 | **Memory functions** | | |
 | `l_memmove` | Copies len bytes from src to dst, handling overlapping regions | All |
@@ -384,6 +387,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
 | `l_dup` | Duplicates fd, returning a new descriptor on success or -1 on error. | All |
 | `l_dup2` | Duplicates oldfd onto newfd. Returns newfd on success, -1 on error. | All |
+| `l_getpid` | Returns the current process ID. | All |
 | `l_spawn_stdio` | Spawns a new process with explicit stdio. Use L_SPAWN_INHERIT to keep the parent's stream. | All |
 | `l_spawn` | Spawns a new process, inheriting the current stdio descriptors. | All |
 | `l_wait` | Waits for a spawned process to finish. Returns 0 on success, -1 on error. | All |
@@ -394,6 +398,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_fork` | Fork the current process. Returns child pid to parent, 0 to child, -1 on error. | Unix |
 | `l_execve` | Replace the current process image. Does not return on success. | Unix |
 | `l_waitpid` | Wait for a child process. Returns child pid on success, -1 on error. | Unix |
+| `l_getppid` | Returns the parent process ID. | Unix |
+| `l_kill` | Sends signal sig to process pid. Returns 0 on success, -1 on error. | Unix |
 
 <!-- END FUNCTION REFERENCE -->
 
