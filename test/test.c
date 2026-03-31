@@ -2746,6 +2746,11 @@ static int int_cmp(const void *a, const void *b) {
     return *(const int *)a - *(const int *)b;
 }
 
+typedef struct { int key; char pad[300]; } L__BigElem;
+static int big_elem_cmp(const void *a, const void *b) {
+    return ((const L__BigElem *)a)->key - ((const L__BigElem *)b)->key;
+}
+
 void test_min_max_clamp_abs(void) {
     TEST_FUNCTION("L_MIN/L_MAX/L_CLAMP/l_abs");
     TEST_ASSERT(L_MIN(3, 5) == 3, "min(3,5)");
@@ -2821,6 +2826,15 @@ void test_qsort_bsearch(void) {
         key = 6;
         found = (int *)l_bsearch(&key, arr, 5, sizeof(int), int_cmp);
         TEST_ASSERT(found == (void *)0, "bsearch not found");
+    }
+    {
+        /* Large element (>256 bytes) — exercises the swap-based path */
+        L__BigElem big[4];
+        l_memset(big, 0, sizeof(big));
+        big[0].key = 40; big[1].key = 10; big[2].key = 30; big[3].key = 20;
+        l_qsort(big, 4, sizeof(L__BigElem), big_elem_cmp);
+        TEST_ASSERT(big[0].key == 10 && big[1].key == 20 && big[2].key == 30 && big[3].key == 40,
+                    "qsort large element (>256 bytes)");
     }
     TEST_SECTION_PASS("l_qsort/l_bsearch");
 }
