@@ -7,10 +7,6 @@
  * External commands with PATH search, quoted arguments.
  * Unix: I/O redirection (> >> <) and single pipe (cmd1 | cmd2). */
 
-#define MAX_LINE 1024
-#define MAX_ARGS 64
-#define MAX_PATH_BUF 512
-
 static int last_exit;
 
 /* --- Helpers ------------------------------------------------------------ */
@@ -28,39 +24,44 @@ static const char *path_tail(const char *path) {
     return t;
 }
 
-static void print_prompt(void) {
-    char cwd[MAX_PATH_BUF];
-    l_puts(l_getcwd(cwd, sizeof(cwd)) ? path_tail(cwd) : "?");
+static void print_prompt(L_Arena *arena) {
+    char *cwd = l_arena_alloc(arena, 4096);
+    l_puts((cwd && l_getcwd(cwd, 4096)) ? path_tail(cwd) : "?");
     l_puts("$ ");
 }
 
-/* Read line from stdin; handles backspace. Returns -1 on EOF. */
-static int read_line(char *buf, int max) {
-    int pos = 0;
-    while (pos < max - 1) {
+/* Read line from stdin into L_Buf; handles backspace. Returns -1 on EOF. */
+static int read_line(L_Buf *buf) {
+    l_buf_clear(buf);
+    for (;;) {
         char c;
         if (l_read(L_STDIN, &c, 1) <= 0) return -1;
         if (c == '\n') break;
         if (c == '\r') continue;
-        if ((c == 0x7f || c == 0x08) && pos > 0) { pos--; continue; }
-        if (c != 0x7f && c != 0x08) buf[pos++] = c;
+        if ((c == 0x7f || c == 0x08) && buf->len > 0) { buf->len--; continue; }
+        if (c != 0x7f && c != 0x08) l_buf_push(buf, &c, 1);
     }
-    buf[pos] = '\0';
+    /* Null-terminate */
+    { char nul = '\0'; l_buf_push(buf, &nul, 1); }
+    int pos = (int)buf->len - 1;
+    char *data = (char *)buf->data;
+    /* Strip BOM */
     if (pos >= 3 &&
-        (unsigned char)buf[0] == 0xEF &&
-        (unsigned char)buf[1] == 0xBB &&
-        (unsigned char)buf[2] == 0xBF) {
-        l_memmove(buf, buf + 3, (size_t)(pos - 2));
+        (unsigned char)data[0] == 0xEF &&
+        (unsigned char)data[1] == 0xBB &&
+        (unsigned char)data[2] == 0xBF) {
+        l_memmove(data, data + 3, (size_t)(pos - 2));
+        buf->len -= 3;
         pos -= 3;
     }
     return pos;
 }
 
 /* Split line into argv; handles single and double quotes. */
-static int parse_line(char *line, char *argv[]) {
+static int parse_line(char *line, char **argv, int argv_cap) {
     int ac = 0;
     char *p = line;
-    while (*p && ac < MAX_ARGS - 1) {
+    while (*p && ac < argv_cap - 1) {
         while (*p == ' ' || *p == '\t') p++;
         if (!*p) break;
         char q = 0;
@@ -114,7 +115,7 @@ static int parse_redir(char *argv[], int ac, Redir *r) {
 
 /* --- Built-in commands -------------------------------------------------- */
 
-static int try_builtin(char *argv[], int ac) {
+static int try_builtin(char *argv[], int ac, L_Arena *arena) {
     if (l_strcmp(argv[0], "exit") == 0)
         l_exit(ac > 1 ? l_atoi(argv[1]) : last_exit);
 
@@ -135,8 +136,8 @@ static int try_builtin(char *argv[], int ac) {
     }
 
     if (l_strcmp(argv[0], "pwd") == 0) {
-        char cwd[MAX_PATH_BUF];
-        if (l_getcwd(cwd, sizeof(cwd))) {
+        char *cwd = l_arena_alloc(arena, 4096);
+        if (cwd && l_getcwd(cwd, 4096)) {
             l_puts(cwd); l_puts("\n");
         }
         last_exit = 0;
@@ -191,14 +192,14 @@ static int restore_std_fd(L_FD target_fd, L_FD saved_fd) {
     return ok ? 0 : -1;
 }
 
-static L_PID spawn_cmd(char *argv[], L_FD stdin_fd, L_FD stdout_fd) {
-    char path[MAX_PATH_BUF];
+static L_PID spawn_cmd(char *argv[], L_FD stdin_fd, L_FD stdout_fd, L_Arena *arena) {
+    char *path = l_arena_alloc(arena, 4096);
     L_PID pid = -1;
     L_FD saved_in = -1;
     L_FD saved_out = -1;
     int restore_failed = 0;
 
-    if (!resolve_cmd(argv[0], path, MAX_PATH_BUF)) {
+    if (!path || !resolve_cmd(argv[0], path, 4096)) {
         eputs("sh: command not found: ");
         eputs(argv[0]); eputs("\n");
         return -1;
@@ -225,7 +226,7 @@ done:
     return pid;
 }
 
-static int exec_cmd(char *argv[], const Redir *r) {
+static int exec_cmd(char *argv[], const Redir *r, L_Arena *arena) {
     L_FD in_fd = L_SPAWN_INHERIT;
     L_FD out_fd = L_SPAWN_INHERIT;
 
@@ -247,7 +248,7 @@ static int exec_cmd(char *argv[], const Redir *r) {
         }
     }
 
-    L_PID pid = spawn_cmd(argv, in_fd, out_fd);
+    L_PID pid = spawn_cmd(argv, in_fd, out_fd, arena);
     close_redir_fd(in_fd);
     close_redir_fd(out_fd);
     if (pid < 0) return 127;
@@ -260,7 +261,7 @@ static int exec_cmd(char *argv[], const Redir *r) {
     return ec;
 }
 
-static int exec_pipe(char *argv[], int at) {
+static int exec_pipe(char *argv[], int at, L_Arena *arena) {
     char **left = argv, **right = argv + at + 1;
     if (!left[0] || !right[0]) {
         eputs("sh: invalid pipe\n"); return 1;
@@ -269,14 +270,14 @@ static int exec_pipe(char *argv[], int at) {
     L_FD pfd[2];
     if (l_pipe(pfd) < 0) { eputs("sh: pipe failed\n"); return 1; }
 
-    L_PID p1 = spawn_cmd(left, L_SPAWN_INHERIT, pfd[1]);
+    L_PID p1 = spawn_cmd(left, L_SPAWN_INHERIT, pfd[1], arena);
     l_close(pfd[1]);
     if (p1 < 0) {
         l_close(pfd[0]);
         return 127;
     }
 
-    L_PID p2 = spawn_cmd(right, pfd[0], L_SPAWN_INHERIT);
+    L_PID p2 = spawn_cmd(right, pfd[0], L_SPAWN_INHERIT, arena);
     l_close(pfd[0]);
     if (p2 < 0) {
         int e1 = 0;
@@ -313,15 +314,23 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    char line[MAX_LINE];
-    char *args[MAX_ARGS];
+    L_Arena arena = l_arena_init(1024 * 1024);
+    if (!arena.base) { eputs("sh: out of memory\n"); return 1; }
+
+    L_Buf line;
+    l_buf_init(&line);
 
     for (;;) {
-        print_prompt();
-        if (read_line(line, MAX_LINE) < 0) break;
-        if (!line[0]) continue;
+        l_arena_reset(&arena);
+        print_prompt(&arena);
+        if (read_line(&line) < 0) break;
+        if (!((char *)line.data)[0]) continue;
 
-        int ac = parse_line(line, args);
+        // Allocate args array from arena
+        char **args = l_arena_alloc(&arena, 1024 * sizeof(char *));
+        if (!args) { eputs("sh: out of memory\n"); break; }
+
+        int ac = parse_line((char *)line.data, args, 1024);
         if (ac == 0) continue;
 
         Redir r;
@@ -329,10 +338,12 @@ int main(int argc, char *argv[]) {
         if (ac == 0 || !args[0]) continue;
 
         if (r.pipe_at >= 0)
-            last_exit = exec_pipe(args, r.pipe_at);
-        else if (!try_builtin(args, ac))
-            last_exit = exec_cmd(args, &r);
+            last_exit = exec_pipe(args, r.pipe_at, &arena);
+        else if (!try_builtin(args, ac, &arena))
+            last_exit = exec_cmd(args, &r, &arena);
     }
     l_puts("\n");
+    l_buf_free(&line);
+    l_arena_free(&arena);
     return last_exit;
 }

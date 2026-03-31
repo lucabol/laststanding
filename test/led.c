@@ -4,16 +4,16 @@
 // led — laststanding editor: a modal text editor with vim keybindings
 // Usage: led [filename]
 
-#define MAX_LINES    4096
-#define MAX_LINE_LEN  256
 #define CMD_BUF_LEN    64
 #define YANK_LINES     64
 
 enum Mode { NORMAL, INSERT, COMMAND };
 
 typedef struct {
-    char lines[MAX_LINES][MAX_LINE_LEN];
+    char **lines;         // arena-allocated array of line pointers
+    int  *line_caps;      // arena-allocated array of per-line capacities
     int  num_lines;
+    int  lines_cap;       // capacity of lines/line_caps arrays
     int  cx, cy;          // cursor col, row in file
     int  scroll_y;        // first visible line
     int  rows, cols;      // terminal size
@@ -23,28 +23,25 @@ typedef struct {
     char status[256];
     char cmd[CMD_BUF_LEN];
     int  cmd_len;
-    char yank[YANK_LINES][MAX_LINE_LEN];
+    char *yank[YANK_LINES];
     int  yank_count;
     int  quit;
     int  count;           // numeric prefix for commands
     int  crlf;            // 1 = Windows CRLF, 0 = Unix LF
+    L_Arena arena;
 } Editor;
 
 static Editor E;
 
-// --- Screen buffer (eliminates flicker by writing in one syscall) ---
+// --- Screen buffer (L_Buf eliminates flicker by writing in one syscall) ---
 
-#define SCREEN_BUF_SIZE (256 * 100)
-static char screen_buf[SCREEN_BUF_SIZE];
-static int screen_pos;
+static L_Buf screen_buf;
 
-static void sb_clear(void)                { screen_pos = 0; }
-static void sb_flush(void)                { write(STDOUT, screen_buf, screen_pos); screen_pos = 0; }
+static void sb_clear(void)                { l_buf_clear(&screen_buf); }
+static void sb_flush(void)                { write(STDOUT, screen_buf.data, screen_buf.len); l_buf_clear(&screen_buf); }
 
 static void sb_append(const char *s, int len) {
-    if (screen_pos + len > SCREEN_BUF_SIZE) len = SCREEN_BUF_SIZE - screen_pos;
-    memcpy(screen_buf + screen_pos, s, len);
-    screen_pos += len;
+    l_buf_push(&screen_buf, s, (size_t)len);
 }
 
 static void sb_str(const char *s) { sb_append(s, strlen(s)); }
@@ -71,6 +68,41 @@ static void set_status(const char *msg) {
     int i = 0;
     while (msg[i] && i < (int)sizeof(E.status) - 1) { E.status[i] = msg[i]; i++; }
     E.status[i] = '\0';
+}
+
+// --- Arena line helpers ---
+
+static void ensure_lines_cap(int needed) {
+    if (needed <= E.lines_cap) return;
+    int new_cap = E.lines_cap;
+    while (new_cap < needed) new_cap *= 2;
+    char **nl = l_arena_alloc(&E.arena, (size_t)new_cap * sizeof(char *));
+    int *nc = l_arena_alloc(&E.arena, (size_t)new_cap * sizeof(int));
+    if (!nl || !nc) return;
+    if (E.lines_cap > 0) {
+        l_memcpy(nl, E.lines, (size_t)E.lines_cap * sizeof(char *));
+        l_memcpy(nc, E.line_caps, (size_t)E.lines_cap * sizeof(int));
+    }
+    E.lines = nl;
+    E.line_caps = nc;
+    E.lines_cap = new_cap;
+}
+
+static void ensure_line_cap(int row, int needed) {
+    if (needed <= E.line_caps[row]) return;
+    int new_cap = E.line_caps[row] ? E.line_caps[row] : 256;
+    while (new_cap < needed) new_cap *= 2;
+    char *np = l_arena_alloc(&E.arena, (size_t)new_cap);
+    if (!np) return;
+    l_memcpy(np, E.lines[row], (size_t)E.line_caps[row]);
+    E.lines[row] = np;
+    E.line_caps[row] = new_cap;
+}
+
+static void alloc_line_at(int idx) {
+    E.lines[idx] = l_arena_alloc(&E.arena, 256);
+    E.line_caps[idx] = E.lines[idx] ? 256 : 0;
+    if (E.lines[idx]) E.lines[idx][0] = '\0';
 }
 
 // --- File I/O ---
@@ -105,9 +137,9 @@ static void editor_load(const char *path) {
                 // End this line; check next char for \n
                 E.lines[line][col] = '\0';
                 line++;
-                if (line >= MAX_LINES) goto done;
+                ensure_lines_cap(line + 1);
+                alloc_line_at(line);
                 col = 0;
-                E.lines[line][0] = '\0';
                 saw_cr = 1;
                 continue;
             }
@@ -115,16 +147,16 @@ static void editor_load(const char *path) {
                 if (E.crlf < 0) E.crlf = 0;
                 E.lines[line][col] = '\0';
                 line++;
-                if (line >= MAX_LINES) goto done;
+                ensure_lines_cap(line + 1);
+                alloc_line_at(line);
                 col = 0;
-                E.lines[line][0] = '\0';
-            } else if (col < MAX_LINE_LEN - 1) {
+            } else {
+                ensure_line_cap(line, col + 2);
                 E.lines[line][col++] = buf[i];
                 E.lines[line][col] = '\0';
             }
         }
     }
-done:
     close(fd);
     if (E.crlf < 0) E.crlf = 0;  // default to LF for empty/no-newline files
     E.num_lines = line + 1;
@@ -252,7 +284,8 @@ static void scroll_to_cursor(void) {
 static void insert_char(int row, int col, char c) {
     char *line = E.lines[row];
     int len = strlen(line);
-    if (len >= MAX_LINE_LEN - 1) return;
+    ensure_line_cap(row, len + 2);
+    line = E.lines[row]; // pointer may have changed
     memmove(line + col + 1, line + col, len - col + 1);
     line[col] = c;
     E.modified = 1;
@@ -267,25 +300,30 @@ static void delete_char(int row, int col) {
 }
 
 static void insert_line(int at) {
-    if (E.num_lines >= MAX_LINES) return;
-    for (int i = E.num_lines; i > at; i--)
-        memcpy(E.lines[i], E.lines[i - 1], MAX_LINE_LEN);
-    E.lines[at][0] = '\0';
+    ensure_lines_cap(E.num_lines + 1);
+    for (int i = E.num_lines; i > at; i--) {
+        E.lines[i] = E.lines[i - 1];
+        E.line_caps[i] = E.line_caps[i - 1];
+    }
+    alloc_line_at(at);
     E.num_lines++;
     E.modified = 1;
 }
 
 static void delete_line(int at) {
     if (E.num_lines <= 1) { E.lines[0][0] = '\0'; E.modified = 1; return; }
-    for (int i = at; i < E.num_lines - 1; i++)
-        memcpy(E.lines[i], E.lines[i + 1], MAX_LINE_LEN);
+    for (int i = at; i < E.num_lines - 1; i++) {
+        E.lines[i] = E.lines[i + 1];
+        E.line_caps[i] = E.line_caps[i + 1];
+    }
     E.num_lines--;
     E.modified = 1;
 }
 
 static void split_line(int row, int col) {
-    if (E.num_lines >= MAX_LINES) return;
     insert_line(row + 1);
+    int tail_len = strlen(E.lines[row] + col) + 1;
+    ensure_line_cap(row + 1, tail_len);
     strcpy(E.lines[row + 1], E.lines[row] + col);
     E.lines[row][col] = '\0';
     E.modified = 1;
@@ -295,10 +333,9 @@ static void join_lines(int row) {
     if (row >= E.num_lines - 1) return;
     int len1 = strlen(E.lines[row]);
     int len2 = strlen(E.lines[row + 1]);
-    if (len1 + len2 < MAX_LINE_LEN) {
-        strcpy(E.lines[row] + len1, E.lines[row + 1]);
-        delete_line(row + 1);
-    }
+    ensure_line_cap(row, len1 + len2 + 1);
+    strcpy(E.lines[row] + len1, E.lines[row + 1]);
+    delete_line(row + 1);
 }
 
 // --- Command mode ---
@@ -494,8 +531,11 @@ static void handle_normal(char c) {
             // Yank lines first
             E.yank_count = 0;
             for (int i = 0; i < n && E.cy < E.num_lines; i++) {
-                if (E.yank_count < YANK_LINES)
-                    strcpy(E.yank[E.yank_count++], E.lines[E.cy]);
+                if (E.yank_count < YANK_LINES) {
+                    int sl = strlen(E.lines[E.cy]) + 1;
+                    char *y = l_arena_alloc(&E.arena, (size_t)sl);
+                    if (y) { l_memcpy(y, E.lines[E.cy], (size_t)sl); E.yank[E.yank_count++] = y; }
+                }
                 delete_line(E.cy);
             }
             if (E.cy >= E.num_lines && E.cy > 0) E.cy--;
@@ -513,8 +553,11 @@ static void handle_normal(char c) {
         if (prev_d == 'y') {
             E.yank_count = 0;
             for (int i = 0; i < n && (E.cy + i) < E.num_lines; i++) {
-                if (E.yank_count < YANK_LINES)
-                    strcpy(E.yank[E.yank_count++], E.lines[E.cy + i]);
+                if (E.yank_count < YANK_LINES) {
+                    int sl = strlen(E.lines[E.cy + i]) + 1;
+                    char *y = l_arena_alloc(&E.arena, (size_t)sl);
+                    if (y) { l_memcpy(y, E.lines[E.cy + i], (size_t)sl); E.yank[E.yank_count++] = y; }
+                }
             }
             char msg[32] = "";
             itoa(E.yank_count, msg, 10);
@@ -531,6 +574,8 @@ static void handle_normal(char c) {
         for (int r = 0; r < n; r++) {
             for (int i = 0; i < E.yank_count; i++) {
                 insert_line(E.cy + 1);
+                int yl = strlen(E.yank[i]) + 1;
+                ensure_line_cap(E.cy + 1, yl);
                 strcpy(E.lines[E.cy + 1], E.yank[i]);
                 E.cy++;
             }
@@ -541,6 +586,8 @@ static void handle_normal(char c) {
         for (int r = 0; r < n; r++) {
             for (int i = E.yank_count - 1; i >= 0; i--) {
                 insert_line(E.cy);
+                int yl = strlen(E.yank[i]) + 1;
+                ensure_line_cap(E.cy, yl);
                 strcpy(E.lines[E.cy], E.yank[i]);
             }
         }
@@ -607,15 +654,34 @@ static void handle_input(char c) {
 
 int main(int argc, char *argv[]) {
     memset(&E, 0, sizeof(E));
+
+    E.arena = l_arena_init(4 * 1024 * 1024); // 4MB
+    if (!E.arena.base) {
+        l_puts("led: cannot allocate memory\n");
+        return 1;
+    }
+
+    E.lines_cap = 1024;
+    E.lines = l_arena_alloc(&E.arena, (size_t)E.lines_cap * sizeof(char *));
+    E.line_caps = l_arena_alloc(&E.arena, (size_t)E.lines_cap * sizeof(int));
+    if (!E.lines || !E.line_caps) {
+        l_puts("led: cannot allocate memory\n");
+        l_arena_free(&E.arena);
+        return 1;
+    }
+
+    l_buf_init(&screen_buf);
     l_term_size(&E.rows, &E.cols);
     if (E.rows < 3) E.rows = 24;
     if (E.cols < 10) E.cols = 80;
 
+    alloc_line_at(0);
     E.num_lines = 1;
-    E.lines[0][0] = '\0';
 
     if (argc < 2) {
         puts("Usage: led <filename>\n");
+        l_buf_free(&screen_buf);
+        l_arena_free(&E.arena);
         return 0;
     }
 
@@ -644,6 +710,8 @@ int main(int argc, char *argv[]) {
     outs("\033[1 q");       // restore block cursor
     outs("\033[?25h");      // show cursor
     l_term_restore(old_mode);
+    l_buf_free(&screen_buf);
+    l_arena_free(&E.arena);
 
     return 0;
 }

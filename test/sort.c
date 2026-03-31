@@ -4,11 +4,6 @@
 // sort: line-based text sort
 // Usage: sort [-r] [-f] [-n] [-u] [-h/--help] [file]
 
-#define SORT_MAX_INPUT (64 * 1024)
-#define MAX_LINES 4096
-
-static char buf[SORT_MAX_INPUT];
-static char *lines[MAX_LINES];
 static int opt_reverse, opt_fold, opt_numeric, opt_unique;
 
 static int compare(const char *a, const char *b) {
@@ -72,22 +67,38 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* Read all input */
-    int total = 0;
-    while (total < SORT_MAX_INPUT - 1) {
-        ssize_t r = l_read(fd, buf + total, (size_t)(SORT_MAX_INPUT - 1 - total));
-        if (r <= 0) break;
-        total += (int)r;
+    /* Read all input into growable buffer */
+    L_Buf input;
+    l_buf_init(&input);
+    {
+        char tmp[4096];
+        ssize_t r;
+        while ((r = l_read(fd, tmp, sizeof(tmp))) > 0)
+            l_buf_push(&input, tmp, (size_t)r);
     }
-    buf[total] = '\0';
     if (file) l_close(fd);
 
-    if (total == 0) return 0;
+    if (input.len == 0) { l_buf_free(&input); return 0; }
+
+    /* Null-terminate so we can use string functions on the data */
+    { char nul = '\0'; l_buf_push(&input, &nul, 1); }
 
     /* Split into lines — \n is a terminator, not a separator */
+    L_Arena arena = l_arena_init(1024 * 1024);
+    if (!arena.base) { l_puts("sort: out of memory\n"); l_buf_free(&input); return 1; }
+
+    size_t lines_cap = 4096;
+    char **lines = l_arena_alloc(&arena, lines_cap * sizeof(char *));
     int nlines = 0;
-    char *p = buf;
-    while (*p && nlines < MAX_LINES) {
+    char *p = (char *)input.data;
+    while (*p) {
+        if ((size_t)nlines >= lines_cap) {
+            size_t new_cap = lines_cap * 2;
+            char **nl = l_arena_alloc(&arena, new_cap * sizeof(char *));
+            l_memcpy(nl, lines, (size_t)nlines * sizeof(char *));
+            lines = nl;
+            lines_cap = new_cap;
+        }
         lines[nlines++] = p;
         char *nl = l_strchr(p, '\n');
         if (nl) {
@@ -108,5 +119,7 @@ int main(int argc, char *argv[]) {
         l_puts("\n");
     }
 
+    l_arena_free(&arena);
+    l_buf_free(&input);
     return 0;
 }

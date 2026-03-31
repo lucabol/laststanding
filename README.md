@@ -223,6 +223,23 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+### Dynamic Memory (Arena Allocator)
+
+laststanding provides an arena (bump) allocator for programs that need dynamic memory without the complexity of malloc/free:
+
+```c
+L_Arena arena = l_arena_init(1024 * 1024);  // 1MB arena
+char *name = l_arena_alloc(&arena, 256);     // bump-allocate 256 bytes
+l_arena_reset(&arena);                       // reuse all memory
+l_arena_free(&arena);                        // release to OS
+
+L_Buf buf;
+l_buf_init(&buf);
+l_buf_push(&buf, "hello", 5);               // growable buffer
+l_buf_printf(&buf, " world %d", 42);        // formatted append (needs L_WITHSNPRINTF)
+l_buf_free(&buf);
+```
+
 ## Compile-Time Flags
 
 | Define | Purpose |

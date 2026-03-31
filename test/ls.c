@@ -6,8 +6,6 @@
 //   -a  show hidden files (starting with '.')
 //   -l  long format (type, size, name)
 
-#define MAX_ENTRIES 512
-
 typedef struct {
     char name[256];
     char type;       // 'd', '-', or '?'
@@ -74,13 +72,25 @@ int main(int argc, char *argv[]) {
         return 2;
     }
 
-    Entry entries[MAX_ENTRIES];
+    L_Arena arena = l_arena_init(512 * 1024);
+    if (!arena.base) { l_puts("ls: out of memory\n"); l_closedir(&dir); return 1; }
+
+    size_t entries_cap = 256;
+    Entry *entries = l_arena_alloc(&arena, entries_cap * sizeof(Entry));
     int count = 0;
     L_DirEntry *ent;
 
-    while ((ent = l_readdir(&dir)) != (L_DirEntry *)0 && count < MAX_ENTRIES) {
+    while ((ent = l_readdir(&dir)) != (L_DirEntry *)0) {
         // Skip hidden files unless -a
         if (!show_all && ent->d_name[0] == '.') continue;
+
+        if ((size_t)count >= entries_cap) {
+            size_t new_cap = entries_cap * 2;
+            Entry *ne = l_arena_alloc(&arena, new_cap * sizeof(Entry));
+            l_memcpy(ne, entries, (size_t)count * sizeof(Entry));
+            entries = ne;
+            entries_cap = new_cap;
+        }
 
         l_strncpy(entries[count].name, ent->d_name, 255);
         entries[count].name[255] = '\0';
@@ -138,5 +148,6 @@ int main(int argc, char *argv[]) {
         if (count > 0) l_puts("\n");
     }
 
+    l_arena_free(&arena);
     return 0;
 }
