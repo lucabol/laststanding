@@ -715,8 +715,65 @@ Non-interactive binaries with deterministic, quick tests: `base64`, `checksum`, 
 - Callers cannot use `dup2`-style descriptor manipulation as a general-purpose escape hatch. Instead, they call `l_spawn_stdio` with explicit redirection.
 - This is a reasonable constraint for a freestanding library and aligns well with actual usage in shell and process utilities.
 
+
+### Linux setenv: Static Pool vs Dynamic Allocation
+
+**Date:** 2026-03-31  
+**Status:** Implemented  
+
+Use a static pool (128 entries, 8KB string buffer) for l_setenv/l_unsetenv on Linux instead of attempting dynamic allocation.
+
+**Rationale:** In freestanding mode we have no malloc. Using l_mmap per entry would be wasteful. A fixed pool of 128 env vars and 8KB for strings covers realistic use cases while keeping the implementation simple. First l_setenv call copies the original l_envp pointers into the pool and repoints l_envp to it.
+
+**Trade-off:** Programs needing >128 env vars or >8KB of new env string data will get -1 returns. This is acceptable for a freestanding library.
+
+---
+
+### AArch64 poll: ppoll Instead of poll
+
+**Date:** 2026-03-31  
+**Status:** Implemented  
+
+Use ppoll (NR=73) on AArch64 instead of poll, since AArch64 Linux has no poll syscall.
+
+**Rationale:** AArch64 kernel only exposes ppoll. We convert timeout_ms to a timespec and pass NULL for the signal mask to get poll-equivalent behavior.
+
+---
+
+### Signal Handling: Minimal rt_sigaction, No Restorer
+
+**Date:** 2026-03-31  
+**Status:** Implemented  
+
+Use rt_sigaction with flags=0 (no SA_RESTORER) on Linux. On Windows, only support SIGINT/SIGTERM via SetConsoleCtrlHandler.
+
+**Rationale:** Full sigaction with custom restorer trampoline (rt_sigreturn) is complex and architecture-specific. The simple approach of flags=0 works on modern kernels for basic signal handler registration. Windows has no concept of Unix signals beyond the console ctrl handler.
+
+---
+
+### L_Map: No Resize
+
+**Date:** 2026-03-31  
+**Status:** Implemented  
+
+L_Map is fixed-capacity (set at init, rounded to power of 2). No resize or rehash.
+
+**Rationale:** Arena-backed allocation makes resize impractical (arena doesn't support free). Users must estimate capacity upfront. 75% load factor limit prevents excessive probing.
+
+---
+
+### l_localtime: Simple TZ Parsing
+
+**Date:** 2026-03-31  
+**Status:** Implemented  
+
+On Linux, l_localtime parses simple TZ env var formats (e.g., "UTC+5", "EST5") or defaults to UTC. On Windows, uses GetTimeZoneInformation for full DST support.
+
+**Rationale:** Reading /etc/localtime (Olson TZ database binary format) is complex. Simple TZ parsing covers the common case. Users needing precise timezone handling can use l_gmtime and apply their own offset.
+
 ## Governance
 
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
