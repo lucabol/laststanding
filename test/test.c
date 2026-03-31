@@ -822,6 +822,33 @@ void test_strtod_atof(void) {
     TEST_SECTION_PASS("l_strtod / l_atof");
 }
 
+// ===================== l_strtof =====================
+
+void test_strtof(void) {
+    char *ep;
+
+    TEST_FUNCTION("l_strtof");
+
+    /* Basic round-trips — use tolerances appropriate for float precision */
+    TEST_ASSERT(l_strtof("0", (char **)0) == 0.0f, "strtof '0'");
+    TEST_ASSERT(l_strtof("1", (char **)0) == 1.0f, "strtof '1'");
+    TEST_ASSERT(l_strtof("3.14", (char **)0) > 3.13f && l_strtof("3.14", (char **)0) < 3.15f, "strtof '3.14'");
+    TEST_ASSERT(l_strtof("-1.5", (char **)0) == -1.5f, "strtof '-1.5'");
+    TEST_ASSERT(l_strtof("1e3", (char **)0) == 1000.0f, "strtof '1e3'");
+    TEST_ASSERT(l_strtof("+0.5", (char **)0) == 0.5f, "strtof '+0.5'");
+
+    /* endptr */
+    ep = (char *)0;
+    l_strtof("2.5xyz", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'x', "strtof endptr stops at non-numeric");
+
+    /* Result is a float (single-precision) */
+    float fv = l_strtof("100.0", (char **)0);
+    TEST_ASSERT(fv == 100.0f, "strtof returns float 100.0");
+
+    TEST_SECTION_PASS("l_strtof");
+}
+
 void test_itoa(void) {
     TEST_FUNCTION("l_itoa");
 
@@ -3483,6 +3510,7 @@ int main(int argc, char* argv[]) {
     test_strtoul_strtol();
     test_strtoull_strtoll();
     test_strtod_atof();
+    test_strtof();
     test_itoa();
     test_itoa_atoi_roundtrip();
 

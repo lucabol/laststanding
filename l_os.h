@@ -317,6 +317,8 @@ unsigned long long l_strtoull(const char *nptr, char **endptr, int base);
 long long l_strtoll(const char *nptr, char **endptr, int base);
 /// Converts a string to a double; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit
 double l_strtod(const char *nptr, char **endptr);
+/// Converts a string to a float (single-precision); delegates to l_strtod then casts to float; sets *endptr past last digit
+static inline float l_strtof(const char *nptr, char **endptr);
 /// Converts a string to a double (convenience wrapper around l_strtod)
 static inline double l_atof(const char *s);
 
@@ -953,6 +955,7 @@ int WINAPI mainCRTStartup(void)
 #  define strtoull l_strtoull
 #  define strtoll l_strtoll
 #  define strtod  l_strtod
+#  define strtof  l_strtof
 #  define atof    l_atof
 #  define itoa l_itoa
 
@@ -1810,6 +1813,7 @@ inline double l_strtod(const char *nptr, char **endptr)
 }
 
 static inline double l_atof(const char *s) { return l_strtod(s, (char **)0); }
+static inline float  l_strtof(const char *nptr, char **endptr) { return (float)l_strtod(nptr, endptr); }
 
 // ─── Math functions ──────────────────────────────────────────────────────────
 
