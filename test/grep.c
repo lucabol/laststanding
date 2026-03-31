@@ -14,8 +14,9 @@ int main(int argc, char *argv[]) {
     L_FD fd = open_read(argv[2]);
     exitif(fd < 0, 1, "Error: cannot open file\n");
 
-    L_Buf line;
+    L_Buf line, out;
     l_buf_init(&line);
+    l_buf_init(&out);
     char buf[4096];
     int line_num = 0;
     int matches = 0;
@@ -30,12 +31,12 @@ int main(int argc, char *argv[]) {
 
                 if (strstr((char *)line.data, pattern) != NULL) {
                     matches++;
-                    char num[12];
-                    itoa(line_num, num, 10);
-                    write(STDOUT, num, strlen(num));
-                    write(STDOUT, ":", 1);
-                    write(STDOUT, line.data, line.len - 1);
-                    write(STDOUT, "\n", 1);
+                    l_buf_push_int(&out, line_num);
+                    l_buf_push_cstr(&out, ":");
+                    l_buf_push(&out, line.data, line.len - 1);
+                    l_buf_push_cstr(&out, "\n");
+                    write(STDOUT, out.data, out.len);
+                    l_buf_clear(&out);
                 }
                 l_buf_clear(&line);
             } else {
@@ -51,15 +52,16 @@ int main(int argc, char *argv[]) {
         line_num++;
         if (strstr((char *)line.data, pattern) != NULL) {
             matches++;
-            char num[12];
-            itoa(line_num, num, 10);
-            write(STDOUT, num, strlen(num));
-            write(STDOUT, ":", 1);
-            write(STDOUT, line.data, line.len - 1);
-            write(STDOUT, "\n", 1);
+            l_buf_push_int(&out, line_num);
+            l_buf_push_cstr(&out, ":");
+            l_buf_push(&out, line.data, line.len - 1);
+            l_buf_push_cstr(&out, "\n");
+            write(STDOUT, out.data, out.len);
+            l_buf_clear(&out);
         }
     }
 
+    l_buf_free(&out);
     l_buf_free(&line);
     close(fd);
     return matches > 0 ? 0 : 1;

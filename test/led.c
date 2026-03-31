@@ -44,13 +44,8 @@ static void sb_append(const char *s, int len) {
     l_buf_push(&screen_buf, s, (size_t)len);
 }
 
-static void sb_str(const char *s) { sb_append(s, strlen(s)); }
-
-static void sb_num(int n) {
-    char buf[12];
-    itoa(n, buf, 10);
-    sb_str(buf);
-}
+static void sb_str(const char *s) { l_buf_push_cstr(&screen_buf, s); }
+static void sb_num(int n)        { l_buf_push_int(&screen_buf, n); }
 
 static void sb_move(int r, int c) {
     sb_str("\033[");
@@ -184,14 +179,13 @@ static int editor_save(void) {
     close(fd);
     E.modified = 0;
 
-    char msg[128] = "Wrote ";
-    char numbuf[12];
-    itoa(E.num_lines, numbuf, 10);
-    int p = 6;
-    for (int i = 0; numbuf[i]; i++) msg[p++] = numbuf[i];
-    msg[p++] = ' '; msg[p++] = 'l'; msg[p++] = 'i'; msg[p++] = 'n';
-    msg[p++] = 'e'; msg[p++] = 's'; msg[p] = '\0';
-    set_status(msg);
+    L_Buf mb; l_buf_init(&mb);
+    l_buf_push_cstr(&mb, "Wrote ");
+    l_buf_push_int(&mb, E.num_lines);
+    l_buf_push_cstr(&mb, " lines");
+    { char nul = '\0'; l_buf_push(&mb, &nul, 1); }
+    set_status((const char *)mb.data);
+    l_buf_free(&mb);
     return 0;
 }
 
@@ -559,14 +553,12 @@ static void handle_normal(char c) {
                     if (y) { l_memcpy(y, E.lines[E.cy + i], (size_t)sl); E.yank[E.yank_count++] = y; }
                 }
             }
-            char msg[32] = "";
-            itoa(E.yank_count, msg, 10);
-            int ml = strlen(msg);
-            msg[ml++]=' '; msg[ml++]='l'; msg[ml++]='i'; msg[ml++]='n';
-            msg[ml++]='e'; msg[ml++]='s'; msg[ml++]=' '; msg[ml++]='y';
-            msg[ml++]='a'; msg[ml++]='n'; msg[ml++]='k'; msg[ml++]='e';
-            msg[ml++]='d'; msg[ml]='\0';
-            set_status(msg);
+            L_Buf mb; l_buf_init(&mb);
+            l_buf_push_int(&mb, E.yank_count);
+            l_buf_push_cstr(&mb, " lines yanked");
+            { char nul = '\0'; l_buf_push(&mb, &nul, 1); }
+            set_status((const char *)mb.data);
+            l_buf_free(&mb);
             prev_d = 0;
         }
         return;

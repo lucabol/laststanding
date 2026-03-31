@@ -193,6 +193,12 @@ typedef struct {
     size_t len;
     size_t cap;
 } L_Buf;
+
+// Fat string — pointer + length, no null terminator required
+typedef struct {
+    const char *data;
+    size_t len;
+} L_Str;
 #endif
 
 #ifdef L_WITHSOCKETS
@@ -522,6 +528,69 @@ static inline int l_buf_printf(L_Buf *b, const char *fmt, ...);
 static inline void l_buf_clear(L_Buf *b);
 /// Free backing memory and zero the struct.
 static inline void l_buf_free(L_Buf *b);
+
+// L_Str — fat string (pointer + length) function declarations
+
+/// Wrap a C string (computes strlen).
+static inline L_Str l_str(const char *cstr);
+/// Wrap pointer+length.
+static inline L_Str l_str_from(const char *data, size_t len);
+/// Return null string {NULL, 0}.
+static inline L_Str l_str_null(void);
+
+/// 1 if equal, 0 otherwise.
+static inline int l_str_eq(L_Str a, L_Str b);
+/// Lexicographic compare (like strcmp).
+static inline int l_str_cmp(L_Str a, L_Str b);
+/// 1 if s starts with prefix.
+static inline int l_str_startswith(L_Str s, L_Str prefix);
+/// 1 if s ends with suffix.
+static inline int l_str_endswith(L_Str s, L_Str suffix);
+/// 1 if s contains needle.
+static inline int l_str_contains(L_Str s, L_Str needle);
+
+/// Substring (zero-copy).
+static inline L_Str l_str_sub(L_Str s, size_t start, size_t len);
+/// Trim leading+trailing whitespace (zero-copy).
+static inline L_Str l_str_trim(L_Str s);
+/// Trim leading whitespace (zero-copy).
+static inline L_Str l_str_ltrim(L_Str s);
+/// Trim trailing whitespace (zero-copy).
+static inline L_Str l_str_rtrim(L_Str s);
+/// Find char in string, -1 if not found.
+static inline ptrdiff_t l_str_chr(L_Str s, char c);
+/// Find last occurrence of char, -1 if not found.
+static inline ptrdiff_t l_str_rchr(L_Str s, char c);
+/// Find substring, -1 if not found.
+static inline ptrdiff_t l_str_find(L_Str haystack, L_Str needle);
+
+/// Copy string into arena.
+static inline L_Str l_str_dup(L_Arena *a, L_Str s);
+/// Concatenate two strings into arena.
+static inline L_Str l_str_cat(L_Arena *a, L_Str x, L_Str y);
+/// Null-terminated C string copy in arena.
+static inline char *l_str_cstr(L_Arena *a, L_Str s);
+/// strdup into arena as L_Str.
+static inline L_Str l_str_from_cstr(L_Arena *a, const char *cstr);
+
+/// Split string by delimiter. Returns count; *out is arena-allocated array.
+static inline int l_str_split(L_Arena *a, L_Str s, L_Str delim, L_Str **out);
+/// Join strings with separator.
+static inline L_Str l_str_join(L_Arena *a, const L_Str *parts, int count, L_Str sep);
+
+/// Uppercase copy in arena (ASCII).
+static inline L_Str l_str_upper(L_Arena *a, L_Str s);
+/// Lowercase copy in arena (ASCII).
+static inline L_Str l_str_lower(L_Arena *a, L_Str s);
+
+/// Append L_Str to buf. Returns 0 on success, -1 on failure.
+static inline int l_buf_push_str(L_Buf *b, L_Str s);
+/// Append C string to buf. Returns 0 on success, -1 on failure.
+static inline int l_buf_push_cstr(L_Buf *b, const char *s);
+/// Append decimal int to buf. Returns 0 on success, -1 on failure.
+static inline int l_buf_push_int(L_Buf *b, int value);
+/// Return L_Str view of buf contents.
+static inline L_Str l_buf_as_str(const L_Buf *b);
 
 /// Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error.
 char *l_getcwd(char *buf, size_t size);
@@ -5599,6 +5668,209 @@ static inline void l_buf_free(L_Buf *b) {
     b->data = (unsigned char *)0;
     b->len = 0;
     b->cap = 0;
+}
+
+// ---------------------------------------------------------------------------
+// L_Str — fat string definitions
+// ---------------------------------------------------------------------------
+
+// Constructors
+static inline L_Str l_str(const char *cstr) {
+    L_Str s;
+    s.data = cstr;
+    s.len = cstr ? l_strlen(cstr) : 0;
+    return s;
+}
+static inline L_Str l_str_from(const char *data, size_t len) {
+    L_Str s;
+    s.data = data;
+    s.len = data ? len : 0;
+    return s;
+}
+static inline L_Str l_str_null(void) {
+    L_Str s;
+    s.data = (const char *)0;
+    s.len = 0;
+    return s;
+}
+
+// Comparison
+static inline int l_str_eq(L_Str a, L_Str b) {
+    if (a.len != b.len) return 0;
+    if (a.len == 0) return 1;
+    return l_memcmp(a.data, b.data, a.len) == 0;
+}
+static inline int l_str_cmp(L_Str a, L_Str b) {
+    size_t n = a.len < b.len ? a.len : b.len;
+    int r = n ? l_memcmp(a.data, b.data, n) : 0;
+    if (r != 0) return r;
+    if (a.len < b.len) return -1;
+    if (a.len > b.len) return 1;
+    return 0;
+}
+static inline int l_str_startswith(L_Str s, L_Str prefix) {
+    if (prefix.len > s.len) return 0;
+    return l_memcmp(s.data, prefix.data, prefix.len) == 0;
+}
+static inline int l_str_endswith(L_Str s, L_Str suffix) {
+    if (suffix.len > s.len) return 0;
+    return l_memcmp(s.data + s.len - suffix.len, suffix.data, suffix.len) == 0;
+}
+static inline int l_str_contains(L_Str s, L_Str needle) {
+    if (needle.len == 0) return 1;
+    if (needle.len > s.len) return 0;
+    return l_memmem(s.data, s.len, needle.data, needle.len) != (void *)0;
+}
+
+// Slicing (zero-copy)
+static inline L_Str l_str_sub(L_Str s, size_t start, size_t len) {
+    if (start >= s.len) return l_str_null();
+    if (start + len > s.len) len = s.len - start;
+    return l_str_from(s.data + start, len);
+}
+static inline L_Str l_str_ltrim(L_Str s) {
+    while (s.len > 0 && l_isspace((unsigned char)*s.data)) { s.data++; s.len--; }
+    return s;
+}
+static inline L_Str l_str_rtrim(L_Str s) {
+    while (s.len > 0 && l_isspace((unsigned char)s.data[s.len - 1])) s.len--;
+    return s;
+}
+static inline L_Str l_str_trim(L_Str s) {
+    return l_str_rtrim(l_str_ltrim(s));
+}
+static inline ptrdiff_t l_str_chr(L_Str s, char c) {
+    for (size_t i = 0; i < s.len; i++) if (s.data[i] == c) return (ptrdiff_t)i;
+    return -1;
+}
+static inline ptrdiff_t l_str_rchr(L_Str s, char c) {
+    for (size_t i = s.len; i > 0; i--) if (s.data[i - 1] == c) return (ptrdiff_t)(i - 1);
+    return -1;
+}
+static inline ptrdiff_t l_str_find(L_Str haystack, L_Str needle) {
+    if (needle.len == 0) return 0;
+    if (needle.len > haystack.len) return -1;
+    void *p = l_memmem(haystack.data, haystack.len, needle.data, needle.len);
+    if (!p) return -1;
+    return (ptrdiff_t)((const char *)p - haystack.data);
+}
+
+// Arena operations
+static inline L_Str l_str_dup(L_Arena *a, L_Str s) {
+    if (s.len == 0) return l_str_null();
+    char *p = (char *)l_arena_alloc(a, s.len);
+    if (!p) return l_str_null();
+    l_memcpy(p, s.data, s.len);
+    return l_str_from(p, s.len);
+}
+static inline L_Str l_str_cat(L_Arena *a, L_Str x, L_Str y) {
+    size_t total = x.len + y.len;
+    if (total == 0) return l_str_null();
+    char *p = (char *)l_arena_alloc(a, total);
+    if (!p) return l_str_null();
+    if (x.len) l_memcpy(p, x.data, x.len);
+    if (y.len) l_memcpy(p + x.len, y.data, y.len);
+    return l_str_from(p, total);
+}
+static inline char *l_str_cstr(L_Arena *a, L_Str s) {
+    char *p = (char *)l_arena_alloc(a, s.len + 1);
+    if (!p) return (char *)0;
+    if (s.len) l_memcpy(p, s.data, s.len);
+    p[s.len] = '\0';
+    return p;
+}
+static inline L_Str l_str_from_cstr(L_Arena *a, const char *cstr) {
+    return l_str_dup(a, l_str(cstr));
+}
+
+// Split/Join (arena-backed)
+static inline int l_str_split(L_Arena *a, L_Str s, L_Str delim, L_Str **out) {
+    int count = 0;
+    size_t pos = 0;
+    if (delim.len == 0) {
+        *out = (L_Str *)l_arena_alloc(a, sizeof(L_Str));
+        if (!*out) return 0;
+        (*out)[0] = s;
+        return s.len > 0 ? 1 : 0;
+    }
+    // First pass: count parts
+    while (pos <= s.len) {
+        void *found = (pos + delim.len <= s.len)
+            ? l_memmem(s.data + pos, s.len - pos, delim.data, delim.len)
+            : (void *)0;
+        count++;
+        if (!found) break;
+        pos = (size_t)((const char *)found - s.data) + delim.len;
+    }
+    *out = (L_Str *)l_arena_alloc(a, (size_t)count * sizeof(L_Str));
+    if (!*out) return 0;
+    // Second pass: fill parts (zero-copy into original)
+    int idx = 0;
+    pos = 0;
+    while (pos <= s.len && idx < count) {
+        void *found = (pos + delim.len <= s.len)
+            ? l_memmem(s.data + pos, s.len - pos, delim.data, delim.len)
+            : (void *)0;
+        if (found) {
+            size_t fpos = (size_t)((const char *)found - s.data);
+            (*out)[idx++] = l_str_from(s.data + pos, fpos - pos);
+            pos = fpos + delim.len;
+        } else {
+            (*out)[idx++] = l_str_from(s.data + pos, s.len - pos);
+            break;
+        }
+    }
+    return count;
+}
+
+static inline L_Str l_str_join(L_Arena *a, const L_Str *parts, int count, L_Str sep) {
+    if (count <= 0) return l_str_null();
+    size_t total = 0;
+    for (int i = 0; i < count; i++) {
+        total += parts[i].len;
+        if (i > 0) total += sep.len;
+    }
+    if (total == 0) return l_str_null();
+    char *p = (char *)l_arena_alloc(a, total);
+    if (!p) return l_str_null();
+    size_t off = 0;
+    for (int i = 0; i < count; i++) {
+        if (i > 0 && sep.len) { l_memcpy(p + off, sep.data, sep.len); off += sep.len; }
+        if (parts[i].len) { l_memcpy(p + off, parts[i].data, parts[i].len); off += parts[i].len; }
+    }
+    return l_str_from(p, total);
+}
+
+// Case conversion (ASCII, arena-backed)
+static inline L_Str l_str_upper(L_Arena *a, L_Str s) {
+    if (s.len == 0) return l_str_null();
+    char *p = (char *)l_arena_alloc(a, s.len);
+    if (!p) return l_str_null();
+    for (size_t i = 0; i < s.len; i++) p[i] = (char)l_toupper((unsigned char)s.data[i]);
+    return l_str_from(p, s.len);
+}
+static inline L_Str l_str_lower(L_Arena *a, L_Str s) {
+    if (s.len == 0) return l_str_null();
+    char *p = (char *)l_arena_alloc(a, s.len);
+    if (!p) return l_str_null();
+    for (size_t i = 0; i < s.len; i++) p[i] = (char)l_tolower((unsigned char)s.data[i]);
+    return l_str_from(p, s.len);
+}
+
+// L_Buf helpers for L_Str
+static inline int l_buf_push_str(L_Buf *b, L_Str s) {
+    return s.len ? l_buf_push(b, s.data, s.len) : 0;
+}
+static inline int l_buf_push_cstr(L_Buf *b, const char *s) {
+    return s ? l_buf_push(b, s, l_strlen(s)) : 0;
+}
+static inline int l_buf_push_int(L_Buf *b, int value) {
+    char tmp[12];
+    l_itoa(value, tmp, 10);
+    return l_buf_push(b, tmp, l_strlen(tmp));
+}
+static inline L_Str l_buf_as_str(const L_Buf *b) {
+    return l_str_from((const char *)b->data, b->len);
 }
 
 inline int l_path_exists(const char *path) {

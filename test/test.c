@@ -3217,6 +3217,232 @@ void test_math(void) {
     TEST_SECTION_PASS("math");
 }
 
+// ---------------------------------------------------------------------------
+// L_Str tests
+// ---------------------------------------------------------------------------
+
+void test_str_constructors(void) {
+    TEST_FUNCTION("L_Str constructors");
+
+    L_Str s1 = l_str("hello");
+    TEST_ASSERT(s1.len == 5, "l_str hello len=5");
+    TEST_ASSERT(l_memcmp(s1.data, "hello", 5) == 0, "l_str hello data");
+
+    L_Str s2 = l_str("");
+    TEST_ASSERT(s2.len == 0, "l_str empty len=0");
+
+    L_Str s3 = l_str((const char *)0);
+    TEST_ASSERT(s3.len == 0, "l_str NULL len=0");
+
+    L_Str s4 = l_str_from("hello", 3);
+    TEST_ASSERT(s4.len == 3, "l_str_from len=3");
+    TEST_ASSERT(l_memcmp(s4.data, "hel", 3) == 0, "l_str_from data");
+
+    L_Str s5 = l_str_null();
+    TEST_ASSERT(s5.data == (const char *)0, "l_str_null data=NULL");
+    TEST_ASSERT(s5.len == 0, "l_str_null len=0");
+
+    TEST_SECTION_PASS("L_Str constructors");
+}
+
+void test_str_comparison(void) {
+    TEST_FUNCTION("L_Str comparison");
+
+    // l_str_eq
+    TEST_ASSERT(l_str_eq(l_str("abc"), l_str("abc")) == 1, "str_eq equal");
+    TEST_ASSERT(l_str_eq(l_str("abc"), l_str("xyz")) == 0, "str_eq different");
+    TEST_ASSERT(l_str_eq(l_str("ab"), l_str("abc")) == 0, "str_eq diff length");
+    TEST_ASSERT(l_str_eq(l_str(""), l_str("")) == 1, "str_eq both empty");
+
+    // l_str_cmp
+    TEST_ASSERT(l_str_cmp(l_str("abc"), l_str("abd")) < 0, "str_cmp less");
+    TEST_ASSERT(l_str_cmp(l_str("abd"), l_str("abc")) > 0, "str_cmp greater");
+    TEST_ASSERT(l_str_cmp(l_str("abc"), l_str("abc")) == 0, "str_cmp equal");
+    TEST_ASSERT(l_str_cmp(l_str("ab"), l_str("abc")) < 0, "str_cmp prefix shorter");
+
+    // l_str_startswith
+    TEST_ASSERT(l_str_startswith(l_str("hello world"), l_str("hello")) == 1, "startswith true");
+    TEST_ASSERT(l_str_startswith(l_str("hello"), l_str("world")) == 0, "startswith false");
+    TEST_ASSERT(l_str_startswith(l_str("hi"), l_str("hello")) == 0, "startswith prefix longer");
+    TEST_ASSERT(l_str_startswith(l_str("hello"), l_str("")) == 1, "startswith empty prefix");
+
+    // l_str_endswith
+    TEST_ASSERT(l_str_endswith(l_str("hello world"), l_str("world")) == 1, "endswith true");
+    TEST_ASSERT(l_str_endswith(l_str("hello"), l_str("world")) == 0, "endswith false");
+    TEST_ASSERT(l_str_endswith(l_str("hi"), l_str("hello")) == 0, "endswith suffix longer");
+    TEST_ASSERT(l_str_endswith(l_str("hello"), l_str("")) == 1, "endswith empty suffix");
+
+    // l_str_contains
+    TEST_ASSERT(l_str_contains(l_str("hello world"), l_str("lo w")) == 1, "contains found");
+    TEST_ASSERT(l_str_contains(l_str("hello"), l_str("xyz")) == 0, "contains not found");
+    TEST_ASSERT(l_str_contains(l_str("hello"), l_str("")) == 1, "contains empty needle");
+    TEST_ASSERT(l_str_contains(l_str("hi"), l_str("hello")) == 0, "contains needle longer");
+
+    TEST_SECTION_PASS("L_Str comparison");
+}
+
+void test_str_slicing(void) {
+    TEST_FUNCTION("L_Str slicing");
+
+    // l_str_sub
+    L_Str hw = l_str("hello world");
+    L_Str sub1 = l_str_sub(hw, 6, 5);
+    TEST_ASSERT(sub1.len == 5, "str_sub normal len");
+    TEST_ASSERT(l_memcmp(sub1.data, "world", 5) == 0, "str_sub normal data");
+
+    L_Str sub2 = l_str_sub(hw, 50, 5);
+    TEST_ASSERT(sub2.len == 0, "str_sub start beyond end");
+
+    L_Str sub3 = l_str_sub(hw, 8, 100);
+    TEST_ASSERT(sub3.len == 3, "str_sub len clamped");
+    TEST_ASSERT(l_memcmp(sub3.data, "rld", 3) == 0, "str_sub clamped data");
+
+    // l_str_trim
+    L_Str trimmed = l_str_trim(l_str("  hello  "));
+    TEST_ASSERT(l_str_eq(trimmed, l_str("hello")), "trim leading+trailing");
+    TEST_ASSERT(l_str_trim(l_str("\t\n hi \t")).len == 2, "trim tabs/newlines");
+    TEST_ASSERT(l_str_trim(l_str("hello")).len == 5, "trim no whitespace");
+    TEST_ASSERT(l_str_trim(l_str("   ")).len == 0, "trim all whitespace");
+    TEST_ASSERT(l_str_trim(l_str("")).len == 0, "trim empty");
+
+    // l_str_ltrim / l_str_rtrim
+    TEST_ASSERT(l_str_eq(l_str_ltrim(l_str("  hi")), l_str("hi")), "ltrim leading");
+    TEST_ASSERT(l_str_eq(l_str_rtrim(l_str("hi  ")), l_str("hi")), "rtrim trailing");
+
+    // l_str_chr
+    TEST_ASSERT(l_str_chr(l_str("abcabc"), 'b') == 1, "str_chr found first");
+    TEST_ASSERT(l_str_chr(l_str("abc"), 'z') == -1, "str_chr not found");
+
+    // l_str_rchr
+    TEST_ASSERT(l_str_rchr(l_str("abcabc"), 'b') == 4, "str_rchr last");
+    TEST_ASSERT(l_str_rchr(l_str("abc"), 'z') == -1, "str_rchr not found");
+
+    // l_str_find
+    TEST_ASSERT(l_str_find(l_str("hello world"), l_str("world")) == 6, "str_find found");
+    TEST_ASSERT(l_str_find(l_str("hello"), l_str("xyz")) == -1, "str_find not found");
+    TEST_ASSERT(l_str_find(l_str("hello"), l_str("")) == 0, "str_find empty needle");
+
+    TEST_SECTION_PASS("L_Str slicing");
+}
+
+void test_str_arena(void) {
+    TEST_FUNCTION("L_Str arena ops");
+
+    L_Arena a = l_arena_init(4096);
+
+    // l_str_dup
+    L_Str orig = l_str("hello");
+    L_Str dup = l_str_dup(&a, orig);
+    TEST_ASSERT(l_str_eq(dup, orig), "str_dup content matches");
+    TEST_ASSERT(dup.data != orig.data, "str_dup pointers differ");
+
+    // l_str_cat
+    L_Str cat = l_str_cat(&a, l_str("foo"), l_str("bar"));
+    TEST_ASSERT(cat.len == 6, "str_cat len");
+    TEST_ASSERT(l_str_eq(cat, l_str("foobar")), "str_cat content");
+
+    // l_str_cstr
+    L_Str src = l_str("test");
+    char *cs = l_str_cstr(&a, src);
+    TEST_ASSERT(l_strcmp(cs, "test") == 0, "str_cstr null-terminated");
+    TEST_ASSERT(cs[4] == '\0', "str_cstr explicit NUL");
+
+    // l_str_from_cstr
+    L_Str fc = l_str_from_cstr(&a, "arena copy");
+    TEST_ASSERT(l_str_eq(fc, l_str("arena copy")), "str_from_cstr content");
+    TEST_ASSERT(fc.data != "arena copy", "str_from_cstr is a copy");
+
+    l_arena_free(&a);
+    TEST_SECTION_PASS("L_Str arena ops");
+}
+
+void test_str_split_join(void) {
+    TEST_FUNCTION("L_Str split/join");
+
+    L_Arena a = l_arena_init(4096);
+
+    // l_str_split normal
+    L_Str *parts;
+    int n = l_str_split(&a, l_str("a,b,c"), l_str(","), &parts);
+    TEST_ASSERT(n == 3, "split a,b,c count=3");
+    TEST_ASSERT(l_str_eq(parts[0], l_str("a")), "split part[0]=a");
+    TEST_ASSERT(l_str_eq(parts[1], l_str("b")), "split part[1]=b");
+    TEST_ASSERT(l_str_eq(parts[2], l_str("c")), "split part[2]=c");
+
+    // split no delimiter found
+    L_Str *parts2;
+    int n2 = l_str_split(&a, l_str("hello"), l_str(","), &parts2);
+    TEST_ASSERT(n2 == 1, "split no delim count=1");
+    TEST_ASSERT(l_str_eq(parts2[0], l_str("hello")), "split no delim part");
+
+    // split empty string
+    L_Str *parts3;
+    int n3 = l_str_split(&a, l_str(""), l_str(","), &parts3);
+    TEST_ASSERT(n3 == 1, "split empty str count=1");
+    TEST_ASSERT(parts3[0].len == 0, "split empty str part len=0");
+
+    // l_str_join
+    L_Str jp[3] = { l_str("a"), l_str("b"), l_str("c") };
+    L_Str joined = l_str_join(&a, jp, 3, l_str(","));
+    TEST_ASSERT(l_str_eq(joined, l_str("a,b,c")), "join a,b,c");
+
+    // join with empty separator
+    L_Str joined2 = l_str_join(&a, jp, 3, l_str(""));
+    TEST_ASSERT(l_str_eq(joined2, l_str("abc")), "join empty sep");
+
+    l_arena_free(&a);
+    TEST_SECTION_PASS("L_Str split/join");
+}
+
+void test_str_case(void) {
+    TEST_FUNCTION("L_Str case conversion");
+
+    L_Arena a = l_arena_init(4096);
+
+    TEST_ASSERT(l_str_eq(l_str_upper(&a, l_str("hello")), l_str("HELLO")), "upper hello");
+    TEST_ASSERT(l_str_eq(l_str_lower(&a, l_str("HELLO")), l_str("hello")), "lower HELLO");
+    TEST_ASSERT(l_str_eq(l_str_upper(&a, l_str("hElLo")), l_str("HELLO")), "upper mixed");
+    TEST_ASSERT(l_str_eq(l_str_lower(&a, l_str("ABC123")), l_str("abc123")), "lower with digits");
+
+    l_arena_free(&a);
+    TEST_SECTION_PASS("L_Str case conversion");
+}
+
+void test_str_buf(void) {
+    TEST_FUNCTION("L_Str buf helpers");
+
+    L_Buf b;
+    l_buf_init(&b);
+
+    // l_buf_push_str
+    TEST_ASSERT(l_buf_push_str(&b, l_str("hello")) == 0, "buf_push_str ok");
+    TEST_ASSERT(b.len == 5, "buf_push_str len");
+    TEST_ASSERT(l_memcmp(b.data, "hello", 5) == 0, "buf_push_str data");
+
+    // l_buf_push_cstr
+    TEST_ASSERT(l_buf_push_cstr(&b, " world") == 0, "buf_push_cstr ok");
+    TEST_ASSERT(b.len == 11, "buf_push_cstr len");
+
+    // l_buf_push_int
+    l_buf_clear(&b);
+    TEST_ASSERT(l_buf_push_int(&b, 42) == 0, "buf_push_int 42 ok");
+    TEST_ASSERT(l_str_eq(l_buf_as_str(&b), l_str("42")), "buf_push_int 42 content");
+
+    l_buf_clear(&b);
+    TEST_ASSERT(l_buf_push_int(&b, -7) == 0, "buf_push_int negative ok");
+    TEST_ASSERT(l_str_eq(l_buf_as_str(&b), l_str("-7")), "buf_push_int negative content");
+
+    // l_buf_as_str
+    l_buf_clear(&b);
+    l_buf_push_cstr(&b, "view");
+    L_Str view = l_buf_as_str(&b);
+    TEST_ASSERT(view.len == 4, "buf_as_str len");
+    TEST_ASSERT(l_memcmp(view.data, "view", 4) == 0, "buf_as_str data");
+
+    l_buf_free(&b);
+    TEST_SECTION_PASS("L_Str buf helpers");
+}
+
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
 
@@ -3324,6 +3550,15 @@ int main(int argc, char* argv[]) {
     // Arena and buffer
     test_arena();
     test_buf();
+
+    // L_Str fat strings
+    test_str_constructors();
+    test_str_comparison();
+    test_str_slicing();
+    test_str_arena();
+    test_str_split_join();
+    test_str_case();
+    test_str_buf();
 
     // Path and ANSI utilities
     test_path_utils();

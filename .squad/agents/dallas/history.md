@@ -555,3 +555,45 @@ Added `__aeabi_d2ulz`, `__aeabi_ul2d`, `__aeabi_d2lz`, `__aeabi_l2d` to the `#if
 
 - ARM EABI helper functions (`__aeabi_*`) always use base AAPCS calling convention (soft-float). On hard-float targets (`gnueabihf`), C functions must use `__attribute__((pcs("aapcs")))` to match; otherwise doubles end up in VFP registers instead of r0:r1.
 - Implementing `__aeabi_d2ulz` as a C cast `(unsigned long long)v` recurses — the compiler emits a call to `__aeabi_d2ulz` for that cast. Must use IEEE 754 bit manipulation instead.
+
+## Work Session — Math Library
+
+Added 11 math functions and 5 constants to `l_os.h`:
+
+**Constants:** `L_PI`, `L_PI_2`, `L_E`, `L_LN2`, `L_SQRT2` (defined outside `L_WITHDEFS` so they're always available).
+
+**Functions (all `static inline`):**
+- `l_fabs` — union-based sign bit clear (ARM32-safe)
+- `l_floor`, `l_ceil` — truncation via `(long long)` cast
+- `l_fmod` — truncated division remainder
+- `l_sqrt` — IEEE bit hack seed + Newton-Raphson (8 iterations)
+- `l_sin` — range reduce to [-π/2,π/2] then 12-term Taylor
+- `l_cos` — `l_sin(x + π/2)`
+- `l_exp` — range reduce by ln2, Taylor series, reconstruct via exponent bits
+- `l_log` — decompose mantissa/exponent, atanh series
+- `l_pow` — integer fast path (binary exponentiation) + `exp(exp*log(base))` fallback
+- `l_atan2` — argument reduction to |s|<0.42 then Taylor atan, quadrant handling
+
+**Key design choices:**
+- All bit manipulation uses union `{ double d; unsigned char b[8]; }` — safe on ARM32 (no `__aeabi_d2ulz` calls from double→u64 casts)
+- `l_sin` reduces to [-π/2, π/2] before Taylor (not just [-π, π]) for fast convergence
+- `l_atan2` uses the identity `atan(s) = π/4 + atan((s-1)/(s+1))` when s > 0.4142 to avoid slow convergence at s=1
+- Override macros (`fabs`, `floor`, `ceil`, `fmod`, `sqrt`, `sin`, `cos`, `exp`, `log`, `pow`, `atan2`) in `L_DONTOVERRIDE` section
+
+**Also fixed:** Pre-existing unused-parameter warning in Windows `l_open` (`mode` param).
+
+**Tests:** 27 assertions in `test_math()` covering all functions with 1e-10 tolerance.
+
+**Verified:** All CI targets PASS — Windows (build/test/verify), Linux gcc+clang (build/test/verify), ARM gcc+clang (build/test/verify), AArch64 gcc+clang (build/test/verify). Docs regenerated.
+
+## Work Session — L_Str Fat String Type
+
+Added L_Str (pointer+length fat string) type to l_os.h with ~25 functions: constructors, comparison, zero-copy slicing/search, arena-backed allocation (dup/cat/cstr/split/join), ASCII case conversion, and L_Buf helpers. All functions are static inline, freestanding-safe ((void*)0 not NULL, l_ prefixed deps only).
+
+## Learnings
+
+- L_Str definitions must go AFTER l_buf_free and BEFORE l_path_exists in l_os.h — they depend on l_memcmp, l_memmem, l_isspace, l_toupper, l_tolower, l_itoa which are defined above.
+- L_Str declarations go in the #ifdef L_WITHDEFS block after buf declarations (~line 530).
+- The L_Str typedef sits after L_Buf typedef (before the #endif that closes the types guard).
+- l_memmem exists and works for substring search — used in l_str_contains, l_str_find, l_str_split.
+- l_itoa takes (int, char*, int base) and returns char* — used in l_buf_push_int.

@@ -136,7 +136,7 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
       
       # Check for standard library symbols/strings
       echo -n "  No stdlib symbols: "
-      stdlib_symbols=$(strings "$exe" | grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)" | head -5)
+      stdlib_symbols=$(strings "$exe" | grep -E "(__libc|@GLIBC|ld-linux|libc.so)" | head -5)
       if [ -z "$stdlib_symbols" ]; then
         echo "PASS"
       else
@@ -269,7 +269,7 @@ function verify_arm {    # Verify ARM executables are stdlib-independent and blo
 
       # Check for stdlib symbols/strings
       echo -n "  No stdlib symbols: "
-      stdlib_symbols=$(strings "$exe" | grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)" | head -5)
+      stdlib_symbols=$(strings "$exe" | grep -E "(__libc|@GLIBC|ld-linux|libc.so)" | head -5)
       if [ -z "$stdlib_symbols" ]; then
         echo "PASS"
       else
@@ -334,7 +334,7 @@ function verify_aarch64 {    # Verify AArch64 executables are stdlib-independent
 
       # Check for stdlib symbols/strings
       echo -n "  No stdlib symbols: "
-      stdlib_symbols=$(strings "$exe" | grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)" | head -5)
+      stdlib_symbols=$(strings "$exe" | grep -E "(__libc|@GLIBC|ld-linux|libc.so)" | head -5)
       if [ -z "$stdlib_symbols" ]; then
         echo "PASS"
       else

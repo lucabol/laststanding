@@ -240,6 +240,47 @@ l_buf_printf(&buf, " world %d", 42);        // formatted append (needs L_WITHSNP
 l_buf_free(&buf);
 ```
 
+### Fat Strings (`L_Str`)
+
+`L_Str` is a pointer+length pair (16 bytes, passed by value) backed by `L_Arena`. Zero-copy operations (trim, substring, find, compare) just return views into existing data. Arena-backed operations (dup, cat, split, join, upper/lower) allocate from an arena.
+
+```c
+L_Arena a = l_arena_init(4096);
+
+// Constructors — zero-copy views
+L_Str s = l_str("  hello world  ");     // from C string literal
+L_Str t = l_str_from(buf, len);         // from pointer + length
+
+// Trim, substring, find — zero-copy
+L_Str trimmed = l_str_trim(s);          // "hello world"
+L_Str sub = l_str_sub(trimmed, 0, 5);   // "hello"
+ptrdiff_t pos = l_str_find(trimmed, l_str("world"));  // 6
+
+// Compare
+if (l_str_eq(sub, l_str("hello"))) { /* ... */ }
+if (l_str_startswith(trimmed, l_str("hello"))) { /* ... */ }
+
+// Arena-backed operations
+L_Str upper = l_str_upper(&a, sub);     // "HELLO"
+L_Str joined = l_str_cat(&a, sub, l_str("!")); // "hello!"
+char *cstr = l_str_cstr(&a, sub);       // null-terminated copy
+
+// Split and join
+L_Str *parts; int n;
+n = l_str_split(&a, l_str("a:b:c"), l_str(":"), &parts);  // 3 parts
+L_Str rejoined = l_str_join(&a, parts, n, l_str("-"));     // "a-b-c"
+
+// L_Buf integration
+L_Buf out; l_buf_init(&out);
+l_buf_push_cstr(&out, "line ");
+l_buf_push_int(&out, 42);
+l_buf_push_str(&out, l_str(": ok"));
+L_Str view = l_buf_as_str(&out);        // view of buf contents
+l_buf_free(&out);
+
+l_arena_free(&a);
+```
+
 ## Compile-Time Flags
 
 | Define | Purpose |
@@ -267,6 +308,9 @@ In multi-file projects, only one `.c` file defines `L_MAINFILE`:
 |------|---------|
 | `L_FD` | File descriptor (`ptrdiff_t`). On Windows, a library-managed slot — not a raw `HANDLE`. |
 | `L_STDIN`, `L_STDOUT`, `L_STDERR` | Standard descriptor constants (0, 1, 2). |
+| `L_Str` | Fat string — pointer+length pair (16 bytes, by value). Zero-copy views or arena-backed. |
+| `L_Arena` | Bump allocator. Init with `l_arena_init(size)`, allocate with `l_arena_alloc`. |
+| `L_Buf` | Growable byte buffer (heap-backed via `realloc`). |
 | `L_Canvas` | Pixel graphics context (framebuffer on Linux, GDI window on Windows). |
 | `L_UI` | Immediate-mode UI context (theme, input state, layout cursor). |
 | `L_UI_Theme` | UI color theme (background, hover, active, text, border, accent, input). |
@@ -429,6 +473,34 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_buf_printf` | Formatted append using l_vsnprintf. Returns bytes written or -1. | All |
 | `l_buf_clear` | Set len=0 (keep allocated memory). | All |
 | `l_buf_free` | Free backing memory and zero the struct. | All |
+| **L_Str — fat string (pointer + length) function declarations** | | |
+| `l_str` | Wrap a C string (computes strlen). | All |
+| `l_str_from` | Wrap pointer+length. | All |
+| `l_str_null` | Return null string {NULL, 0}. | All |
+| `l_str_eq` | 1 if equal, 0 otherwise. | All |
+| `l_str_cmp` | Lexicographic compare (like strcmp). | All |
+| `l_str_startswith` | 1 if s starts with prefix. | All |
+| `l_str_endswith` | 1 if s ends with suffix. | All |
+| `l_str_contains` | 1 if s contains needle. | All |
+| `l_str_sub` | Substring (zero-copy). | All |
+| `l_str_trim` | Trim leading+trailing whitespace (zero-copy). | All |
+| `l_str_ltrim` | Trim leading whitespace (zero-copy). | All |
+| `l_str_rtrim` | Trim trailing whitespace (zero-copy). | All |
+| `l_str_chr` | Find char in string, -1 if not found. | All |
+| `l_str_rchr` | Find last occurrence of char, -1 if not found. | All |
+| `l_str_find` | Find substring, -1 if not found. | All |
+| `l_str_dup` | Copy string into arena. | All |
+| `l_str_cat` | Concatenate two strings into arena. | All |
+| `l_str_cstr` | Null-terminated C string copy in arena. | All |
+| `l_str_from_cstr` | strdup into arena as L_Str. | All |
+| `l_str_split` | Split string by delimiter. Returns count; *out is arena-allocated array. | All |
+| `l_str_join` | Join strings with separator. | All |
+| `l_str_upper` | Uppercase copy in arena (ASCII). | All |
+| `l_str_lower` | Lowercase copy in arena (ASCII). | All |
+| `l_buf_push_str` | Append L_Str to buf. Returns 0 on success, -1 on failure. | All |
+| `l_buf_push_cstr` | Append C string to buf. Returns 0 on success, -1 on failure. | All |
+| `l_buf_push_int` | Append decimal int to buf. Returns 0 on success, -1 on failure. | All |
+| `l_buf_as_str` | Return L_Str view of buf contents. | All |
 | `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
 | `l_chdir` | Changes the current working directory | All |
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
