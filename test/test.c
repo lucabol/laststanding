@@ -3164,6 +3164,59 @@ void test_sockets(void) {
 }
 #endif // L_WITHSOCKETS
 
+void test_math(void) {
+    TEST_FUNCTION("l_fabs");
+    TEST_ASSERT(l_fabs(-3.14) == 3.14, "fabs(-3.14) == 3.14");
+    TEST_ASSERT(l_fabs(3.14) == 3.14, "fabs(3.14) == 3.14");
+    TEST_ASSERT(l_fabs(0.0) == 0.0, "fabs(0.0) == 0.0");
+
+    TEST_FUNCTION("l_floor");
+    TEST_ASSERT(l_floor(2.7) == 2.0, "floor(2.7) == 2.0");
+    TEST_ASSERT(l_floor(-2.3) == -3.0, "floor(-2.3) == -3.0");
+    TEST_ASSERT(l_floor(5.0) == 5.0, "floor(5.0) == 5.0");
+
+    TEST_FUNCTION("l_ceil");
+    TEST_ASSERT(l_ceil(2.3) == 3.0, "ceil(2.3) == 3.0");
+    TEST_ASSERT(l_ceil(-2.7) == -2.0, "ceil(-2.7) == -2.0");
+    TEST_ASSERT(l_ceil(5.0) == 5.0, "ceil(5.0) == 5.0");
+
+    TEST_FUNCTION("l_fmod");
+    TEST_ASSERT(l_fabs(l_fmod(5.5, 2.0) - 1.5) < 1e-10, "fmod(5.5, 2.0) ~= 1.5");
+    TEST_ASSERT(l_fabs(l_fmod(10.0, 3.0) - 1.0) < 1e-10, "fmod(10.0, 3.0) ~= 1.0");
+
+    TEST_FUNCTION("l_sqrt");
+    TEST_ASSERT(l_fabs(l_sqrt(4.0) - 2.0) < 1e-10, "sqrt(4.0) == 2.0");
+    TEST_ASSERT(l_fabs(l_sqrt(2.0) - 1.4142135623730951) < 1e-10, "sqrt(2.0) ~= 1.41421356...");
+    TEST_ASSERT(l_sqrt(0.0) == 0.0, "sqrt(0.0) == 0.0");
+
+    TEST_FUNCTION("l_sin");
+    TEST_ASSERT(l_fabs(l_sin(0.0)) < 1e-10, "sin(0) == 0");
+    TEST_ASSERT(l_fabs(l_sin(L_PI_2) - 1.0) < 1e-10, "sin(pi/2) ~= 1.0");
+    TEST_ASSERT(l_fabs(l_sin(L_PI)) < 1e-10, "sin(pi) ~= 0");
+
+    TEST_FUNCTION("l_cos");
+    TEST_ASSERT(l_fabs(l_cos(0.0) - 1.0) < 1e-10, "cos(0) == 1.0");
+    TEST_ASSERT(l_fabs(l_cos(L_PI) + 1.0) < 1e-10, "cos(pi) ~= -1.0");
+
+    TEST_FUNCTION("l_exp");
+    TEST_ASSERT(l_exp(0.0) == 1.0, "exp(0) == 1.0");
+    TEST_ASSERT(l_fabs(l_exp(1.0) - L_E) < 1e-10, "exp(1) ~= e");
+
+    TEST_FUNCTION("l_log");
+    TEST_ASSERT(l_fabs(l_log(L_E) - 1.0) < 1e-10, "log(e) ~= 1.0");
+    TEST_ASSERT(l_fabs(l_log(1.0)) < 1e-10, "log(1) == 0");
+
+    TEST_FUNCTION("l_pow");
+    TEST_ASSERT(l_fabs(l_pow(2.0, 10.0) - 1024.0) < 1e-10, "pow(2, 10) == 1024");
+    TEST_ASSERT(l_pow(5.0, 0.0) == 1.0, "pow(5, 0) == 1.0");
+
+    TEST_FUNCTION("l_atan2");
+    TEST_ASSERT(l_fabs(l_atan2(1.0, 1.0) - L_PI / 4.0) < 1e-10, "atan2(1,1) ~= pi/4");
+    TEST_ASSERT(l_fabs(l_atan2(0.0, 1.0)) < 1e-10, "atan2(0,1) ~= 0");
+
+    TEST_SECTION_PASS("math");
+}
+
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
 
@@ -3280,6 +3333,9 @@ int main(int argc, char* argv[]) {
 #ifdef L_WITHSOCKETS
     test_sockets();
 #endif
+
+    // Math functions
+    test_math();
 
     puts("\n");
     puts("=====================================\n");

@@ -209,6 +209,15 @@ typedef struct {
 #endif
 #endif
 
+// Math constants (always available, not guarded by L_WITHDEFS)
+#ifndef L_PI
+#define L_PI    3.14159265358979323846
+#define L_PI_2  1.57079632679489661923
+#define L_E     2.71828182845904523536
+#define L_LN2   0.69314718055994530942
+#define L_SQRT2 1.41421356237309504880
+#endif
+
 #ifdef L_WITHDEFS
 
 // String functions
@@ -304,6 +313,31 @@ long long l_strtoll(const char *nptr, char **endptr, int base);
 double l_strtod(const char *nptr, char **endptr);
 /// Converts a string to a double (convenience wrapper around l_strtod)
 static inline double l_atof(const char *s);
+
+// Math functions
+/// Returns the absolute value of a double
+static inline double l_fabs(double x);
+/// Rounds toward negative infinity
+static inline double l_floor(double x);
+/// Rounds toward positive infinity
+static inline double l_ceil(double x);
+/// Floating-point remainder of x/y
+static inline double l_fmod(double x, double y);
+/// Square root via Newton-Raphson with IEEE bit hack seed
+static inline double l_sqrt(double x);
+/// Sine via range reduction and Taylor series
+static inline double l_sin(double x);
+/// Cosine: l_sin(x + pi/2)
+static inline double l_cos(double x);
+/// Exponential function via range reduction and Taylor series
+static inline double l_exp(double x);
+/// Natural logarithm via mantissa/exponent decomposition
+static inline double l_log(double x);
+/// Power: base^exp via exp(exp * log(base))
+static inline double l_pow(double base, double exponent);
+/// Two-argument arctangent with quadrant handling
+static inline double l_atan2(double y, double x);
+
 /// Converts an integer to a string in the given radix (2-36)
 char *l_itoa(int in, char* buffer, int radix);
 
@@ -852,6 +886,18 @@ int WINAPI mainCRTStartup(void)
 #  define strtod  l_strtod
 #  define atof    l_atof
 #  define itoa l_itoa
+
+#  define fabs  l_fabs
+#  define floor l_floor
+#  define ceil  l_ceil
+#  define fmod  l_fmod
+#  define sqrt  l_sqrt
+#  define sin   l_sin
+#  define cos   l_cos
+#  define exp   l_exp
+#  define log   l_log
+#  define pow   l_pow
+#  define atan2 l_atan2
 
 #  define memmove l_memmove
 #  define memset l_memset
@@ -1695,6 +1741,234 @@ inline double l_strtod(const char *nptr, char **endptr)
 }
 
 static inline double l_atof(const char *s) { return l_strtod(s, (char **)0); }
+
+// ─── Math functions ──────────────────────────────────────────────────────────
+
+static inline double l_fabs(double x) {
+    union { double d; unsigned char b[8]; } u;
+    u.d = x;
+    u.b[7] &= 0x7F;  // clear sign bit (IEEE 754 big-endian byte 7)
+    return u.d;
+}
+
+static inline double l_floor(double x) {
+    // Handle special cases: zero and very large values are already integral
+    if (x == 0.0 || x != x) return x; // 0 or NaN
+    union { double d; unsigned char b[8]; } u;
+    u.d = x;
+    int exponent = (int)(((((unsigned)u.b[7] & 0x7F) << 4) | (((unsigned)u.b[6] >> 4) & 0xF)) - 1023);
+    if (exponent >= 52) return x; // already integral or inf
+    if (exponent < 0) return (x < 0.0) ? -1.0 : 0.0;
+    // Truncate toward zero
+    double t = (double)(long long)x;
+    if (t == x) return x;
+    if (x < 0.0) return t - 1.0;
+    return t;
+}
+
+static inline double l_ceil(double x) {
+    double f = l_floor(x);
+    if (f == x) return x;
+    return f + 1.0;
+}
+
+static inline double l_fmod(double x, double y) {
+    if (y == 0.0) return 0.0 / 0.0; // NaN
+    double q = x / y;
+    double t = (double)(long long)q; // truncate toward zero
+    return x - t * y;
+}
+
+static inline double l_sqrt(double x) {
+    if (x < 0.0) return 0.0 / 0.0; // NaN
+    if (x == 0.0 || x != x) return x;
+
+    // IEEE 754 bit hack for initial guess
+    union { double d; unsigned char b[8]; } u;
+    u.d = x;
+    // Halve the exponent bits for a rough sqrt estimate
+    unsigned hi = ((unsigned)u.b[7] << 24) | ((unsigned)u.b[6] << 16) |
+                  ((unsigned)u.b[5] << 8) | (unsigned)u.b[4];
+    hi = (hi >> 1) + 0x1FF80000u;
+    u.b[7] = (unsigned char)(hi >> 24);
+    u.b[6] = (unsigned char)(hi >> 16);
+    u.b[5] = (unsigned char)(hi >> 8);
+    u.b[4] = (unsigned char)hi;
+    double guess = u.d;
+
+    // Newton-Raphson iterations
+    for (int i = 0; i < 8; i++)
+        guess = 0.5 * (guess + x / guess);
+    return guess;
+}
+
+static inline double l_sin(double x) {
+    // Range reduce to [-pi, pi]
+    double pi2 = 2.0 * L_PI;
+    x = l_fmod(x, pi2);
+    if (x > L_PI) x -= pi2;
+    if (x < -L_PI) x += pi2;
+
+    // Further reduce to [-pi/2, pi/2] using sin(x) = sin(pi - x)
+    if (x > L_PI_2)       x = L_PI - x;
+    else if (x < -L_PI_2) x = -L_PI - x;
+
+    // Taylor series: sin(x) = x - x^3/3! + x^5/5! - ...
+    // Converges fast for |x| <= pi/2
+    double x2 = x * x;
+    double term = x;
+    double sum = x;
+    for (int i = 1; i <= 12; i++) {
+        term *= -x2 / (double)(2 * i * (2 * i + 1));
+        sum += term;
+    }
+    return sum;
+}
+
+static inline double l_cos(double x) {
+    return l_sin(x + L_PI_2);
+}
+
+static inline double l_exp(double x) {
+    if (x == 0.0) return 1.0;
+    // Clamp to avoid overflow/underflow
+    if (x > 709.0) return 1.0 / 0.0;   // +inf
+    if (x < -709.0) return 0.0;
+
+    // Range reduction: exp(x) = 2^k * exp(r), where r = x - k*ln2
+    int k = (int)(x / L_LN2 + (x >= 0.0 ? 0.5 : -0.5));
+    double r = x - (double)k * L_LN2;
+
+    // Taylor series for exp(r) where |r| <= ln2/2
+    double sum = 1.0;
+    double term = 1.0;
+    for (int i = 1; i <= 20; i++) {
+        term *= r / (double)i;
+        sum += term;
+        if (l_fabs(term) < 1e-15 * l_fabs(sum)) break;
+    }
+
+    // Multiply by 2^k using bit manipulation
+    union { double d; unsigned char b[8]; } u;
+    u.d = 1.0;
+    unsigned hi = ((unsigned)u.b[7] << 24) | ((unsigned)u.b[6] << 16) |
+                  ((unsigned)u.b[5] << 8) | (unsigned)u.b[4];
+    hi += (unsigned)k << 20;
+    u.b[7] = (unsigned char)(hi >> 24);
+    u.b[6] = (unsigned char)(hi >> 16);
+    u.b[5] = (unsigned char)(hi >> 8);
+    u.b[4] = (unsigned char)hi;
+    return sum * u.d;
+}
+
+static inline double l_log(double x) {
+    if (x <= 0.0) {
+        if (x == 0.0) return -1.0 / 0.0; // -inf
+        return 0.0 / 0.0;                 // NaN
+    }
+    // Decompose: x = m * 2^e where 1 <= m < 2
+    union { double d; unsigned char b[8]; } u;
+    u.d = x;
+    unsigned hi = ((unsigned)u.b[7] << 24) | ((unsigned)u.b[6] << 16) |
+                  ((unsigned)u.b[5] << 8) | (unsigned)u.b[4];
+    int e = (int)((hi >> 20) & 0x7FF) - 1023;
+    // Set exponent to 0 so m is in [1, 2)
+    hi = (hi & 0x800FFFFFu) | 0x3FF00000u;
+    u.b[7] = (unsigned char)(hi >> 24);
+    u.b[6] = (unsigned char)(hi >> 16);
+    u.b[5] = (unsigned char)(hi >> 8);
+    u.b[4] = (unsigned char)hi;
+    double m = u.d;
+
+    // log(m * 2^e) = log(m) + e * ln2
+    // Use series: log(m) = 2 * atanh((m-1)/(m+1))
+    double f = (m - 1.0) / (m + 1.0);
+    double f2 = f * f;
+    double sum = f;
+    double term = f;
+    for (int i = 1; i <= 20; i++) {
+        term *= f2;
+        sum += term / (double)(2 * i + 1);
+    }
+    return 2.0 * sum + (double)e * L_LN2;
+}
+
+static inline double l_pow(double base, double exponent) {
+    if (exponent == 0.0) return 1.0;
+    if (base == 0.0) return 0.0;
+    if (base == 1.0) return 1.0;
+
+    // Integer exponent fast path
+    if (exponent == (double)(long long)exponent && l_fabs(exponent) < 1000.0) {
+        long long n = (long long)exponent;
+        int neg = 0;
+        if (n < 0) { neg = 1; n = -n; }
+        double result = 1.0;
+        double b = base;
+        while (n > 0) {
+            if (n & 1) result *= b;
+            b *= b;
+            n >>= 1;
+        }
+        return neg ? 1.0 / result : result;
+    }
+
+    if (base < 0.0) return 0.0 / 0.0; // NaN for non-integer exp with negative base
+    return l_exp(exponent * l_log(base));
+}
+
+static inline double l_atan2(double y, double x) {
+    if (x == 0.0 && y == 0.0) return 0.0;
+    if (x == 0.0) return (y > 0.0) ? L_PI_2 : -L_PI_2;
+
+    double ax = l_fabs(x), ay = l_fabs(y);
+
+    // Compute atan(ay/ax), result in [0, pi/2]
+    double s;
+    int region; // 0: s<=tan(pi/8), 1: s<=1, 2: s>1
+    if (ay <= ax) {
+        s = ay / ax;
+        if (s > 0.4142135623730950) {
+            // atan(s) = pi/4 + atan((s-1)/(s+1))
+            s = (s - 1.0) / (s + 1.0);
+            region = 1;
+        } else {
+            region = 0;
+        }
+    } else {
+        // atan(ay/ax) = pi/2 - atan(ax/ay)
+        s = ax / ay;
+        if (s > 0.4142135623730950) {
+            s = (s - 1.0) / (s + 1.0);
+            region = 1;
+        } else {
+            region = 0;
+        }
+    }
+
+    // Taylor series for atan(s), |s| < 0.42, converges fast
+    double s2 = s * s;
+    double r = s;
+    double term = s;
+    for (int i = 1; i <= 12; i++) {
+        term *= -s2;
+        r += term / (double)(2 * i + 1);
+    }
+
+    // Undo region reduction
+    if (ay <= ax) {
+        if (region == 1) r += L_PI / 4.0;
+        // region 0: r is already atan(ay/ax)
+    } else {
+        if (region == 1) r += L_PI / 4.0;
+        r = L_PI_2 - r;
+    }
+
+    // Apply quadrant
+    if (x < 0.0) r = L_PI - r;
+    if (y < 0.0) r = -r;
+    return r;
+}
 
 //function to reverse a string
 inline void l_reverse(char str[], int length)
@@ -4879,6 +5153,7 @@ inline L_FD l_open_trunc(const char* file) {
 }
 
 inline L_FD l_open(const char *path, int flags, mode_t mode) {
+    (void)mode; // unused on Windows; Unix permissions don't apply
     DWORD desired = 0;
     DWORD shared = 0;
     DWORD dispo = 0;

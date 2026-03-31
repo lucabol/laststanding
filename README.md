@@ -337,6 +337,18 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strtoll` | Converts a string to a long long (64-bit); auto-detects base when base==0; handles leading sign; sets *endptr past last digit | All |
 | `l_strtod` | Converts a string to a double; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit | All |
 | `l_atof` | Converts a string to a double (convenience wrapper around l_strtod) | All |
+| **Math functions** | | |
+| `l_fabs` | Returns the absolute value of a double | All |
+| `l_floor` | Rounds toward negative infinity | All |
+| `l_ceil` | Rounds toward positive infinity | All |
+| `l_fmod` | Floating-point remainder of x/y | All |
+| `l_sqrt` | Square root via Newton-Raphson with IEEE bit hack seed | All |
+| `l_sin` | Sine via range reduction and Taylor series | All |
+| `l_cos` | Cosine: l_sin(x + pi/2) | All |
+| `l_exp` | Exponential function via range reduction and Taylor series | All |
+| `l_log` | Natural logarithm via mantissa/exponent decomposition | All |
+| `l_pow` | Power: base^exp via exp(exp * log(base)) | All |
+| `l_atan2` | Two-argument arctangent with quadrant handling | All |
 | `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
 | **Memory functions** | | |
 | `l_memmove` | Copies len bytes from src to dst, handling overlapping regions | All |
