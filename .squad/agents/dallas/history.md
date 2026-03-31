@@ -524,3 +524,19 @@ Fixed three issues:
 - Casting `LLONG_MAX+1` to `long long` is UB; ARM32 clang exposes this while x86_64 doesn't. Always return `LLONG_MIN`/`LONG_MIN` directly for the exact boundary value.
 - PowerShell `Start-Transcript` captures each `Write-Host` call as a separate line — `Write-Host -NoNewline` doesn't preserve single-line output in transcripts. Must reconstruct one-liners in the parent.
 - Sub-process state (`$script:BinarySizes`) doesn't survive across process boundaries. Use structured markers in transcript output to transfer data back to the parent.
+
+## Work Session — ARM EABI float↔u64 helpers
+
+Added `__aeabi_d2ulz`, `__aeabi_ul2d`, `__aeabi_d2lz`, `__aeabi_l2d` to the `#ifdef __arm__` block in `l_os.h`. These are needed because ARM clang (with `-flto` and no `-lgcc`) generates calls to these for double↔integer conversions in `l_snprintf %f` and `l_strtod`.
+
+**Key design decisions:**
+- Used IEEE 754 bit manipulation via union to avoid recursion (casting `double` to `unsigned long long` emits `__aeabi_d2ulz` itself).
+- Added `__attribute__((pcs("aapcs")))` to force base AAPCS calling convention — critical because the ARM EABI specifies doubles in r0:r1 (integer registers) even on hard-float targets, but C functions compiled with `-mfloat-abi=hard` use VFP registers (d0). Without this attribute, the ABI mismatch causes garbage values.
+- Included signed variants (`__aeabi_d2lz`, `__aeabi_l2d`) preemptively.
+
+**Verified:** ARM CI 12/12 PASS (gcc+clang build/test/verify for ARM32 and AArch64).
+
+## Learnings
+
+- ARM EABI helper functions (`__aeabi_*`) always use base AAPCS calling convention (soft-float). On hard-float targets (`gnueabihf`), C functions must use `__attribute__((pcs("aapcs")))` to match; otherwise doubles end up in VFP registers instead of r0:r1.
+- Implementing `__aeabi_d2ulz` as a C cast `(unsigned long long)v` recurses — the compiler emits a call to `__aeabi_d2ulz` for that cast. Must use IEEE 754 bit manipulation instead.

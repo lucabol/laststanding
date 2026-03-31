@@ -2913,6 +2913,77 @@ void __aeabi_ldivmod(void) {
         "pop {r4, pc}\n\t"
     );
 }
+
+/* ARM EABI double ↔ unsigned-long-long conversion helpers.
+   ARM clang emits calls to these from float/integer code (l_strtod, l_snprintf %f).
+   Must NOT cast between double and unsigned long long — that would recurse.
+   Instead, manipulate IEEE 754 bits directly via union.
+   pcs("aapcs") forces base AAPCS (soft-float): doubles travel in r0:r1,
+   matching the ARM EABI calling convention even on hard-float targets. */
+__attribute__((used, pcs("aapcs")))
+unsigned long long __aeabi_d2ulz(double v)
+{
+    union { double d; unsigned long long u; } conv;
+    conv.d = v;
+    unsigned long long bits = conv.u;
+    if (bits >> 63) return 0;                          /* negative or -0 */
+    int exp = (int)((bits >> 52) & 0x7FF) - 1023;
+    if (exp < 0) return 0;
+    if (exp >= 64) return 0xFFFFFFFFFFFFFFFFULL;       /* overflow / NaN */
+    unsigned long long mantissa = (bits & 0x000FFFFFFFFFFFFFULL) | 0x0010000000000000ULL;
+    if (exp >= 52) return mantissa << (exp - 52);
+    return mantissa >> (52 - exp);
+}
+
+__attribute__((used, pcs("aapcs")))
+double __aeabi_ul2d(unsigned long long v)
+{
+    if (v == 0) return 0.0;
+    int shift = 0;
+    unsigned long long tmp = v;
+    while (!(tmp & (1ULL << 63))) { tmp <<= 1; shift++; }
+    int exp = 1023 + 63 - shift;
+    unsigned long long mantissa = (tmp << 1) >> 12;    /* remove implicit 1, keep 52 bits */
+    union { double d; unsigned long long u; } conv;
+    conv.u = ((unsigned long long)exp << 52) | mantissa;
+    return conv.d;
+}
+
+/* Signed variants */
+__attribute__((used, pcs("aapcs")))
+long long __aeabi_d2lz(double v)
+{
+    union { double d; unsigned long long u; } conv;
+    conv.d = v;
+    unsigned long long bits = conv.u;
+    int sign = (int)(bits >> 63);
+    int exp = (int)((bits >> 52) & 0x7FF) - 1023;
+    if (exp < 0) return 0;
+    if (exp >= 63) return sign ? (-9223372036854775807LL - 1) : 9223372036854775807LL;
+    unsigned long long mantissa = (bits & 0x000FFFFFFFFFFFFFULL) | 0x0010000000000000ULL;
+    unsigned long long result;
+    if (exp >= 52) result = mantissa << (exp - 52);
+    else result = mantissa >> (52 - exp);
+    return sign ? -(long long)result : (long long)result;
+}
+
+__attribute__((used, pcs("aapcs")))
+double __aeabi_l2d(long long v)
+{
+    if (v == 0) return 0.0;
+    int sign = 0;
+    unsigned long long uv;
+    if (v < 0) { sign = 1; uv = -(unsigned long long)v; }
+    else { uv = (unsigned long long)v; }
+    int shift = 0;
+    unsigned long long tmp = uv;
+    while (!(tmp & (1ULL << 63))) { tmp <<= 1; shift++; }
+    int exp = 1023 + 63 - shift;
+    unsigned long long mantissa = (tmp << 1) >> 12;
+    union { double d; unsigned long long u; } conv;
+    conv.u = ((unsigned long long)sign << 63) | ((unsigned long long)exp << 52) | mantissa;
+    return conv.d;
+}
 #endif
 
 #pragma GCC diagnostic push
