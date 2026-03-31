@@ -760,7 +760,66 @@ void test_strtoull_strtoll(void) {
     TEST_SECTION_PASS("l_strtoull / l_strtoll");
 }
 
-// ===================== l_itoa =====================
+// ===================== l_strtod / l_atof =====================
+
+void test_strtod_atof(void) {
+    char *ep;
+
+    TEST_FUNCTION("l_strtod / l_atof");
+
+    /* Basic positive */
+    TEST_ASSERT(l_atof("0") == 0.0, "atof '0'");
+    TEST_ASSERT(l_atof("1") == 1.0, "atof '1'");
+    TEST_ASSERT(l_atof("3.14") > 3.13 && l_atof("3.14") < 3.15, "atof '3.14'");
+    TEST_ASSERT(l_atof("100.0") == 100.0, "atof '100.0'");
+
+    /* Negative */
+    TEST_ASSERT(l_atof("-1") == -1.0, "atof '-1'");
+    TEST_ASSERT(l_atof("-3.14") < -3.13 && l_atof("-3.14") > -3.15, "atof '-3.14'");
+
+    /* Leading sign */
+    TEST_ASSERT(l_atof("+2.5") == 2.5, "atof '+2.5'");
+
+    /* Leading whitespace */
+    TEST_ASSERT(l_atof("  42.0") == 42.0, "atof leading spaces");
+
+    /* Exponent */
+    TEST_ASSERT(l_atof("1e3") == 1000.0, "atof '1e3'");
+    TEST_ASSERT(l_atof("1.5e2") == 150.0, "atof '1.5e2'");
+    TEST_ASSERT(l_atof("1E-1") > 0.09 && l_atof("1E-1") < 0.11, "atof '1E-1'");
+    TEST_ASSERT(l_atof("2.5e+1") == 25.0, "atof '2.5e+1'");
+    TEST_ASSERT(l_atof("-1e2") == -100.0, "atof '-1e2'");
+
+    /* Integer-like */
+    TEST_ASSERT(l_atof("255") == 255.0, "atof '255'");
+    TEST_ASSERT(l_atof("0.5") == 0.5, "atof '0.5'");
+    TEST_ASSERT(l_atof(".5") == 0.5, "atof '.5' (no leading digit)");
+
+    /* endptr */
+    ep = (char *)0;
+    l_strtod("3.14xyz", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'x', "strtod endptr stops at non-numeric");
+
+    ep = (char *)0;
+    l_strtod("  42 rest", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == ' ', "strtod endptr after number");
+
+    ep = (char *)0;
+    l_strtod("nope", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'n', "strtod no digits -> endptr at start");
+
+    /* Special: inf */
+    double inf_val = l_atof("inf");
+    TEST_ASSERT(inf_val > DBL_MAX, "atof 'inf' is infinity");
+    double ninf_val = l_atof("-inf");
+    TEST_ASSERT(ninf_val < -DBL_MAX, "atof '-inf' is negative infinity");
+
+    /* Special: nan */
+    double nan_val = l_atof("nan");
+    TEST_ASSERT(nan_val != nan_val, "atof 'nan' is NaN");
+
+    TEST_SECTION_PASS("l_strtod / l_atof");
+}
 
 void test_itoa(void) {
     TEST_FUNCTION("l_itoa");
@@ -1573,7 +1632,95 @@ void test_snprintf(void) {
     TEST_SECTION_PASS("l_snprintf");
 }
 
-// ===================== l_strcasecmp / l_strncasecmp =====================
+// ===================== l_snprintf float =====================
+
+void test_snprintf_float(void) {
+    TEST_FUNCTION("l_snprintf %%f/%%e/%%g");
+    char buf[64];
+
+    /* %f basic */
+    l_snprintf(buf, sizeof(buf), "%f", 0.0);
+    TEST_ASSERT(l_strcmp(buf, "0.000000") == 0, "%f 0.0");
+
+    l_snprintf(buf, sizeof(buf), "%f", 1.0);
+    TEST_ASSERT(l_strcmp(buf, "1.000000") == 0, "%f 1.0");
+
+    l_snprintf(buf, sizeof(buf), "%f", -1.5);
+    TEST_ASSERT(l_strcmp(buf, "-1.500000") == 0, "%f -1.5");
+
+    l_snprintf(buf, sizeof(buf), "%.2f", 3.14159);
+    TEST_ASSERT(l_strcmp(buf, "3.14") == 0, "%.2f 3.14159");
+
+    l_snprintf(buf, sizeof(buf), "%.0f", 2.7);
+    TEST_ASSERT(l_strcmp(buf, "3") == 0, "%.0f 2.7 rounds to 3");
+
+    l_snprintf(buf, sizeof(buf), "%10.3f", 1.5);
+    TEST_ASSERT(l_strcmp(buf, "     1.500") == 0, "%10.3f right-align");
+
+    l_snprintf(buf, sizeof(buf), "%-10.3f|", 1.5);
+    TEST_ASSERT(l_strcmp(buf, "1.500     |") == 0, "%-10.3f left-align");
+
+    l_snprintf(buf, sizeof(buf), "%010.3f", 1.5);
+    TEST_ASSERT(l_strcmp(buf, "000001.500") == 0, "%010.3f zero-pad");
+
+    l_snprintf(buf, sizeof(buf), "%f", 100.0);
+    TEST_ASSERT(l_strcmp(buf, "100.000000") == 0, "%f 100.0");
+
+    /* %e basic */
+    l_snprintf(buf, sizeof(buf), "%e", 0.0);
+    TEST_ASSERT(l_strcmp(buf, "0.000000e+00") == 0, "%e 0.0");
+
+    l_snprintf(buf, sizeof(buf), "%e", 1.0);
+    TEST_ASSERT(l_strcmp(buf, "1.000000e+00") == 0, "%e 1.0");
+
+    l_snprintf(buf, sizeof(buf), "%e", 1000.0);
+    TEST_ASSERT(l_strcmp(buf, "1.000000e+03") == 0, "%e 1000.0");
+
+    l_snprintf(buf, sizeof(buf), "%.2e", 3.14159);
+    TEST_ASSERT(l_strcmp(buf, "3.14e+00") == 0, "%.2e 3.14159");
+
+    l_snprintf(buf, sizeof(buf), "%e", -0.001);
+    TEST_ASSERT(l_strcmp(buf, "-1.000000e-03") == 0, "%e -0.001");
+
+    l_snprintf(buf, sizeof(buf), "%E", 1.5e10);
+    TEST_ASSERT(l_strcmp(buf, "1.500000E+10") == 0, "%E uppercase");
+
+    /* %g basic */
+    l_snprintf(buf, sizeof(buf), "%g", 0.0);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%g 0.0");
+
+    l_snprintf(buf, sizeof(buf), "%g", 1.0);
+    TEST_ASSERT(l_strcmp(buf, "1") == 0, "%g 1.0 strips trailing zeros");
+
+    l_snprintf(buf, sizeof(buf), "%g", 3.14);
+    TEST_ASSERT(l_strcmp(buf, "3.14") == 0, "%g 3.14");
+
+    l_snprintf(buf, sizeof(buf), "%g", 1e6);
+    TEST_ASSERT(l_strcmp(buf, "1e+06") == 0, "%g 1e6 uses scientific");
+
+    l_snprintf(buf, sizeof(buf), "%g", 0.0001);
+    TEST_ASSERT(l_strcmp(buf, "0.0001") == 0, "%g 0.0001 uses fixed");
+
+    l_snprintf(buf, sizeof(buf), "%g", 0.00001);
+    TEST_ASSERT(l_strcmp(buf, "1e-05") == 0, "%g 0.00001 uses scientific");
+
+    l_snprintf(buf, sizeof(buf), "%.10g", 1.23456789);
+    TEST_ASSERT(l_strncmp(buf, "1.23456789", 10) == 0, "%.10g precision");
+
+    /* special values */
+    double my_inf = l_atof("inf");
+    l_snprintf(buf, sizeof(buf), "%f", my_inf);
+    TEST_ASSERT(l_strcmp(buf, "inf") == 0, "%f inf");
+
+    l_snprintf(buf, sizeof(buf), "%f", -my_inf);
+    TEST_ASSERT(l_strcmp(buf, "-inf") == 0, "%f -inf");
+
+    double my_nan = l_atof("nan");
+    l_snprintf(buf, sizeof(buf), "%f", my_nan);
+    TEST_ASSERT(l_strcmp(buf, "nan") == 0, "%f nan");
+
+    TEST_SECTION_PASS("l_snprintf %%f/%%e/%%g");
+}
 
 void test_strcasecmp(void) {
     TEST_FUNCTION("l_strcasecmp / l_strncasecmp");
@@ -2771,6 +2918,30 @@ void test_read_line(void) {
 
 // ===================== main =====================
 
+void test_getpid_kill_llabs(void) {
+    TEST_FUNCTION("l_getpid / l_llabs");
+
+    L_PID pid = l_getpid();
+    TEST_ASSERT(pid > 0, "l_getpid returns positive value");
+
+#ifndef _WIN32
+    L_PID ppid = l_getppid();
+    TEST_ASSERT(ppid > 0, "l_getppid returns positive value");
+    TEST_ASSERT(ppid != pid, "ppid differs from pid");
+
+    /* Send signal 0 to self — exists check, no signal delivered */
+    int kr = l_kill(pid, 0);
+    TEST_ASSERT(kr == 0, "l_kill(pid, 0) succeeds for own process");
+#endif
+
+    TEST_ASSERT(l_llabs(0LL) == 0LL, "llabs(0) == 0");
+    TEST_ASSERT(l_llabs(42LL) == 42LL, "llabs(42) == 42");
+    TEST_ASSERT(l_llabs(-42LL) == 42LL, "llabs(-42) == 42");
+    TEST_ASSERT(l_llabs(-9223372036854775807LL) == 9223372036854775807LL, "llabs(LLONG_MIN+1)");
+
+    TEST_SECTION_PASS("l_getpid / l_llabs");
+}
+
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
 
@@ -2810,6 +2981,7 @@ int main(int argc, char* argv[]) {
     test_atoi_atol();
     test_strtoul_strtol();
     test_strtoull_strtoll();
+    test_strtod_atof();
     test_itoa();
     test_itoa_atoi_roundtrip();
 
@@ -2825,6 +2997,7 @@ int main(int argc, char* argv[]) {
 
     // Formatted output
     test_snprintf();
+    test_snprintf_float();
 
     // Wide string
     test_wcslen();
@@ -2871,6 +3044,7 @@ int main(int argc, char* argv[]) {
     test_time();
     test_dprintf();
     test_read_line();
+    test_getpid_kill_llabs();
 
     puts("\n");
     puts("=====================================\n");
