@@ -1,19 +1,8 @@
 #define L_MAINFILE
 #include "l_os.h"
 
-// Minimal checksum: computes XOR and additive checksums of a file
+// checksum: computes SHA-256 hash of a file via l_sha256
 // Usage: checksum <filename>
-
-static void write_hex32(unsigned int val) {
-    char hex[9];
-    const char *digits = "0123456789abcdef";
-    for (int i = 7; i >= 0; i--) {
-        hex[i] = digits[val & 0xf];
-        val >>= 4;
-    }
-    hex[8] = '\0';
-    write(STDOUT, hex, 8);
-}
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -24,32 +13,28 @@ int main(int argc, char *argv[]) {
     L_FD fd = open_read(argv[1]);
     exitif(fd < 0, 1, "Error: cannot open file\n");
 
+    L_Sha256 ctx;
+    l_sha256_init(&ctx);
+
     unsigned char buf[4096];
     ssize_t n;
-    unsigned int xor_sum = 0;
-    unsigned int add_sum = 0;
-    unsigned long total_bytes = 0;
-
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        for (int i = 0; i < n; i++) {
-            xor_sum ^= buf[i];
-            add_sum += buf[i];
-        }
-        total_bytes += n;
-    }
+    while ((n = read(fd, buf, sizeof(buf))) > 0)
+        l_sha256_update(&ctx, buf, (size_t)n);
 
     close(fd);
 
-    puts("XOR: ");
-    write_hex32(xor_sum);
-    puts("  SUM: ");
-    write_hex32(add_sum);
-    puts("  ");
+    unsigned char hash[32];
+    l_sha256_final(&ctx, hash);
 
-    char numbuf[20];
-    itoa(total_bytes, numbuf, 10);
-    puts(numbuf);
-    puts(" bytes  ");
+    const char *hex = "0123456789abcdef";
+    char out[65];
+    for (int i = 0; i < 32; i++) {
+        out[i * 2]     = hex[hash[i] >> 4];
+        out[i * 2 + 1] = hex[hash[i] & 0xf];
+    }
+    out[64] = '\0';
+    puts(out);
+    puts("  ");
     puts(argv[1]);
     puts("\n");
 

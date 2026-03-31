@@ -548,6 +548,16 @@ char *l_realpath(const char *path, char *resolved);
 int l_stat(const char *path, L_Stat *st);
 /// Gets file metadata by open file descriptor. Returns 0 on success, -1 on error.
 int l_fstat(L_FD fd, L_Stat *st);
+/// Truncates a file at the given path to the specified size. Returns 0 on success, -1 on error.
+int l_truncate(const char *path, long long size);
+/// Truncates an open file descriptor to the specified size. Returns 0 on success, -1 on error.
+int l_ftruncate(L_FD fd, long long size);
+/// Returns the size of a file in bytes, or -1 on error.
+static inline long long l_file_size(const char *path);
+/// Reads exactly count bytes, retrying on short reads. Returns total bytes read, 0 on EOF, or negative on error.
+static inline ptrdiff_t l_read_all(L_FD fd, void *buf, size_t count);
+/// Writes exactly count bytes, retrying on short writes. Returns total bytes written, or negative on error.
+static inline ptrdiff_t l_write_all(L_FD fd, const void *buf, size_t count);
 /// Opens a directory for reading. Returns 0 on success, -1 on error.
 int l_opendir(const char *path, L_Dir *dir);
 /// Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done.
@@ -637,6 +647,8 @@ static inline L_Str l_str_join(L_Arena *a, const L_Str *parts, int count, L_Str 
 static inline L_Str l_str_upper(L_Arena *a, L_Str s);
 /// Lowercase copy in arena (ASCII).
 static inline L_Str l_str_lower(L_Arena *a, L_Str s);
+/// Replace all occurrences of find with repl in s. Result is arena-allocated.
+static inline L_Str l_str_replace(L_Arena *a, L_Str s, L_Str find, L_Str repl);
 
 /// Append L_Str to buf. Returns 0 on success, -1 on failure.
 static inline int l_buf_push_str(L_Buf *b, L_Str s);
@@ -692,6 +704,9 @@ static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm 
 // Glob pattern matching
 /// Match pattern against string. Returns 0 if matches, -1 if no match.
 static inline int l_fnmatch(const char *pattern, const char *string);
+/// Expand a glob pattern into matching paths. Single-level only (no recursive **).
+/// Returns number of matches; *out_paths and *out_count are set in the arena.
+static inline int l_glob(const char *pattern, L_Str **out_paths, int *out_count, L_Arena *a);
 
 // SHA-256
 /// Initialize SHA-256 context.
@@ -732,6 +747,10 @@ L_PID l_spawn(const char *path, char *const argv[], char *const envp[]);
 /// Waits for a spawned process to finish. Returns 0 on success, -1 on error.
 /// exitcode receives the process exit code.
 int l_wait(L_PID pid, int *exitcode);
+
+/// Executes a shell command string. Returns the exit code, or -1 on spawn failure.
+/// Uses /bin/sh -c on Unix, cmd.exe /c on Windows.
+static inline int l_system(const char *cmd);
 
 #ifdef __unix__
 // Unix-only functions
@@ -1111,6 +1130,8 @@ int WINAPI mainCRTStartup(void)
 #  define write l_write
 #  define puts l_puts
 #  define lseek l_lseek
+#  define truncate l_truncate
+#  define ftruncate l_ftruncate
 #  define dup l_dup
 #  define mkdir l_mkdir
 #  define chdir l_chdir
@@ -1161,6 +1182,7 @@ int WINAPI mainCRTStartup(void)
 #  define writev l_writev
 #  define readv l_readv
 #  define fnmatch l_fnmatch
+#  define system l_system
 #  define gmtime l_gmtime
 #  define strftime l_strftime
 #  define open_read l_open_read
@@ -3858,6 +3880,32 @@ inline off_t l_lseek(L_FD fd, off_t offset, int whence)
     return my_syscall3(__NR_lseek, fd, offset, whence);
 }
 
+inline int l_truncate(const char *path, long long size)
+{
+#if defined(__x86_64__)
+    return (int)my_syscall2(76 /*__NR_truncate*/, path, size);
+#elif defined(__aarch64__)
+    return (int)my_syscall2(45 /*__NR_truncate*/, path, size);
+#elif defined(__arm__)
+    return (int)my_syscall2(193 /*__NR_truncate64*/, path, size);
+#else
+#error Unsupported architecture for l_truncate
+#endif
+}
+
+inline int l_ftruncate(L_FD fd, long long size)
+{
+#if defined(__x86_64__)
+    return (int)my_syscall2(77 /*__NR_ftruncate*/, fd, size);
+#elif defined(__aarch64__)
+    return (int)my_syscall2(46 /*__NR_ftruncate*/, fd, size);
+#elif defined(__arm__)
+    return (int)my_syscall2(194 /*__NR_ftruncate64*/, fd, size);
+#else
+#error Unsupported architecture for l_ftruncate
+#endif
+}
+
 inline int l_mkdir(const char *path, mode_t mode)
 {
 #ifdef __NR_mkdirat
@@ -5069,6 +5117,32 @@ inline off_t l_lseek(L_FD fd, off_t offset, int whence)
     if (!SetFilePointerEx(handle, distance, &newpos, move_method))
         return (off_t)-1;
     return (off_t)newpos.QuadPart;
+}
+
+inline int l_truncate(const char *path, long long size)
+{
+    wchar_t wpath[1024];
+    HANDLE h;
+    LARGE_INTEGER li;
+    int ret = -1;
+    if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
+    h = CreateFileW(wpath, GENERIC_WRITE, 0, (void *)0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, (void *)0);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    li.QuadPart = (LONGLONG)size;
+    if (SetFilePointerEx(h, li, (void *)0, FILE_BEGIN) && SetEndOfFile(h))
+        ret = 0;
+    CloseHandle(h);
+    return ret;
+}
+
+inline int l_ftruncate(L_FD fd, long long size)
+{
+    HANDLE h = l_win_fd_handle(fd);
+    LARGE_INTEGER li;
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    li.QuadPart = (LONGLONG)size;
+    if (!SetFilePointerEx(h, li, (void *)0, FILE_BEGIN)) return -1;
+    return SetEndOfFile(h) ? 0 : -1;
 }
 
 inline int l_mkdir(const char *path, mode_t mode)
@@ -6376,6 +6450,35 @@ static inline L_Str l_str_lower(L_Arena *a, L_Str s) {
     return l_str_from(p, s.len);
 }
 
+static inline L_Str l_str_replace(L_Arena *a, L_Str s, L_Str find, L_Str repl) {
+    if (find.len == 0) return l_str_dup(a, s);
+    // First pass: count occurrences to compute result size
+    size_t count = 0;
+    size_t pos = 0;
+    while (pos <= s.len - find.len) {
+        L_Str tail = l_str_from(s.data + pos, s.len - pos);
+        ptrdiff_t idx = l_str_find(tail, find);
+        if (idx < 0) break;
+        count++;
+        pos += (size_t)idx + find.len;
+    }
+    if (count == 0) return l_str_dup(a, s);
+    size_t newlen = s.len - count * find.len + count * repl.len;
+    char *out = (char *)l_arena_alloc(a, newlen);
+    if (!out) return l_str_null();
+    size_t src = 0, dst = 0;
+    while (src < s.len) {
+        L_Str tail = l_str_from(s.data + src, s.len - src);
+        ptrdiff_t idx = l_str_find(tail, find);
+        if (idx < 0) break;
+        if (idx > 0) { l_memcpy(out + dst, s.data + src, (size_t)idx); dst += (size_t)idx; }
+        if (repl.len) { l_memcpy(out + dst, repl.data, repl.len); dst += repl.len; }
+        src += (size_t)idx + find.len;
+    }
+    if (src < s.len) { l_memcpy(out + dst, s.data + src, s.len - src); dst += s.len - src; }
+    return l_str_from(out, dst);
+}
+
 // L_Buf helpers for L_Str
 static inline int l_buf_push_str(L_Buf *b, L_Str s) {
     return s.len ? l_buf_push(b, s.data, s.len) : 0;
@@ -6585,6 +6688,34 @@ static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm 
     return (int)pos;
 }
 
+// --- Convenience file/IO helpers ---
+
+static inline long long l_file_size(const char *path) {
+    L_Stat st;
+    if (l_stat(path, &st) != 0) return -1;
+    return (long long)st.st_size;
+}
+
+static inline ptrdiff_t l_read_all(L_FD fd, void *buf, size_t count) {
+    size_t total = 0;
+    while (total < count) {
+        ptrdiff_t n = l_read(fd, (char *)buf + total, count - total);
+        if (n <= 0) { if (total > 0) return (ptrdiff_t)total; return n; }
+        total += (size_t)n;
+    }
+    return (ptrdiff_t)total;
+}
+
+static inline ptrdiff_t l_write_all(L_FD fd, const void *buf, size_t count) {
+    size_t total = 0;
+    while (total < count) {
+        ptrdiff_t n = l_write(fd, (const char *)buf + total, count - total);
+        if (n <= 0) return n;
+        total += (size_t)n;
+    }
+    return (ptrdiff_t)total;
+}
+
 // --- l_fnmatch: glob pattern matching ---
 
 static inline int l_fnmatch(const char *pattern, const char *string) {
@@ -6634,6 +6765,87 @@ static inline int l_fnmatch(const char *pattern, const char *string) {
     }
     while (*p == '*') p++;
     return *p ? -1 : 0;
+}
+
+// --- l_glob: single-level wildcard expansion ---
+
+static inline int l_glob(const char *pattern, L_Str **out_paths, int *out_count, L_Arena *a) {
+    char dirbuf[L_PATH_MAX];
+    char joinbuf[L_PATH_MAX];
+    const char *base = l_basename(pattern);
+    const char *dir;
+    int count = 0;
+    L_Dir d;
+    L_DirEntry *ent;
+
+    // Split pattern into directory + filename parts
+    if (base == pattern) {
+        dir = ".";
+    } else {
+        l_dirname(pattern, dirbuf, sizeof(dirbuf));
+        dir = dirbuf;
+    }
+
+    if (l_opendir(dir, &d) != 0) {
+        *out_paths = (L_Str *)(void *)0;
+        *out_count = 0;
+        return -1;
+    }
+
+    // First pass: count matches
+    while ((ent = l_readdir(&d)) != (void *)0) {
+        if (ent->d_name[0] == '.' && base[0] != '.') continue;
+        if (l_fnmatch(base, ent->d_name) == 0) count++;
+    }
+    l_closedir(&d);
+
+    if (count == 0) {
+        *out_paths = (L_Str *)(void *)0;
+        *out_count = 0;
+        return 0;
+    }
+
+    *out_paths = (L_Str *)l_arena_alloc(a, (size_t)count * sizeof(L_Str));
+    if (!*out_paths) { *out_count = 0; return -1; }
+
+    // Second pass: collect matches
+    if (l_opendir(dir, &d) != 0) { *out_count = 0; return -1; }
+    int idx = 0;
+    while ((ent = l_readdir(&d)) != (void *)0 && idx < count) {
+        if (ent->d_name[0] == '.' && base[0] != '.') continue;
+        if (l_fnmatch(base, ent->d_name) == 0) {
+            l_path_join(joinbuf, sizeof(joinbuf), dir, ent->d_name);
+            (*out_paths)[idx++] = l_str_from_cstr(a, joinbuf);
+        }
+    }
+    l_closedir(&d);
+    *out_count = idx;
+    return idx;
+}
+
+// --- l_system: execute shell command ---
+
+static inline int l_system(const char *cmd) {
+    L_PID pid;
+    int exitcode = -1;
+#ifdef _WIN32
+    char *argv[4];
+    argv[0] = (char *)"cmd.exe";
+    argv[1] = (char *)"/c";
+    argv[2] = (char *)cmd;
+    argv[3] = (char *)(void *)0;
+    pid = l_spawn("cmd.exe", argv, (char *const *)(void *)0);
+#else
+    char *argv[4];
+    argv[0] = (char *)"/bin/sh";
+    argv[1] = (char *)"-c";
+    argv[2] = (char *)cmd;
+    argv[3] = (char *)(void *)0;
+    pid = l_spawn("/bin/sh", argv, (char *const *)(void *)0);
+#endif
+    if (pid < 0) return -1;
+    if (l_wait(pid, &exitcode) != 0) return -1;
+    return exitcode;
 }
 
 // --- L_Sha256: SHA-256 implementation ---

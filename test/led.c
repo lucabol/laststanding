@@ -644,6 +644,13 @@ static void handle_input(char c) {
 
 // --- Main ---
 
+// SIGWINCH handling for terminal resize (Unix only)
+#ifndef _WIN32
+#define MY_SIGWINCH 28
+static volatile int sigwinch_received = 0;
+static void sigwinch_handler(int sig) { (void)sig; sigwinch_received = 1; }
+#endif
+
 int main(int argc, char *argv[]) {
     memset(&E, 0, sizeof(E));
 
@@ -682,10 +689,22 @@ int main(int argc, char *argv[]) {
     }
 
     unsigned long old_mode = l_term_raw();
+#ifndef _WIN32
+    l_signal(MY_SIGWINCH, sigwinch_handler);
+#endif
     outs(L_ANSI_CLEAR);  // clear screen
     int dirty = 1;
 
     while (!E.quit) {
+#ifndef _WIN32
+        if (sigwinch_received) {
+            sigwinch_received = 0;
+            l_term_size(&E.rows, &E.cols);
+            if (E.rows < 3) E.rows = 24;
+            if (E.cols < 10) E.cols = 80;
+            dirty = 1;
+        }
+#endif
         if (dirty) { render(); dirty = 0; }
         char c;
         ssize_t n = l_read_nonblock(L_STDIN, &c, 1);

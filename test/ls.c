@@ -10,6 +10,7 @@ typedef struct {
     char name[256];
     char type;       // 'd', '-', or '?'
     long long size;
+    long long mtime; // modification time (Unix timestamp)
 } Entry;
 
 static void swap_entries(Entry *a, Entry *b) {
@@ -103,9 +104,11 @@ int main(int argc, char *argv[]) {
             L_Stat st;
             if (l_stat(fullpath, &st) == 0) {
                 entries[count].size = st.st_size;
+                entries[count].mtime = st.st_mtime;
                 entries[count].type = L_S_ISDIR(st.st_mode) ? 'd' : L_S_ISREG(st.st_mode) ? '-' : '?';
             } else {
                 entries[count].size = 0;
+                entries[count].mtime = 0;
                 entries[count].type = (ent->d_type == L_DT_DIR) ? 'd' : (ent->d_type == L_DT_REG) ? '-' : '?';
             }
         }
@@ -127,6 +130,12 @@ int main(int argc, char *argv[]) {
             else { unsigned int v = sz; while (v > 0) { sbuf[slen++] = '0' + (v % 10); v /= 10; } }
             for (int p = 0; p < 10 - slen; p++) l_puts(" ");
             for (int p = slen - 1; p >= 0; p--) { char c[2] = {sbuf[p], 0}; l_puts(c); }
+            l_puts(" ");
+            // Timestamp
+            L_Tm tm = l_localtime(entries[i].mtime);
+            char timebuf[32];
+            l_strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M", &tm);
+            l_puts(timebuf);
             l_puts(" ");
             l_puts(entries[i].name);
             l_puts("\n");

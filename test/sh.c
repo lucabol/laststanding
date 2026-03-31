@@ -115,46 +115,96 @@ static int parse_redir(char *argv[], int ac, Redir *r) {
 
 /* --- Built-in commands -------------------------------------------------- */
 
-static int try_builtin(char *argv[], int ac, L_Arena *arena) {
-    if (l_strcmp(argv[0], "exit") == 0)
-        l_exit(ac > 1 ? l_atoi(argv[1]) : last_exit);
+typedef int (*BuiltinFn)(char *argv[], int ac, L_Arena *arena);
 
-    if (l_strcmp(argv[0], "cd") == 0) {
-        const char *dir = ac > 1 ? argv[1] : l_getenv("HOME");
+static int builtin_exit(char *argv[], int ac, L_Arena *arena) {
+    (void)arena;
+    l_exit(ac > 1 ? l_atoi(argv[1]) : last_exit);
+    return 1; // unreachable
+}
+
+static int builtin_cd(char *argv[], int ac, L_Arena *arena) {
+    (void)arena;
+    const char *dir = ac > 1 ? argv[1] : l_getenv("HOME");
 #ifdef _WIN32
-        if (!dir) dir = l_getenv("USERPROFILE");
+    if (!dir) dir = l_getenv("USERPROFILE");
 #endif
-        if (!dir) return 1;
-        if (l_chdir(dir) < 0) {
-            eputs("sh: cd: "); eputs(dir);
-            eputs(": no such directory\n");
+    if (!dir) { last_exit = 1; return 1; }
+    if (l_chdir(dir) < 0) {
+        eputs("sh: cd: "); eputs(dir);
+        eputs(": no such directory\n");
+        last_exit = 1;
+    } else {
+        last_exit = 0;
+    }
+    return 1;
+}
+
+static int builtin_pwd(char *argv[], int ac, L_Arena *arena) {
+    (void)argv; (void)ac;
+    char *cwd = l_arena_alloc(arena, 4096);
+    if (cwd && l_getcwd(cwd, 4096)) {
+        l_puts(cwd); l_puts("\n");
+    }
+    last_exit = 0;
+    return 1;
+}
+
+static int builtin_echo(char *argv[], int ac, L_Arena *arena) {
+    (void)arena;
+    for (int i = 1; i < ac; i++) {
+        if (i > 1) l_puts(" ");
+        l_puts(argv[i]);
+    }
+    l_puts("\n");
+    last_exit = 0;
+    return 1;
+}
+
+static int builtin_export(char *argv[], int ac, L_Arena *arena) {
+    (void)arena;
+    if (ac < 2) {
+        eputs("usage: export VAR=value\n");
+        last_exit = 1;
+        return 1;
+    }
+    for (int i = 1; i < ac; i++) {
+        char *eq = l_strchr(argv[i], '=');
+        if (!eq) {
+            eputs("sh: export: invalid format (use VAR=value)\n");
+            last_exit = 1;
+            return 1;
+        }
+        *eq = '\0';
+        if (l_setenv(argv[i], eq + 1) < 0) {
+            eputs("sh: export: failed to set "); eputs(argv[i]); eputs("\n");
             last_exit = 1;
         } else {
             last_exit = 0;
         }
-        return 1;
+        *eq = '='; // restore
     }
+    return 1;
+}
 
-    if (l_strcmp(argv[0], "pwd") == 0) {
-        char *cwd = l_arena_alloc(arena, 4096);
-        if (cwd && l_getcwd(cwd, 4096)) {
-            l_puts(cwd); l_puts("\n");
-        }
-        last_exit = 0;
-        return 1;
-    }
+static L_Map builtins;
 
-    if (l_strcmp(argv[0], "echo") == 0) {
-        for (int i = 1; i < ac; i++) {
-            if (i > 1) l_puts(" ");
-            l_puts(argv[i]);
-        }
-        l_puts("\n");
-        last_exit = 0;
-        return 1;
-    }
+static void init_builtins(L_Arena *arena) {
+    builtins = l_map_init(arena, 16);
+    BuiltinFn fn;
+    fn = builtin_exit;   l_map_put(&builtins, "exit",   4, (void *)(size_t)fn);
+    fn = builtin_cd;     l_map_put(&builtins, "cd",     2, (void *)(size_t)fn);
+    fn = builtin_pwd;    l_map_put(&builtins, "pwd",    3, (void *)(size_t)fn);
+    fn = builtin_echo;   l_map_put(&builtins, "echo",   4, (void *)(size_t)fn);
+    fn = builtin_export; l_map_put(&builtins, "export", 6, (void *)(size_t)fn);
+}
 
-    return 0;
+static int try_builtin(char *argv[], int ac, L_Arena *arena) {
+    size_t klen = l_strlen(argv[0]);
+    void *val = l_map_get(&builtins, argv[0], klen);
+    if (!val) return 0;
+    BuiltinFn fn = (BuiltinFn)(size_t)val;
+    return fn(argv, ac, arena);
 }
 
 /* --- Execution ---------------------------------------------------------- */
@@ -299,10 +349,11 @@ static void usage(void) {
     l_puts("Usage: sh [--help]\n");
     l_puts("A freestanding shell built entirely on l_os.h.\n\n");
     l_puts("Built-in commands:\n");
-    l_puts("  cd [dir]     change directory\n");
-    l_puts("  pwd          print working directory\n");
-    l_puts("  exit [code]  exit the shell\n");
-    l_puts("  echo [...]   print arguments\n\n");
+    l_puts("  cd [dir]          change directory\n");
+    l_puts("  pwd               print working directory\n");
+    l_puts("  exit [code]       exit the shell\n");
+    l_puts("  echo [...]        print arguments\n");
+    l_puts("  export VAR=value  set environment variable\n\n");
     l_puts("Features: PATH search, quoted arguments, > >> < redirection, cmd|cmd piping\n");
 }
 
@@ -316,6 +367,8 @@ int main(int argc, char *argv[]) {
 
     L_Arena arena = l_arena_init(1024 * 1024);
     if (!arena.base) { eputs("sh: out of memory\n"); return 1; }
+
+    init_builtins(&arena);
 
     L_Buf line;
     l_buf_init(&line);

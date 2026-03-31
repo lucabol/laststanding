@@ -1,17 +1,31 @@
 #define L_MAINFILE
 #include "l_os.h"
 
-// Minimal grep: filters lines matching a substring pattern
-// Usage: grep <pattern> <filename>
+// Minimal grep: filters lines matching a substring or glob pattern
+// Usage: grep [-g] <pattern> <filename>
+//   -g  use glob/fnmatch matching instead of substring search
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        puts("Usage: grep <pattern> <filename>\n");
+    int use_glob = 0;
+    int c;
+    l_opterr = 1;
+    while ((c = l_getopt(argc, argv, "g")) != -1) {
+        switch (c) {
+            case 'g': use_glob = 1; break;
+            default:
+                puts("Usage: grep [-g] <pattern> <filename>\n");
+                return 1;
+        }
+    }
+
+    if (argc - l_optind != 2) {
+        puts("Usage: grep [-g] <pattern> <filename>\n");
+        puts("  -g  use glob matching instead of substring\n");
         return 0;
     }
 
-    char *pattern = argv[1];
-    L_FD fd = open_read(argv[2]);
+    char *pattern = argv[l_optind];
+    L_FD fd = open_read(argv[l_optind + 1]);
     exitif(fd < 0, 1, "Error: cannot open file\n");
 
     L_Buf line, out;
@@ -29,7 +43,11 @@ int main(int argc, char *argv[]) {
                 l_buf_push(&line, &nul, 1);
                 line_num++;
 
-                if (strstr((char *)line.data, pattern) != NULL) {
+                int matched = use_glob
+                    ? (l_fnmatch(pattern, (char *)line.data) == 0)
+                    : (strstr((char *)line.data, pattern) != NULL);
+
+                if (matched) {
                     matches++;
                     l_buf_push_int(&out, line_num);
                     l_buf_push_cstr(&out, ":");
@@ -50,7 +68,12 @@ int main(int argc, char *argv[]) {
         char nul = '\0';
         l_buf_push(&line, &nul, 1);
         line_num++;
-        if (strstr((char *)line.data, pattern) != NULL) {
+
+        int matched = use_glob
+            ? (l_fnmatch(pattern, (char *)line.data) == 0)
+            : (strstr((char *)line.data, pattern) != NULL);
+
+        if (matched) {
             matches++;
             l_buf_push_int(&out, line_num);
             l_buf_push_cstr(&out, ":");

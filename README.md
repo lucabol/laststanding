@@ -4,11 +4,11 @@ A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. 
 
 | Header | What it provides |
 |--------|-----------------|
-| `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access |
+| `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access, hash maps, SHA-256, glob matching, time formatting |
 | `l_gfx.h` | Pixel graphics — drawing primitives, bitmap font, keyboard/mouse input (Linux framebuffer / Windows GDI) |
 | `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
-Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 10 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 5 graphical demos, and 2 UI demos — all built without a single line of libc.
+Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 13 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 5 graphical demos, and 2 UI demos — all built without a single line of libc.
 
 ## Quick Start
 
@@ -393,6 +393,39 @@ if (l_isatty(L_STDOUT)) {
 }
 ```
 
+### Convenience Helpers
+
+High-level functions for common file and string operations:
+
+```c
+// Bulk file I/O — retry on short reads/writes
+L_FD fd = l_open_write("data.bin");
+l_write_all(fd, buf, size);              // write exactly size bytes
+l_close(fd);
+
+fd = l_open_read("data.bin");
+ptrdiff_t n = l_read_all(fd, buf, max);  // read until EOF or max
+l_close(fd);
+
+// File metadata
+long long sz = l_file_size("data.bin");  // -1 on error
+l_truncate("data.bin", 1024);            // truncate by path
+l_ftruncate(fd, 512);                    // truncate by open fd
+
+// Shell command execution
+int code = l_system("echo hello");       // /bin/sh -c on Linux, cmd.exe /c on Windows
+
+// Glob expansion
+L_Arena a = l_arena_init(4096);
+L_Str *paths; int count;
+l_glob("src/*.c", &paths, &count, &a);   // single-level wildcard expansion
+
+// String replacement
+L_Str result = l_str_replace(&a, l_str("hello world"), l_str("world"), l_str("C"));
+// result: "hello C"
+l_arena_free(&a);
+```
+
 ## Compile-Time Flags
 
 | Define | Purpose |
@@ -574,6 +607,11 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_realpath` | Resolves path to its canonical absolute form into resolved (at least L_PATH_MAX bytes). Returns resolved on success, NULL on error. | All |
 | `l_stat` | Gets file metadata by path. Returns 0 on success, -1 on error. | All |
 | `l_fstat` | Gets file metadata by open file descriptor. Returns 0 on success, -1 on error. | All |
+| `l_truncate` | Truncates a file at the given path to the specified size. Returns 0 on success, -1 on error. | All |
+| `l_ftruncate` | Truncates an open file descriptor to the specified size. Returns 0 on success, -1 on error. | All |
+| `l_file_size` | Returns the size of a file in bytes, or -1 on error. | All |
+| `l_read_all` | Reads exactly count bytes, retrying on short reads. Returns total bytes read, 0 on EOF, or negative on error. | All |
+| `l_write_all` | Writes exactly count bytes, retrying on short writes. Returns total bytes written, or negative on error. | All |
 | `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
 | `l_readdir` | Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done. | All |
 | `l_closedir` | Closes a directory handle. | All |
@@ -614,6 +652,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_str_join` | Join strings with separator. | All |
 | `l_str_upper` | Uppercase copy in arena (ASCII). | All |
 | `l_str_lower` | Lowercase copy in arena (ASCII). | All |
+| `l_str_replace` | Replace all occurrences of find with repl in s. Result is arena-allocated. | All |
 | `l_buf_push_str` | Append L_Str to buf. Returns 0 on success, -1 on failure. | All |
 | `l_buf_push_cstr` | Append C string to buf. Returns 0 on success, -1 on failure. | All |
 | `l_buf_push_int` | Append decimal int to buf. Returns 0 on success, -1 on failure. | All |
@@ -641,6 +680,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strftime` | Format time into buffer. Returns bytes written (excluding NUL). | All |
 | **Glob pattern matching** | | |
 | `l_fnmatch` | Match pattern against string. Returns 0 if matches, -1 if no match. | All |
+| `l_glob` | Expand a glob pattern into matching paths. Single-level only (no recursive **). | All |
 | **SHA-256** | | |
 | `l_sha256_init` | Initialize SHA-256 context. | All |
 | `l_sha256_update` | Feed data into SHA-256. | All |
@@ -655,6 +695,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_spawn_stdio` | Spawns a new process with explicit stdio. Use L_SPAWN_INHERIT to keep the parent's stream. | All |
 | `l_spawn` | Spawns a new process, inheriting the current stdio descriptors. | All |
 | `l_wait` | Waits for a spawned process to finish. Returns 0 on success, -1 on error. | All |
+| `l_system` | Executes a shell command string. Returns the exit code, or -1 on spawn failure. | All |
 | **Unix-only functions** | | |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
@@ -757,13 +798,16 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 | Program | Description | Source |
 |---------|-------------|--------|
 | **base64** | Base64 encoder/decoder (RFC 4648) | [base64.c](test/base64.c) |
-| **checksum** | XOR and additive file checksums | [checksum.c](test/checksum.c) |
+| **checksum** | SHA-256 file hash | [checksum.c](test/checksum.c) |
+| **config** | INI config file parser (L_Map + L_Str) | [config.c](test/config.c) |
 | **countlines** | Line counter | [countlines.c](test/countlines.c) |
-| **grep** | Substring pattern filter | [grep.c](test/grep.c) |
+| **find** | Recursive file finder with glob matching | [find.c](test/find.c) |
+| **grep** | Substring or glob pattern filter (`-g` flag) | [grep.c](test/grep.c) |
 | **hexdump** | Hex + ASCII file dump | [hexdump.c](test/hexdump.c) |
 | **hello** | Hello world (README example) | [hello.c](test/hello.c) |
+| **http_get** | Simple HTTP GET over TCP sockets (IP only, no DNS) | [http_get.c](test/http_get.c) |
 | **file_io** | File read/write (README example) | [file_io.c](test/file_io.c) |
-| **ls** | Directory listing (`-a`, `-l`) | [ls.c](test/ls.c) |
+| **ls** | Directory listing (`-a`, `-l` with timestamps) | [ls.c](test/ls.c) |
 | **printenv** | Print environment variables | [printenv.c](test/printenv.c) |
 | **sort** | Line sort (`-r`, `-f`, `-n`, `-u`) | [sort.c](test/sort.c) |
 | **upper** | Uppercase filter | [upper.c](test/upper.c) |
@@ -773,9 +817,9 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **led** | Vim-style text editor (hjkl, insert/normal/command, :w/:q, search) | [led.c](test/led.c) |
+| **led** | Vim-style text editor (hjkl, insert/normal/command, :w/:q, search, SIGWINCH resize) | [led.c](test/led.c) |
 | **mandelbrot** | Fixed-point fractal renderer — pan, zoom, iteration control | [mandelbrot.c](test/mandelbrot.c) |
-| **sh** | Shell — builtins, PATH search, quotes, I/O redirection, pipes | [sh.c](test/sh.c) |
+| **sh** | Shell — builtins (cd, pwd, echo, export), L_Map lookup, PATH search, quotes, I/O redirection, pipes | [sh.c](test/sh.c) |
 | **snake** | Terminal Snake game with WASD controls | [snake.c](test/snake.c) |
 
 ### Graphical Demos (`l_gfx.h`)
@@ -813,7 +857,7 @@ l_gfx.h        — Pixel graphics header (drawing, font, canvas)
 l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
 test/           — All example programs and tests
 bin/            — Compiled binaries (generated)
-misc/           — Reference implementations using standard libc
+misc/           — Reference implementations (incl. multi-client echo_server via l_poll)
 Taskfile        — Linux/macOS build automation (bash)
 build.bat       — Windows build script
 test_all.bat    — Windows build + test
