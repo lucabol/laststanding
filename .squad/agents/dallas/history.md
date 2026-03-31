@@ -667,3 +667,22 @@ Added 10 new features to l_os.h (5275→6053 lines). All cross-platform (Linux x
 - Linux setenv without libc requires managing the environ array. A static pool approach works: copy envp pointers on first call, then modify the pool. 128 entries and 8KB string buffer is sufficient for freestanding use.
 - Windows signal handling is limited — only SIGINT (Ctrl+C) and SIGTERM (Ctrl+Break) via SetConsoleCtrlHandler. Other signals are no-ops.
 - SHA-256 transform uses big-endian byte order for message schedule — must manually construct u32 from bytes.
+
+## Work Session — 2026-07-26 (Sprint Finalization)
+
+Finalized the 10-feature sprint: README, CI, commit, push.
+
+**Part 1 — README updates:**
+- Added 10 new feature sections after L_Str (Hash Map, I/O Multiplexing, Signal Handling, Date/Time, Pattern Matching, SHA-256, Scatter-Gather I/O, Environment Variables, Terminal Detection) with brief descriptions and code examples.
+- Added 5 new types to Key Types table (L_PollFd, L_IoVec, L_Map, L_Tm, L_Sha256).
+- Removed "Networking — no sockets" from Scope (sockets have existed since the TCP sprint).
+- Regenerated function reference via gen-docs.ps1 — now 201 functions.
+
+**Part 2 — Full CI:** 22/22 targets PASS. 1032 assertions on Windows, 1058 on Linux/AArch64, 1056 on ARM. Zero warnings. Binary sizes: 676 bytes (ARM hello) to 433 KB (ARM/clang ui_controls).
+
+**Part 3 — Commit and push:** Commit f7e7049, pushed to main.
+
+## Learnings
+- gen-docs.ps1 regenerates the function reference table between `<!-- BEGIN FUNCTION REFERENCE -->` and `<!-- END FUNCTION REFERENCE -->` markers. Safe to run repeatedly — it's idempotent.
+- ci.ps1 also calls gen-docs.ps1 at the end of a full run, so docs are regenerated automatically during CI.
+- The "Scope — Not Included" section in README was stale — still said "no sockets" despite TCP/UDP being implemented. Always check scope claims when adding features that invalidate them.
