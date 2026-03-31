@@ -14,6 +14,9 @@
 // See http://utf8everywhere.org/ for the general idea of managing text as utf-8 on windows
 #define UNICODE
 #define _UNICODE
+#ifdef L_WITHSOCKETS
+#include <winsock2.h>
+#endif
 #include <windows.h>
 #include <shellapi.h>
 #endif
@@ -192,6 +195,20 @@ typedef struct {
 } L_Buf;
 #endif
 
+#ifdef L_WITHSOCKETS
+#ifndef L_SOCKET_TYPES_DEFINED
+#define L_SOCKET_TYPES_DEFINED
+typedef ptrdiff_t L_SOCKET;
+
+typedef struct {
+    unsigned short sin_family;
+    unsigned short sin_port;
+    unsigned int   sin_addr;
+    char           sin_zero[8];
+} L_SockAddrIn;
+#endif
+#endif
+
 #ifdef L_WITHDEFS
 
 // String functions
@@ -233,6 +250,14 @@ char *l_strtok_r(char *str, const char *delim, char **saveptr);
 const char *l_basename(const char *path);
 /// Writes the directory component of path into buf (up to bufsize), returns buf
 char *l_dirname(const char *path, char *buf, size_t bufsize);
+/// Joins directory and filename with separator, returns buf
+char *l_path_join(char *buf, size_t bufsz, const char *dir, const char *file);
+/// Returns pointer to extension including dot (".txt"), or "" if none
+const char *l_path_ext(const char *path);
+/// Returns 1 if path exists, 0 if not
+int l_path_exists(const char *path);
+/// Returns 1 if path is a directory, 0 if not
+int l_path_isdir(const char *path);
 /// Reverses a string in place
 void l_reverse(char str[], int length);
 
@@ -396,6 +421,17 @@ ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
 /// Gets terminal size in rows and columns
 void l_term_size(int *rows, int *cols);
 
+// ANSI terminal helpers
+#define L_ANSI_CLEAR    "\033[2J"
+#define L_ANSI_HOME     "\033[H"
+#define L_ANSI_SHOW_CUR "\033[?25h"
+#define L_ANSI_HIDE_CUR "\033[?25l"
+#define L_ANSI_RESET    "\033[0m"
+/// Writes cursor-move sequence into buf, returns bytes written
+int l_ansi_move(char *buf, size_t bufsz, int row, int col);
+/// Writes color sequence into buf; fg/bg are 0-7 ANSI colors, -1 for default
+int l_ansi_color(char *buf, size_t bufsz, int fg, int bg);
+
 // File system functions (cross-platform)
 /// Deletes a file, returns 0 on success, -1 on error
 int l_unlink(const char *path);
@@ -502,6 +538,34 @@ L_PID l_getppid(void);
 /// Sends signal sig to process pid. Returns 0 on success, -1 on error.
 int l_kill(L_PID pid, int sig);
 #endif
+
+#ifdef L_WITHSOCKETS
+// Byte order helpers
+/// Convert 16-bit value from host to network byte order
+static inline unsigned short l_htons(unsigned short h);
+/// Convert 32-bit value from host to network byte order
+static inline unsigned int l_htonl(unsigned int h);
+/// Parse dotted-quad IP string to network-order u32. Returns 0 on error.
+static inline unsigned int l_inet_addr(const char *ip);
+
+// TCP socket functions
+/// Create a TCP socket. Returns socket fd or -1 on error.
+L_SOCKET l_socket_tcp(void);
+/// Connect to addr:port. Returns 0 on success, -1 on error.
+int l_socket_connect(L_SOCKET sock, const char *addr, int port);
+/// Bind socket to port on all interfaces. Returns 0/-1.
+int l_socket_bind(L_SOCKET sock, int port);
+/// Listen for connections. Returns 0/-1.
+int l_socket_listen(L_SOCKET sock, int backlog);
+/// Accept connection. Returns new socket or -1.
+L_SOCKET l_socket_accept(L_SOCKET sock);
+/// Send data. Returns bytes sent or -1.
+ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len);
+/// Receive data. Returns bytes received, 0 on close, -1 on error.
+ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len);
+/// Close socket.
+void l_socket_close(L_SOCKET sock);
+#endif // L_WITHSOCKETS
 
 #endif // L_WITHDEFS
 
@@ -2316,6 +2380,124 @@ inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
     return buf;
 }
 
+inline char *l_path_join(char *buf, size_t bufsz, const char *dir, const char *file) {
+    if (!buf || bufsz == 0) return buf;
+    if (!dir || !*dir) {
+        size_t flen = l_strlen(file);
+        if (flen >= bufsz) flen = bufsz - 1;
+        l_memcpy(buf, file, flen);
+        buf[flen] = '\0';
+        return buf;
+    }
+    size_t dlen = l_strlen(dir);
+    size_t flen = l_strlen(file);
+    int has_sep = (dir[dlen - 1] == '/' || dir[dlen - 1] == '\\');
+    size_t pos = dlen < bufsz - 1 ? dlen : bufsz - 1;
+    l_memcpy(buf, dir, pos);
+    if (!has_sep && pos < bufsz - 1) buf[pos++] = '/';
+    size_t rem = bufsz - 1 - pos;
+    if (flen > rem) flen = rem;
+    l_memcpy(buf + pos, file, flen);
+    buf[pos + flen] = '\0';
+    return buf;
+}
+
+inline const char *l_path_ext(const char *path) {
+    if (!path) return "";
+    const char *base = l_basename(path);
+    const char *dot = (const char *)0;
+    const char *p = base;
+    while (*p) {
+        if (*p == '.') dot = p;
+        p++;
+    }
+    // No dot, or dot is first char (hidden file like ".bashrc")
+    if (!dot || dot == base) return "";
+    return dot;
+}
+
+// Helper: append string to buf at pos, respecting bufsz
+static inline size_t l__buf_append(char *buf, size_t bufsz, size_t pos, const char *s) {
+    while (*s && pos < bufsz - 1) buf[pos++] = *s++;
+    return pos;
+}
+
+inline int l_ansi_move(char *buf, size_t bufsz, int row, int col) {
+    if (!buf || bufsz < 2) return 0;
+    char tmp[12];
+    size_t pos = 0;
+    pos = l__buf_append(buf, bufsz, pos, "\033[");
+    l_itoa(row, tmp, 10);
+    pos = l__buf_append(buf, bufsz, pos, tmp);
+    pos = l__buf_append(buf, bufsz, pos, ";");
+    l_itoa(col, tmp, 10);
+    pos = l__buf_append(buf, bufsz, pos, tmp);
+    pos = l__buf_append(buf, bufsz, pos, "H");
+    buf[pos] = '\0';
+    return (int)pos;
+}
+
+inline int l_ansi_color(char *buf, size_t bufsz, int fg, int bg) {
+    if (!buf || bufsz < 2) return 0;
+    char tmp[12];
+    size_t pos = 0;
+    pos = l__buf_append(buf, bufsz, pos, "\033[");
+    if (fg >= 0 && bg >= 0) {
+        l_itoa(30 + fg, tmp, 10);
+        pos = l__buf_append(buf, bufsz, pos, tmp);
+        pos = l__buf_append(buf, bufsz, pos, ";");
+        l_itoa(40 + bg, tmp, 10);
+        pos = l__buf_append(buf, bufsz, pos, tmp);
+    } else if (fg >= 0) {
+        l_itoa(30 + fg, tmp, 10);
+        pos = l__buf_append(buf, bufsz, pos, tmp);
+    } else if (bg >= 0) {
+        l_itoa(40 + bg, tmp, 10);
+        pos = l__buf_append(buf, bufsz, pos, tmp);
+    } else {
+        pos = l__buf_append(buf, bufsz, pos, "0");
+    }
+    pos = l__buf_append(buf, bufsz, pos, "m");
+    buf[pos] = '\0';
+    return (int)pos;
+}
+
+#ifdef L_WITHSOCKETS
+
+static inline unsigned short l_htons(unsigned short h) {
+    return (unsigned short)((h >> 8) | (h << 8));
+}
+
+static inline unsigned int l_htonl(unsigned int h) {
+    return ((h >> 24) & 0xFFu) | ((h >> 8) & 0xFF00u) |
+           ((h << 8) & 0xFF0000u) | ((h << 24) & 0xFF000000u);
+}
+
+static inline unsigned int l_inet_addr(const char *ip) {
+    unsigned int result = 0;
+    unsigned int octet = 0;
+    int dots = 0;
+    int shift = 0;
+    for (const char *p = ip; ; p++) {
+        if (*p >= '0' && *p <= '9') {
+            octet = octet * 10 + (unsigned int)(*p - '0');
+            if (octet > 255) return 0;
+        } else if (*p == '.' || *p == '\0') {
+            result |= (octet << shift);
+            shift += 8;
+            octet = 0;
+            if (*p == '.') dots++;
+            if (*p == '\0') break;
+        } else {
+            return 0;
+        }
+    }
+    if (dots != 3) return 0;
+    return result;
+}
+
+#endif // L_WITHSOCKETS
+
 #ifdef __unix__
 
 #include <asm/unistd.h>
@@ -3695,6 +3877,114 @@ inline L_FD l_open_trunc(const char* file) {
     return l_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
 }
 
+#ifdef L_WITHSOCKETS
+
+inline L_SOCKET l_socket_tcp(void)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall3(41 /*__NR_socket*/, 2 /*AF_INET*/, 1 /*SOCK_STREAM*/, 0);
+#elif defined(__aarch64__)
+    long ret = my_syscall3(198 /*__NR_socket*/, 2, 1, 0);
+#elif defined(__arm__)
+    long ret = my_syscall3(281 /*__NR_socket*/, 2, 1, 0);
+#endif
+    if (ret < 0) return -1;
+    return (L_SOCKET)ret;
+}
+
+inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
+{
+    L_SockAddrIn sa;
+    l_memset(&sa, 0, sizeof(sa));
+    sa.sin_family = 2;
+    sa.sin_port = l_htons((unsigned short)port);
+    sa.sin_addr = l_inet_addr(addr);
+    if (sa.sin_addr == 0) return -1;
+#if defined(__x86_64__)
+    long ret = my_syscall3(42 /*__NR_connect*/, sock, (long)&sa, (long)sizeof(sa));
+#elif defined(__aarch64__)
+    long ret = my_syscall3(203 /*__NR_connect*/, sock, (long)&sa, (long)sizeof(sa));
+#elif defined(__arm__)
+    long ret = my_syscall3(284 /*__NR_connect*/, sock, (long)&sa, (long)sizeof(sa));
+#endif
+    return (int)(ret < 0 ? -1 : 0);
+}
+
+inline int l_socket_bind(L_SOCKET sock, int port)
+{
+    L_SockAddrIn sa;
+    l_memset(&sa, 0, sizeof(sa));
+    sa.sin_family = 2;
+    sa.sin_port = l_htons((unsigned short)port);
+    sa.sin_addr = 0;
+#if defined(__x86_64__)
+    long ret = my_syscall3(49 /*__NR_bind*/, sock, (long)&sa, (long)sizeof(sa));
+#elif defined(__aarch64__)
+    long ret = my_syscall3(200 /*__NR_bind*/, sock, (long)&sa, (long)sizeof(sa));
+#elif defined(__arm__)
+    long ret = my_syscall3(283 /*__NR_bind*/, sock, (long)&sa, (long)sizeof(sa));
+#endif
+    return (int)(ret < 0 ? -1 : 0);
+}
+
+inline int l_socket_listen(L_SOCKET sock, int backlog)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall2(50 /*__NR_listen*/, sock, backlog);
+#elif defined(__aarch64__)
+    long ret = my_syscall2(201 /*__NR_listen*/, sock, backlog);
+#elif defined(__arm__)
+    long ret = my_syscall2(285 /*__NR_listen*/, sock, backlog);
+#endif
+    return (int)(ret < 0 ? -1 : 0);
+}
+
+inline L_SOCKET l_socket_accept(L_SOCKET sock)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall3(43 /*__NR_accept*/, sock, 0, 0);
+#elif defined(__aarch64__)
+    long ret = my_syscall3(202 /*__NR_accept*/, sock, 0, 0);
+#elif defined(__arm__)
+    long ret = my_syscall4(286 /*__NR_accept4*/, sock, 0, 0, 0);
+#endif
+    if (ret < 0) return -1;
+    return (L_SOCKET)ret;
+}
+
+inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall6(44 /*__NR_sendto*/, sock, (long)data, (long)len, 0, 0, 0);
+#elif defined(__aarch64__)
+    long ret = my_syscall6(206 /*__NR_sendto*/, sock, (long)data, (long)len, 0, 0, 0);
+#elif defined(__arm__)
+    long ret = my_syscall6(291 /*__NR_sendto*/, sock, (long)data, (long)len, 0, 0, 0);
+#endif
+    if (ret < 0) return -1;
+    return (ptrdiff_t)ret;
+}
+
+inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall6(45 /*__NR_recvfrom*/, sock, (long)buf, (long)len, 0, 0, 0);
+#elif defined(__aarch64__)
+    long ret = my_syscall6(207 /*__NR_recvfrom*/, sock, (long)buf, (long)len, 0, 0, 0);
+#elif defined(__arm__)
+    long ret = my_syscall6(293 /*__NR_recvfrom*/, sock, (long)buf, (long)len, 0, 0, 0);
+#endif
+    if (ret < 0) return -1;
+    return (ptrdiff_t)ret;
+}
+
+inline void l_socket_close(L_SOCKET sock)
+{
+    my_syscall1(__NR_close, sock);
+}
+
+#endif // L_WITHSOCKETS
+
 #else // Windows starts here
 
 noreturn inline void l_exit(int status)
@@ -4627,6 +4917,87 @@ inline L_FD l_open(const char *path, int flags, mode_t mode) {
     
     return l_win_open_gen(path, desired, shared, dispo);
 }
+
+#ifdef L_WITHSOCKETS
+
+static int l_wsa_initialized = 0;
+
+static inline int l_wsa_init(void) {
+    if (l_wsa_initialized) return 0;
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return -1;
+    l_wsa_initialized = 1;
+    return 0;
+}
+
+inline L_SOCKET l_socket_tcp(void)
+{
+    if (l_wsa_init() < 0) return -1;
+    SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s == INVALID_SOCKET) return -1;
+    return (L_SOCKET)s;
+}
+
+inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
+{
+    struct sockaddr_in sa;
+    l_memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_port = l_htons((unsigned short)port);
+    sa.sin_addr.s_addr = l_inet_addr(addr);
+    if (sa.sin_addr.s_addr == 0) return -1;
+    if (connect((SOCKET)sock, (const struct sockaddr *)&sa, (int)sizeof(sa)) == SOCKET_ERROR)
+        return -1;
+    return 0;
+}
+
+inline int l_socket_bind(L_SOCKET sock, int port)
+{
+    struct sockaddr_in sa;
+    l_memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_port = l_htons((unsigned short)port);
+    sa.sin_addr.s_addr = 0;
+    if (bind((SOCKET)sock, (const struct sockaddr *)&sa, (int)sizeof(sa)) == SOCKET_ERROR)
+        return -1;
+    return 0;
+}
+
+inline int l_socket_listen(L_SOCKET sock, int backlog)
+{
+    if (listen((SOCKET)sock, backlog) == SOCKET_ERROR)
+        return -1;
+    return 0;
+}
+
+inline L_SOCKET l_socket_accept(L_SOCKET sock)
+{
+    SOCKET s = accept((SOCKET)sock, NULL, NULL);
+    if (s == INVALID_SOCKET) return -1;
+    return (L_SOCKET)s;
+}
+
+inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
+{
+    int ret = send((SOCKET)sock, (const char *)data, (int)len, 0);
+    if (ret == SOCKET_ERROR) return -1;
+    return (ptrdiff_t)ret;
+}
+
+inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
+{
+    int ret = recv((SOCKET)sock, (char *)buf, (int)len, 0);
+    if (ret == SOCKET_ERROR) return -1;
+    return (ptrdiff_t)ret;
+}
+
+inline void l_socket_close(L_SOCKET sock)
+{
+    closesocket((SOCKET)sock);
+}
+
+#endif // L_WITHSOCKETS
+
 #endif
 
 #ifdef __cplusplus
@@ -4953,6 +5324,16 @@ static inline void l_buf_free(L_Buf *b) {
     b->data = (unsigned char *)0;
     b->len = 0;
     b->cap = 0;
+}
+
+inline int l_path_exists(const char *path) {
+    return l_access(path, L_F_OK) == 0 ? 1 : 0;
+}
+
+inline int l_path_isdir(const char *path) {
+    L_Stat st;
+    if (l_stat(path, &st) != 0) return 0;
+    return L_S_ISDIR(st.st_mode) ? 1 : 0;
 }
 
 #endif // L_OSH

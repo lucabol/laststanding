@@ -310,6 +310,10 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strtok_r` | Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant) | All |
 | `l_basename` | Returns pointer to the filename component of path (after last '/' or '\') | All |
 | `l_dirname` | Writes the directory component of path into buf (up to bufsize), returns buf | All |
+| `l_path_join` | Joins directory and filename with separator, returns buf | All |
+| `l_path_ext` | Returns pointer to extension including dot (".txt"), or "" if none | All |
+| `l_path_exists` | Returns 1 if path exists, 0 if not | All |
+| `l_path_isdir` | Returns 1 if path is a directory, 0 if not | All |
 | `l_reverse` | Reverses a string in place | All |
 | **Conversion functions** | | |
 | `l_isspace` | Returns non-zero if c is a whitespace character (space, tab, newline, etc.) | All |
@@ -383,6 +387,9 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_term_restore` | Restores terminal mode from value returned by l_term_raw | All |
 | `l_read_nonblock` | Reads from fd without blocking, returns 0 if no data available | All |
 | `l_term_size` | Gets terminal size in rows and columns | All |
+| **ANSI terminal helpers** | | |
+| `l_ansi_move` | Writes cursor-move sequence into buf, returns bytes written | All |
+| `l_ansi_color` | Writes color sequence into buf; fg/bg are 0-7 ANSI colors, -1 for default | All |
 | **File system functions (cross-platform)** | | |
 | `l_unlink` | Deletes a file, returns 0 on success, -1 on error | All |
 | `l_rmdir` | Removes an empty directory, returns 0 on success, -1 on error | All |
@@ -428,6 +435,19 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_waitpid` | Wait for a child process. Returns child pid on success, -1 on error. | Unix |
 | `l_getppid` | Returns the parent process ID. | Unix |
 | `l_kill` | Sends signal sig to process pid. Returns 0 on success, -1 on error. | Unix |
+| **Byte order helpers** | | |
+| `l_htons` | Convert 16-bit value from host to network byte order | All |
+| `l_htonl` | Convert 32-bit value from host to network byte order | All |
+| `l_inet_addr` | Parse dotted-quad IP string to network-order u32. Returns 0 on error. | All |
+| **TCP socket functions** | | |
+| `l_socket_tcp` | Create a TCP socket. Returns socket fd or -1 on error. | All |
+| `l_socket_connect` | Connect to addr:port. Returns 0 on success, -1 on error. | All |
+| `l_socket_bind` | Bind socket to port on all interfaces. Returns 0/-1. | All |
+| `l_socket_listen` | Listen for connections. Returns 0/-1. | All |
+| `l_socket_accept` | Accept connection. Returns new socket or -1. | All |
+| `l_socket_send` | Send data. Returns bytes sent or -1. | All |
+| `l_socket_recv` | Receive data. Returns bytes received, 0 on close, -1 on error. | All |
+| `l_socket_close` | Close socket. | All |
 
 <!-- END FUNCTION REFERENCE -->
 

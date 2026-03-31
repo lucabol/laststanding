@@ -15,9 +15,16 @@ foreach ($f in $files) {
     $name = $f.BaseName
     Write-Host "  $name"
 
+    # Detect if source uses sockets and needs ws2_32
+    $extraLibs = ""
+    $content = Get-Content $f.FullName -Raw
+    if ($content -match 'L_WITHSOCKETS') {
+        $extraLibs = "-lws2_32"
+    }
+
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $CC
-    $psi.Arguments = "-I. `"$($f.FullName)`" -Oz -lkernel32 -ffreestanding -o `"$OutDir\$name.exe`""
+    $psi.Arguments = "-I. `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
     $proc = [System.Diagnostics.Process]::Start($psi)

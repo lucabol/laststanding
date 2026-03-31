@@ -199,7 +199,7 @@ static int editor_save(void) {
 
 static void render(void) {
     sb_clear();
-    sb_str("\033[?25l");  // hide cursor
+    sb_str(L_ANSI_HIDE_CUR);  // hide cursor
     sb_move(1, 1);
 
     int text_rows = E.rows - 1;  // last row = status bar
@@ -244,7 +244,7 @@ static void render(void) {
 
     // Pad the rest of status bar
     sb_str("                                        ");
-    sb_str("\033[0m");  // reset colors
+    sb_str(L_ANSI_RESET);  // reset colors
 
     // Position cursor
     int screen_y = E.cy - E.scroll_y + 1;
@@ -252,7 +252,7 @@ static void render(void) {
     sb_move(screen_y, screen_x);
     // Cursor shape: bar in insert mode, block in normal/command
     sb_str(E.mode == INSERT ? "\033[5 q" : "\033[1 q");
-    sb_str("\033[?25h");  // show cursor
+    sb_str(L_ANSI_SHOW_CUR);  // show cursor
 
     sb_flush();  // single write() for the entire frame
 }
@@ -690,7 +690,7 @@ int main(int argc, char *argv[]) {
     }
 
     unsigned long old_mode = l_term_raw();
-    outs("\033[2J");  // clear screen
+    outs(L_ANSI_CLEAR);  // clear screen
     int dirty = 1;
 
     while (!E.quit) {
@@ -706,9 +706,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Cleanup
-    outs("\033[2J\033[H");  // clear screen + home
+    outs(L_ANSI_CLEAR L_ANSI_HOME);  // clear screen + home
     outs("\033[1 q");       // restore block cursor
-    outs("\033[?25h");      // show cursor
+    outs(L_ANSI_SHOW_CUR);      // show cursor
     l_term_restore(old_mode);
     l_buf_free(&screen_buf);
     l_arena_free(&E.arena);

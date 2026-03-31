@@ -92,6 +92,21 @@ Implemented the error reporting layer for laststanding.
 
 **Verified:** All 22 CI targets PASS (build+test+verify across Windows, Linux gcc/clang, ARM gcc/clang, AArch64 gcc/clang). Zero warnings.
 
+## Work Session — 2026-07-25 (follow-up)
+
+Implemented minimal math library in l_os.h — 11 software math functions with no FPU dependency.
+
+**Changes to l_os.h:**
+1. **Math constants:** `L_PI`, `L_PI_2`, `L_E`, `L_LN2`, `L_SQRT2` placed before `L_WITHDEFS` guard so they're visible to all translation units.
+2. **11 math functions (all `static inline`):** `l_fabs` (bit manipulation), `l_floor`/`l_ceil` (IEEE 754 bit masking), `l_fmod`, `l_sqrt` (Newton-Raphson, 8 iterations), `l_sin`/`l_cos` (Taylor series, 12 terms, range-reduced), `l_exp` (range reduce to ln2, Taylor), `l_log` (mantissa decomposition + series), `l_pow` (integer fast-path + exp*log), `l_atan2` (argument reduction with pi/6 identity + Taylor).
+3. **Declarations** in `L_WITHDEFS` section.
+4. **Override macros** in `L_DONTOVERRIDE` block: `fabs`, `floor`, `ceil`, `fmod`, `sqrt`, `sin`, `cos`, `exp`, `log`, `pow`, `atan2`.
+
+**New file: test/test_math.c:**
+- 28 assertions covering all 11 functions with exact and approximate (1e-10/1e-15 tolerance) comparisons.
+
+**Verified:** Windows CI PASS (build+test+verify). ARM gcc PASS, ARM clang PASS, AArch64 gcc PASS (all build+test+verify). AArch64 clang has pre-existing compiler crash (LLVM bug in syscall macro expansion, unrelated).
+
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->

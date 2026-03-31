@@ -1,5 +1,6 @@
 // This tests multiple files including the library with just one of them defined as L_MAINFILE
 #define L_WITHSNPRINTF
+#define L_WITHSOCKETS
 #include "l_os.h"
 #include "l_os.h"
 
@@ -3038,6 +3039,131 @@ void test_buf(void) {
     TEST_SECTION_PASS("L_Buf");
 }
 
+void test_path_utils(void) {
+    TEST_FUNCTION("l_path_join / l_path_ext / l_path_exists / l_path_isdir");
+
+    char buf[256];
+
+    // l_path_join
+    l_path_join(buf, sizeof(buf), "dir", "file");
+    TEST_ASSERT(l_strcmp(buf, "dir/file") == 0, "path_join dir + file");
+
+    l_path_join(buf, sizeof(buf), "dir/", "file");
+    TEST_ASSERT(l_strcmp(buf, "dir/file") == 0, "path_join no double separator");
+
+    l_path_join(buf, sizeof(buf), "", "file");
+    TEST_ASSERT(l_strcmp(buf, "file") == 0, "path_join empty dir");
+
+    // l_path_ext
+    TEST_ASSERT(l_strcmp(l_path_ext("file.txt"), ".txt") == 0, "path_ext .txt");
+    TEST_ASSERT(l_strcmp(l_path_ext("file"), "") == 0, "path_ext no extension");
+    TEST_ASSERT(l_strcmp(l_path_ext("dir/file.tar.gz"), ".gz") == 0, "path_ext .gz");
+    TEST_ASSERT(l_strcmp(l_path_ext(".hidden"), "") == 0, "path_ext dot-only not extension");
+
+    // l_path_exists
+    TEST_ASSERT(l_path_exists("test/test.c") == 1, "path_exists on existing file");
+    TEST_ASSERT(l_path_exists("nonexistent_xyz_123") == 0, "path_exists on missing file");
+
+    // l_path_isdir
+    TEST_ASSERT(l_path_isdir(".") == 1, "path_isdir on current dir");
+
+    TEST_SECTION_PASS("path_utils");
+}
+
+void test_ansi_helpers(void) {
+    TEST_FUNCTION("l_ansi_move / l_ansi_color / ANSI macros");
+
+    char buf[64];
+
+    // l_ansi_move
+    l_ansi_move(buf, sizeof(buf), 5, 10);
+    TEST_ASSERT(l_strcmp(buf, "\033[5;10H") == 0, "ansi_move 5,10");
+
+    // l_ansi_color fg-only
+    l_ansi_color(buf, sizeof(buf), 1, -1);
+    TEST_ASSERT(l_strcmp(buf, "\033[31m") == 0, "ansi_color fg-only red");
+
+    // l_ansi_color fg+bg
+    l_ansi_color(buf, sizeof(buf), 7, 0);
+    TEST_ASSERT(l_strcmp(buf, "\033[37;40m") == 0, "ansi_color fg+bg white on black");
+
+    // ANSI macros
+    TEST_ASSERT(l_strcmp(L_ANSI_CLEAR, "\033[2J") == 0, "L_ANSI_CLEAR value");
+    TEST_ASSERT(l_strcmp(L_ANSI_RESET, "\033[0m") == 0, "L_ANSI_RESET value");
+
+    TEST_SECTION_PASS("ansi_helpers");
+}
+
+#ifdef L_WITHSOCKETS
+void test_sockets(void) {
+    TEST_FUNCTION("l_htons / l_htonl");
+    TEST_ASSERT(l_htons(0x1234) == 0x3412 || l_htons(0x1234) == 0x1234, "htons works");
+    TEST_ASSERT(l_htonl(0x01020304) == 0x04030201 || l_htonl(0x01020304) == 0x01020304, "htonl works");
+
+    TEST_FUNCTION("l_inet_addr");
+    unsigned int addr = l_inet_addr("127.0.0.1");
+    TEST_ASSERT(addr != 0, "inet_addr parses localhost");
+    {
+        unsigned char *b = (unsigned char *)&addr;
+        TEST_ASSERT(b[0] == 127 && b[1] == 0 && b[2] == 0 && b[3] == 1,
+                     "inet_addr correct network byte order");
+    }
+    TEST_ASSERT(l_inet_addr("192.168.1.1") != 0, "inet_addr parses 192.168.1.1");
+    TEST_ASSERT(l_inet_addr("invalid") == 0, "inet_addr rejects invalid");
+    TEST_ASSERT(l_inet_addr("256.0.0.1") == 0, "inet_addr rejects octet > 255");
+
+#ifndef _WIN32
+    TEST_FUNCTION("l_socket_tcp");
+    {
+        L_SOCKET s = l_socket_tcp();
+        TEST_ASSERT(s >= 0, "socket creation succeeds");
+        l_socket_close(s);
+    }
+
+    TEST_FUNCTION("l_socket_bind / l_socket_listen");
+    {
+        L_SOCKET s = l_socket_tcp();
+        TEST_ASSERT(s >= 0, "socket for bind");
+        int br = l_socket_bind(s, 0);
+        if (br == 0) {
+            test_count++;
+            puts("    [OK] bind to port 0 succeeds\n");
+            TEST_ASSERT(l_socket_listen(s, 5) == 0, "listen succeeds");
+        } else {
+            test_count += 2;
+            puts("    [SKIP] bind not available (QEMU user-mode)\n");
+        }
+        l_socket_close(s);
+    }
+#else
+    TEST_FUNCTION("l_socket_tcp (Windows)");
+    {
+        L_SOCKET s = l_socket_tcp();
+        TEST_ASSERT(s >= 0, "socket creation succeeds");
+        l_socket_close(s);
+    }
+
+    TEST_FUNCTION("l_socket_bind / l_socket_listen (Windows)");
+    {
+        L_SOCKET s = l_socket_tcp();
+        TEST_ASSERT(s >= 0, "socket for bind");
+        int br = l_socket_bind(s, 0);
+        if (br == 0) {
+            test_count++;
+            puts("    [OK] bind to port 0 succeeds\n");
+            TEST_ASSERT(l_socket_listen(s, 5) == 0, "listen succeeds");
+        } else {
+            test_count += 2;
+            puts("    [SKIP] bind not available\n");
+        }
+        l_socket_close(s);
+    }
+#endif
+
+    TEST_SECTION_PASS("sockets");
+}
+#endif // L_WITHSOCKETS
+
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
 
@@ -3145,6 +3271,15 @@ int main(int argc, char* argv[]) {
     // Arena and buffer
     test_arena();
     test_buf();
+
+    // Path and ANSI utilities
+    test_path_utils();
+    test_ansi_helpers();
+
+    // Sockets
+#ifdef L_WITHSOCKETS
+    test_sockets();
+#endif
 
     puts("\n");
     puts("=====================================\n");

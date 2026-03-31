@@ -142,8 +142,8 @@ int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
     unsigned long old_mode = l_term_raw();
-    write_str("\033[2J");  // Clear screen
-    write_str("\033[?25l"); // Hide cursor
+    write_str(L_ANSI_CLEAR);  // Clear screen
+    write_str(L_ANSI_HIDE_CUR); // Hide cursor
 
     init_game();
 
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Game over screen
-    write_str("\033[2J");
+    write_str(L_ANSI_CLEAR);
     move_cursor(H / 2, W / 2 - 6);
     write_str("GAME OVER!\n");
     move_cursor(H / 2 + 1, W / 2 - 7);
@@ -174,7 +174,7 @@ int main(int argc, char *argv[]) {
     write_num(score);
     write_str("\n");
 
-    write_str("\033[?25h"); // Show cursor
+    write_str(L_ANSI_SHOW_CUR); // Show cursor
     l_term_restore(old_mode);
 
     return 0;

@@ -98,15 +98,7 @@ int main(int argc, char *argv[]) {
         if (long_fmt) {
             // Build full path for stat
             char fullpath[512];
-            size_t plen = l_strlen(path);
-            l_strncpy(fullpath, path, 400);
-            fullpath[400] = '\0';
-            if (plen > 0 && path[plen-1] != '/' && path[plen-1] != '\\') {
-                fullpath[plen] = '/';
-                fullpath[plen + 1] = '\0';
-            }
-            l_strncat(fullpath, ent->d_name, 511 - l_strlen(fullpath));
-            fullpath[511] = '\0';
+            l_path_join(fullpath, sizeof(fullpath), path, ent->d_name);
 
             L_Stat st;
             if (l_stat(fullpath, &st) == 0) {
