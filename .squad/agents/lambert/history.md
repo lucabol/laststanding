@@ -10,7 +10,35 @@
 - **Tests:** Each `.c` file in `test/` compiles to one binary in `bin/`. Uses `TEST_ASSERT(condition, "description")` and `TEST_FUNCTION("name")` macros from `test/test.c`.
 - **Created:** 2026-03-11
 
-## Work Session — 2026-03-11T11:30:00Z
+## Work Session — 2026-03-31
+
+Wrote L_Str test suite with comprehensive coverage.
+
+**Test Suite (test/test.c):**
+- 7 test functions with 76 total assertions
+- Coverage: constructors, comparison, slicing/search, arena ops, split/join, case conversion, buf helpers
+- Test functions:
+  1. `test_l_str_constructors()` — `l_str`, `l_str_from`, `l_str_null` with edge cases (empty, NULL, arena exhaustion)
+  2. `test_l_str_comparison()` — `l_str_eq`, `l_str_cmp`, `l_str_startswith`, `l_str_endswith`, `l_str_contains`
+  3. `test_l_str_slicing()` — `l_str_sub`, `l_str_trim`, `l_str_ltrim`, `l_str_rtrim` with boundary conditions
+  4. `test_l_str_search()` — `l_str_chr`, `l_str_rchr`, `l_str_find` with not-found cases
+  5. `test_l_str_arena()` — `l_str_dup`, `l_str_cat`, `l_str_cstr`, `l_str_from_cstr` with arena tracking
+  6. `test_l_str_split_join()` — `l_str_split`, `l_str_join` with various delimiters and empty cases
+  7. `test_l_str_case_and_buf()` — `l_str_upper`, `l_str_lower`, `l_buf_push_str`, `l_buf_push_cstr`, `l_buf_push_int`, `l_buf_as_str`
+
+**Key test patterns:**
+- Always use `l_str_eq()` for L_Str comparisons (not null-terminated, can't use l_strcmp on .data)
+- Exception: `l_str_cstr()` results are null-terminated, so `l_strcmp()` is safe there
+- Arena lifecycle isolated per test group with 4096-byte arenas
+- All 76 assertions passing on Windows build ✓
+
+**CI result:** All tests passing on Windows and cross-platform targets ✓
+
+## Learnings
+
+- L_Str is not null-terminated; must never use l_strcmp on raw `.data` field
+- Arena-based string construction requires careful lifecycle management; isolate per test function
+- Delimiters in `l_str_split` can appear at boundaries; test both "delim at start" and "delim at end"-03-11T11:30:00Z
 
 Fixed ERRORLEVEL bug in PR #27 Windows CI workflow (per Ripley's review). Applied delayed expansion fix (`enabledelayedexpansion` + `!ERRORLEVEL! neq 0`) to test validation logic. Tested locally, pushed to PR branch, commented with explanation. Also approved for PRs #28 and #29 contributions (ARM CI + extended tests).
 

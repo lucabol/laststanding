@@ -351,6 +351,26 @@ Implemented `l_getopt` option parser in `l_os.h`. Getopt-compatible API: `int l_
 
 Build and full test suite pass on Windows.
 
+## Work Session — 2026-03-31
+
+Implemented L_Str (fat string type) and refactored led.c/grep.c to use it.
+
+**L_Str features:**
+- ~25 static inline functions: constructors (`l_str`, `l_str_from`, `l_str_null`), comparison (`l_str_eq`, `l_str_cmp`, `l_str_startswith`, `l_str_endswith`, `l_str_contains`), slicing (`l_str_sub`, `l_str_trim`, `l_str_ltrim`, `l_str_rtrim`, `l_str_chr`, `l_str_rchr`, `l_str_find`), arena ops (`l_str_dup`, `l_str_cat`, `l_str_cstr`, `l_str_from_cstr`), split/join (`l_str_split`, `l_str_join`), case conversion (`l_str_upper`, `l_str_lower`), and buffer helpers (`l_buf_push_str`, `l_buf_push_cstr`, `l_buf_push_int`, `l_buf_as_str`)
+- Zero-copy slicing and views
+- Arena-backed allocation (no malloc/free)
+- L_Buf integration
+- 272 lines added to l_os.h, build clean
+- Lambert wrote 76 test assertions across 7 functions — all passing
+
+**Refactoring:**
+- **led.c:** Replaced char-by-char status message construction with `l_buf_push_cstr`/`l_buf_push_int`
+- **grep.c:** Batched 4 separate `write()` syscalls into single L_Buf write per match line
+- **sh.c:** Left unchanged (destructive in-place tokenization doesn't benefit from zero-copy)
+- **Taskfile verify:** Tightened `strings | grep` pattern to only match glibc linkage artifacts (`__libc`, `@GLIBC`, `ld-linux`, `libc.so`) — old pattern matched English words ("free" in "freestanding")
+
+**CI result:** 22/22 targets PASS ✓
+
 ## Learnings
 
 - `l_read_line` alias can't be `read_line` — sh.c defines its own `read_line` with different signature. Kept as `l_read_line` only.
@@ -597,3 +617,24 @@ Added L_Str (pointer+length fat string) type to l_os.h with ~25 functions: const
 - The L_Str typedef sits after L_Buf typedef (before the #endif that closes the types guard).
 - l_memmem exists and works for substring search — used in l_str_contains, l_str_find, l_str_split.
 - l_itoa takes (int, char*, int base) and returns char* — used in l_buf_push_int.
+
+## Work Session — 2026-07-26
+
+Refactored demos to use L_Str/L_Buf helpers, updated README, fixed CI verify.
+
+**Demo refactoring:**
+- **led.c**: Replaced manual `itoa`+`sb_str` in `sb_num` with `l_buf_push_int`. Replaced `sb_str(s)` body with `l_buf_push_cstr`. Replaced char-by-char status message building in `editor_save` (7 lines of manual copy) and yank count (8 lines) with `l_buf_push_cstr`/`l_buf_push_int`.
+- **grep.c**: Replaced 4 separate `write()` syscalls per match with single-write via `l_buf_push_int`/`l_buf_push_cstr`/`l_buf_push` into an output buffer. Reduces syscall overhead.
+- **sh.c**: Left unchanged — `parse_line` does destructive in-place tokenization (inserting null terminators, handling quotes) which L_Str's zero-copy views don't help with. The `eputs` error pattern is already more concise than L_Buf (3 calls vs 5+ lines with init/free).
+
+**README**: Added "Fat Strings (L_Str)" section with usage example showing constructors, trim, split, compare, arena-backed ops, and L_Buf integration. Added L_Str/L_Arena/L_Buf to Key Types table.
+
+**Verify fix**: Tightened `strings | grep` pattern in all 3 Taskfile verify functions from `grep -E "(libc|glibc|stdlib|printf|malloc|free|__glibc)"` to `grep -E "(__libc|@GLIBC|ld-linux|libc\.so)"`. Old pattern matched English words in string literals ("freestanding" → "free", "arena free" → "free", "buf printf" → "printf"). New pattern only matches actual stdlib linkage artifacts.
+
+**Verified:** 22/22 CI targets PASS (Windows, Linux gcc/clang, ARM gcc/clang, AArch64 gcc/clang).
+
+## Learnings
+
+- L_Str zero-copy operations (trim, substring, find) only help when you don't need in-place mutation. Shell tokenizers that insert null terminators are better left with raw char* manipulation.
+- The Taskfile verify `strings | grep "free"` pattern produces false positives from string literals containing English words like "freestanding" and "arena free". Use `__libc|@GLIBC|ld-linux|libc\.so` for stdlib detection — these are definitively linkage artifacts.
+- `l_buf_push_cstr`/`l_buf_push_int` are the practical workhorse helpers for demo code — they eliminate ugly manual `itoa` + char-by-char copy patterns without needing L_Str at all.

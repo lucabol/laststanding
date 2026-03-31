@@ -511,6 +511,54 @@ All Windows implementations appear correct:
 
 ---
 
+### L_Str Fat String Type Design
+
+**By:** Dallas (Systems Dev)  
+**Date:** 2026-03-31  
+**Status:** Implemented
+
+Added `L_Str` — a pointer+length fat string type backed by `L_Arena`. Placed in `l_os.h` alongside existing `L_Arena`/`L_Buf` types.
+
+**Key Design Choices**
+- **Zero-copy slicing:** `l_str_sub`, `l_str_trim`, `l_str_ltrim`, `l_str_rtrim` return views into original data — no allocation
+- **Arena-only allocation:** All functions that produce new string data (`l_str_dup`, `l_str_cat`, `l_str_split`, `l_str_join`, `l_str_upper`, `l_str_lower`) take an `L_Arena*` — no malloc/free
+- **L_Buf bridge:** `l_buf_push_str`, `l_buf_push_cstr`, `l_buf_push_int`, `l_buf_as_str` connect L_Str with the existing L_Buf growable buffer
+- **Split is zero-copy for data:** `l_str_split` allocates the `L_Str[]` array in the arena but each element points into the original string
+- **No NULL macro:** Uses `(void *)0` / `(char *)0` throughout for freestanding compliance
+
+**Test Coverage (by Lambert)**
+- 76 test assertions across 7 functions: constructors, comparison, slicing/search, arena ops, split/join, case conversion, buf helpers
+- Always use `l_str_eq()` for L_Str comparisons (not null-terminated, can't use l_strcmp on .data)
+- Exception: `l_str_cstr()` results are null-terminated, so `l_strcmp()` is safe there
+- Arena lifecycle isolated per test group with 4096-byte arenas
+
+**Impact**
+- Any code using `L_Arena` can now build strings without malloc
+- CI pass: 22/22 targets ✓
+
+---
+
+### L_Str Demo Refactoring: Where It Helps, Where It Doesn't
+
+**Author:** Dallas  
+**Date:** 2026-03-31  
+**Status:** Implemented
+
+Refactored led.c and grep.c to use L_Buf helpers (`l_buf_push_cstr`, `l_buf_push_int`). Left sh.c unchanged.
+
+**Rationale**
+- **led.c:** Had ugly char-by-char status message construction (`msg[p++] = 'l'; msg[p++] = 'i'; ...`). Replaced with `l_buf_push_cstr`/`l_buf_push_int` — same behavior, readable code
+- **grep.c:** Made 4 separate `write()` syscalls per match line. Batching into an L_Buf and writing once reduces syscall overhead
+- **sh.c:** Left alone because `parse_line` does destructive in-place tokenization (inserts null terminators, handles quoted arguments). L_Str's zero-copy views don't help with mutation. The `eputs` error pattern is already more concise than L_Buf init/push/write/free
+
+**Verify Pattern Fix**
+Tightened the Taskfile verify `strings | grep` check. Old pattern matched common English words in string literals ("freestanding" → "free", "buf printf" → "printf"). New pattern only matches actual glibc linkage artifacts (`__libc`, `@GLIBC`, `ld-linux`, `libc.so`).
+
+**Impact**
+- CI pass: 22/22 targets ✓
+
+---
+
 ### PR #59 Review: feat: add l_rename and l_access
 
 **Reviewer:** Ripley (Lead)  
