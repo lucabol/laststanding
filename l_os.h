@@ -201,6 +201,61 @@ typedef struct {
 } L_Str;
 #endif
 
+#ifndef L_NEWTYPES_DEFINED
+#define L_NEWTYPES_DEFINED
+
+// I/O multiplexing
+typedef struct { L_FD fd; short events; short revents; } L_PollFd;
+#define L_POLLIN  0x0001
+#define L_POLLOUT 0x0004
+#define L_POLLERR 0x0008
+#define L_POLLHUP 0x0010
+
+// Signal handling
+typedef void (*L_SigHandler)(int);
+#define L_SIG_DFL ((L_SigHandler)0)
+#define L_SIG_IGN ((L_SigHandler)1)
+
+// Scatter-gather I/O
+typedef struct { void *base; size_t len; } L_IoVec;
+
+// Arena-backed hash map
+typedef struct {
+    const char *key;
+    size_t keylen;
+    void *value;
+    unsigned int hash;
+    int occupied;  // 0=empty, 1=occupied, 2=tombstone
+} L_MapSlot;
+
+typedef struct {
+    L_Arena *arena;
+    size_t cap;
+    size_t len;
+    L_MapSlot *slots;
+} L_Map;
+
+// Broken-down time
+typedef struct {
+    int sec;    // 0-59
+    int min;    // 0-59
+    int hour;   // 0-23
+    int mday;   // 1-31
+    int mon;    // 0-11
+    int year;   // years since 1900
+    int wday;   // 0-6 (Sunday=0)
+    int yday;   // 0-365
+} L_Tm;
+
+// SHA-256
+typedef struct {
+    unsigned int state[8];
+    unsigned long long count;
+    unsigned char buf[64];
+} L_Sha256;
+
+#endif // L_NEWTYPES_DEFINED
+
 #ifdef L_WITHSOCKETS
 #ifndef L_SOCKET_TYPES_DEFINED
 #define L_SOCKET_TYPES_DEFINED
@@ -592,6 +647,62 @@ static inline int l_buf_push_int(L_Buf *b, int value);
 /// Return L_Str view of buf contents.
 static inline L_Str l_buf_as_str(const L_Buf *b);
 
+// I/O multiplexing
+/// Poll file descriptors for events. Returns number ready, 0 on timeout, -1 on error.
+int l_poll(L_PollFd *fds, int nfds, int timeout_ms);
+
+// Signal handling
+/// Set signal handler. Returns previous handler or L_SIG_DFL on error.
+L_SigHandler l_signal(int sig, L_SigHandler handler);
+
+// Environment manipulation
+/// Set environment variable. Returns 0 on success, -1 on error.
+static int l_setenv(const char *name, const char *value);
+/// Unset environment variable. Returns 0 on success, -1 on error.
+static int l_unsetenv(const char *name);
+
+// Scatter-gather I/O
+/// Write from multiple buffers. Returns bytes written or -1 on error.
+ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt);
+/// Read into multiple buffers. Returns bytes read or -1 on error.
+ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt);
+
+// Terminal detection
+/// Returns 1 if fd is a terminal, 0 otherwise.
+int l_isatty(L_FD fd);
+
+// Hash map (arena-backed, fixed capacity)
+/// Initialize a map with given capacity (rounded to power of 2).
+static inline L_Map l_map_init(L_Arena *a, size_t capacity);
+/// Get value by key. Returns value pointer or NULL if not found.
+static inline void *l_map_get(L_Map *m, const char *key, size_t keylen);
+/// Put key-value pair. Returns 0 on success, -1 if full (>75% load).
+static inline int l_map_put(L_Map *m, const char *key, size_t keylen, void *value);
+/// Delete key. Returns 0 on success, -1 if not found.
+static inline int l_map_del(L_Map *m, const char *key, size_t keylen);
+
+// Time conversion
+/// Convert Unix timestamp to UTC broken-down time.
+static inline L_Tm l_gmtime(long long timestamp);
+/// Convert Unix timestamp to local broken-down time.
+static inline L_Tm l_localtime(long long timestamp);
+/// Format time into buffer. Returns bytes written (excluding NUL).
+static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm *tm);
+
+// Glob pattern matching
+/// Match pattern against string. Returns 0 if matches, -1 if no match.
+static inline int l_fnmatch(const char *pattern, const char *string);
+
+// SHA-256
+/// Initialize SHA-256 context.
+static inline void l_sha256_init(L_Sha256 *ctx);
+/// Feed data into SHA-256.
+static inline void l_sha256_update(L_Sha256 *ctx, const void *data, size_t len);
+/// Finalize and produce 32-byte hash.
+static inline void l_sha256_final(L_Sha256 *ctx, unsigned char hash[32]);
+/// One-shot SHA-256.
+static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]);
+
 /// Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error.
 char *l_getcwd(char *buf, size_t size);
 /// Changes the current working directory
@@ -668,6 +779,14 @@ ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len);
 ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len);
 /// Close socket.
 void l_socket_close(L_SOCKET sock);
+
+// UDP socket functions
+/// Create a UDP socket. Returns socket fd or -1 on error.
+L_SOCKET l_socket_udp(void);
+/// Send data to addr:port via UDP. Returns bytes sent or -1.
+ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port);
+/// Receive data via UDP. addr_out (>=16 bytes) and port_out receive sender info. Returns bytes received or -1.
+ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out);
 #endif // L_WITHSOCKETS
 
 #endif // L_WITHDEFS
@@ -1034,6 +1153,16 @@ int WINAPI mainCRTStartup(void)
 #  define optind l_optind
 #  define opterr l_opterr
 #  define optopt l_optopt
+#  define setenv l_setenv
+#  define unsetenv l_unsetenv
+#  define isatty l_isatty
+#  define poll l_poll
+#  define signal l_signal
+#  define writev l_writev
+#  define readv l_readv
+#  define fnmatch l_fnmatch
+#  define gmtime l_gmtime
+#  define strftime l_strftime
 #  define open_read l_open_read
 #  define open_write l_open_write
 #  define open_readwrite l_open_readwrite
@@ -4326,7 +4455,150 @@ inline void l_socket_close(L_SOCKET sock)
     my_syscall1(__NR_close, sock);
 }
 
+inline L_SOCKET l_socket_udp(void)
+{
+#if defined(__x86_64__)
+    long ret = my_syscall3(41 /*__NR_socket*/, 2 /*AF_INET*/, 2 /*SOCK_DGRAM*/, 0);
+#elif defined(__aarch64__)
+    long ret = my_syscall3(198 /*__NR_socket*/, 2, 2, 0);
+#elif defined(__arm__)
+    long ret = my_syscall3(281 /*__NR_socket*/, 2, 2, 0);
+#endif
+    if (ret < 0) return -1;
+    return (L_SOCKET)ret;
+}
+
+inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
+{
+    L_SockAddrIn sa;
+    l_memset(&sa, 0, sizeof(sa));
+    sa.sin_family = 2;
+    sa.sin_port = l_htons((unsigned short)port);
+    sa.sin_addr = l_inet_addr(addr);
+    if (sa.sin_addr == 0) return -1;
+#if defined(__x86_64__)
+    long ret = my_syscall6(44 /*__NR_sendto*/, s, (long)data, (long)len, 0, (long)&sa, (long)sizeof(sa));
+#elif defined(__aarch64__)
+    long ret = my_syscall6(206 /*__NR_sendto*/, s, (long)data, (long)len, 0, (long)&sa, (long)sizeof(sa));
+#elif defined(__arm__)
+    long ret = my_syscall6(291 /*__NR_sendto*/, s, (long)data, (long)len, 0, (long)&sa, (long)sizeof(sa));
+#endif
+    if (ret < 0) return -1;
+    return (ptrdiff_t)ret;
+}
+
+inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out)
+{
+    L_SockAddrIn sa;
+    long salen = sizeof(sa);
+    l_memset(&sa, 0, sizeof(sa));
+#if defined(__x86_64__)
+    long ret = my_syscall6(45 /*__NR_recvfrom*/, s, (long)buf, (long)len, 0, (long)&sa, (long)&salen);
+#elif defined(__aarch64__)
+    long ret = my_syscall6(207 /*__NR_recvfrom*/, s, (long)buf, (long)len, 0, (long)&sa, (long)&salen);
+#elif defined(__arm__)
+    long ret = my_syscall6(293 /*__NR_recvfrom*/, s, (long)buf, (long)len, 0, (long)&sa, (long)&salen);
+#endif
+    if (ret < 0) return -1;
+    if (addr_out) {
+        unsigned int ip = sa.sin_addr;
+        int pos = 0;
+        for (int i = 0; i < 4; i++) {
+            unsigned int octet = (ip >> (i * 8)) & 0xFF;
+            if (octet >= 100) addr_out[pos++] = (char)('0' + octet / 100);
+            if (octet >= 10) addr_out[pos++] = (char)('0' + (octet / 10) % 10);
+            addr_out[pos++] = (char)('0' + octet % 10);
+            if (i < 3) addr_out[pos++] = '.';
+        }
+        addr_out[pos] = '\0';
+    }
+    if (port_out) *port_out = (int)l_htons(sa.sin_port);
+    return (ptrdiff_t)ret;
+}
+
 #endif // L_WITHSOCKETS
+
+// l_poll — I/O multiplexing
+inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
+{
+    // Kernel pollfd layout: int fd, short events, short revents
+    // But L_FD is ptrdiff_t (8 bytes on 64-bit), so we need to convert
+    struct { int fd; short events; short revents; } kfds[64];
+    if (nfds > 64) nfds = 64;
+    for (int i = 0; i < nfds; i++) {
+        kfds[i].fd = (int)fds[i].fd;
+        kfds[i].events = fds[i].events;
+        kfds[i].revents = 0;
+    }
+#if defined(__x86_64__)
+    long ret = my_syscall3(7 /*__NR_poll*/, (long)kfds, nfds, timeout_ms);
+#elif defined(__arm__)
+    long ret = my_syscall3(168 /*__NR_poll*/, (long)kfds, nfds, timeout_ms);
+#elif defined(__aarch64__)
+    // AArch64 has no poll syscall — use ppoll with NULL sigmask
+    struct l_timespec ts;
+    struct l_timespec *tsp = (void *)0;
+    if (timeout_ms >= 0) {
+        ts.tv_sec = timeout_ms / 1000;
+        ts.tv_nsec = (long)(timeout_ms % 1000) * 1000000L;
+        tsp = &ts;
+    }
+    long ret = my_syscall5(73 /*__NR_ppoll*/, (long)kfds, nfds, (long)tsp, 0, 0);
+#endif
+    for (int i = 0; i < nfds; i++)
+        fds[i].revents = kfds[i].revents;
+    l_set_errno_from_ret(ret);
+    return (int)ret;
+}
+
+// l_signal — signal handling via rt_sigaction
+inline L_SigHandler l_signal(int sig, L_SigHandler handler)
+{
+    struct {
+        void (*handler)(int);
+        unsigned long flags;
+        void (*restorer)(void);
+        unsigned long mask[2]; // 128-bit mask for 64 signals
+    } sa, old_sa;
+    l_memset(&sa, 0, sizeof(sa));
+    l_memset(&old_sa, 0, sizeof(old_sa));
+    sa.handler = handler;
+    sa.flags = 0; // no SA_RESTORER — kernel handles return
+#if defined(__x86_64__)
+    long ret = my_syscall4(13 /*__NR_rt_sigaction*/, sig, (long)&sa, (long)&old_sa, 8);
+#elif defined(__aarch64__)
+    long ret = my_syscall4(134 /*__NR_rt_sigaction*/, sig, (long)&sa, (long)&old_sa, 8);
+#elif defined(__arm__)
+    long ret = my_syscall4(174 /*__NR_rt_sigaction*/, sig, (long)&sa, (long)&old_sa, 8);
+#endif
+    if (ret < 0) return L_SIG_DFL;
+    return old_sa.handler;
+}
+
+// l_writev — scatter write
+inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
+{
+    // Kernel iovec: { void *base; size_t len } — same layout as L_IoVec
+    long ret = my_syscall3(__NR_writev, fd, (long)iov, iovcnt);
+    l_set_errno_from_ret(ret);
+    return (ptrdiff_t)ret;
+}
+
+// l_readv — scatter read
+inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
+{
+    long ret = my_syscall3(__NR_readv, fd, (long)iov, iovcnt);
+    l_set_errno_from_ret(ret);
+    return (ptrdiff_t)ret;
+}
+
+// l_isatty — check if fd is a terminal
+inline int l_isatty(L_FD fd)
+{
+    char buf[64]; // termios structure (we don't need the contents)
+    long ret = my_syscall3(__NR_ioctl, fd, L_TCGETS, (long)buf);
+    return ret == 0 ? 1 : 0;
+}
 
 #else // Windows starts here
 
@@ -5340,7 +5612,153 @@ inline void l_socket_close(L_SOCKET sock)
     closesocket((SOCKET)sock);
 }
 
+inline L_SOCKET l_socket_udp(void)
+{
+    if (l_wsa_init() < 0) return -1;
+    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s == INVALID_SOCKET) return -1;
+    return (L_SOCKET)s;
+}
+
+inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
+{
+    struct sockaddr_in sa;
+    l_memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_port = l_htons((unsigned short)port);
+    sa.sin_addr.s_addr = l_inet_addr(addr);
+    if (sa.sin_addr.s_addr == 0) return -1;
+    int ret = sendto((SOCKET)s, (const char *)data, (int)len, 0, (const struct sockaddr *)&sa, (int)sizeof(sa));
+    if (ret == SOCKET_ERROR) return -1;
+    return (ptrdiff_t)ret;
+}
+
+inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out)
+{
+    struct sockaddr_in sa;
+    int salen = (int)sizeof(sa);
+    l_memset(&sa, 0, sizeof(sa));
+    int ret = recvfrom((SOCKET)s, (char *)buf, (int)len, 0, (struct sockaddr *)&sa, &salen);
+    if (ret == SOCKET_ERROR) return -1;
+    if (addr_out) {
+        unsigned int ip = sa.sin_addr.s_addr;
+        int pos = 0;
+        for (int i = 0; i < 4; i++) {
+            unsigned int octet = (ip >> (i * 8)) & 0xFF;
+            if (octet >= 100) addr_out[pos++] = (char)('0' + octet / 100);
+            if (octet >= 10) addr_out[pos++] = (char)('0' + (octet / 10) % 10);
+            addr_out[pos++] = (char)('0' + octet % 10);
+            if (i < 3) addr_out[pos++] = '.';
+        }
+        addr_out[pos] = '\0';
+    }
+    if (port_out) *port_out = (int)l_htons(sa.sin_port);
+    return (ptrdiff_t)ret;
+}
+
 #endif // L_WITHSOCKETS
+
+// l_poll — Windows: WaitForMultipleObjects pattern
+inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
+{
+    if (nfds <= 0) return 0;
+    HANDLE handles[64];
+    int count = nfds < 64 ? nfds : 64;
+    for (int i = 0; i < count; i++) {
+        handles[i] = l_win_fd_handle(fds[i].fd);
+        fds[i].revents = 0;
+    }
+    DWORD timeout = (timeout_ms < 0) ? INFINITE : (DWORD)timeout_ms;
+    DWORD ret = WaitForMultipleObjects((DWORD)count, handles, FALSE, timeout);
+    if (ret == WAIT_TIMEOUT) return 0;
+    if (ret == WAIT_FAILED) return -1;
+    int ready = 0;
+    for (int i = 0; i < count; i++) {
+        DWORD result = WaitForSingleObject(handles[i], 0);
+        if (result == WAIT_OBJECT_0) {
+            fds[i].revents = fds[i].events;
+            ready++;
+        }
+    }
+    return ready;
+}
+
+// l_signal — Windows: SetConsoleCtrlHandler for SIGINT/SIGTERM
+#ifndef L_SIGINT
+#define L_SIGINT  2
+#define L_SIGTERM 15
+#endif
+
+static L_SigHandler l_win_sig_int_handler;
+static L_SigHandler l_win_sig_term_handler;
+
+static BOOL WINAPI l_win_ctrl_handler(DWORD ctrl)
+{
+    if (ctrl == CTRL_C_EVENT && l_win_sig_int_handler && l_win_sig_int_handler != L_SIG_DFL && l_win_sig_int_handler != L_SIG_IGN) {
+        l_win_sig_int_handler(L_SIGINT);
+        return TRUE;
+    }
+    if (ctrl == CTRL_BREAK_EVENT && l_win_sig_term_handler && l_win_sig_term_handler != L_SIG_DFL && l_win_sig_term_handler != L_SIG_IGN) {
+        l_win_sig_term_handler(L_SIGTERM);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static inline L_SigHandler l_signal(int sig, L_SigHandler handler)
+{
+    static int ctrl_handler_installed = 0;
+    L_SigHandler prev = L_SIG_DFL;
+    if (!ctrl_handler_installed) {
+        SetConsoleCtrlHandler(l_win_ctrl_handler, TRUE);
+        ctrl_handler_installed = 1;
+    }
+    if (sig == L_SIGINT) {
+        prev = l_win_sig_int_handler ? l_win_sig_int_handler : L_SIG_DFL;
+        l_win_sig_int_handler = handler;
+    } else if (sig == L_SIGTERM) {
+        prev = l_win_sig_term_handler ? l_win_sig_term_handler : L_SIG_DFL;
+        l_win_sig_term_handler = handler;
+    }
+    return prev;
+}
+
+// l_writev — Windows: loop over iovecs
+inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
+{
+    ptrdiff_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+        if (iov[i].len == 0) continue;
+        ssize_t n = l_write(fd, iov[i].base, iov[i].len);
+        if (n < 0) return total > 0 ? total : -1;
+        total += n;
+        if ((size_t)n < iov[i].len) break;
+    }
+    return total;
+}
+
+// l_readv — Windows: loop over iovecs
+inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
+{
+    ptrdiff_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+        if (iov[i].len == 0) continue;
+        ssize_t n = l_read(fd, iov[i].base, iov[i].len);
+        if (n < 0) return total > 0 ? total : -1;
+        if (n == 0) break;
+        total += n;
+        if ((size_t)n < iov[i].len) break;
+    }
+    return total;
+}
+
+// l_isatty — Windows: GetConsoleMode
+inline int l_isatty(L_FD fd)
+{
+    HANDLE h = l_win_fd_handle(fd);
+    DWORD mode;
+    return (h != INVALID_HANDLE_VALUE && GetConsoleMode(h, &mode)) ? 1 : 0;
+}
 
 #endif
 
@@ -5481,6 +5899,107 @@ static inline const char *l_env_next(void **iter, char *buf, size_t bufsz) {
 
 static inline void l_env_end(void *handle) {
     (void)handle;
+}
+
+#endif
+
+// l_setenv / l_unsetenv
+#ifdef _WIN32
+
+static inline int l_setenv(const char *name, const char *value) {
+    if (!name || !*name) return -1;
+    wchar_t wname[256], wvalue[4096];
+    MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, 256);
+    MultiByteToWideChar(CP_UTF8, 0, value, -1, wvalue, 4096);
+    return SetEnvironmentVariableW(wname, wvalue) ? 0 : -1;
+}
+
+static inline int l_unsetenv(const char *name) {
+    if (!name || !*name) return -1;
+    wchar_t wname[256];
+    MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, 256);
+    return SetEnvironmentVariableW(wname, (void *)0) ? 0 : -1;
+}
+
+#else
+
+// Linux: manipulate the environ array directly.
+// Uses a small static pool for new/modified entries.
+#define L_ENV_POOL_SIZE 128
+#define L_ENV_BUF_SIZE 8192
+
+static char l_env_buf[L_ENV_BUF_SIZE];
+static size_t l_env_buf_used = 0;
+static char *l_env_pool[L_ENV_POOL_SIZE];
+static int l_env_pool_used = 0;
+static int l_env_pool_init = 0;
+
+static inline int l_setenv(const char *name, const char *value) {
+    if (!name || !*name || !l_envp) return -1;
+    size_t nlen = l_strlen(name);
+    size_t vlen = l_strlen(value);
+    size_t entry_len = nlen + 1 + vlen + 1; // "name=value\0"
+
+    // First time: copy envp pointers into our pool
+    if (!l_env_pool_init) {
+        l_env_pool_init = 1;
+        int i = 0;
+        for (char **ep = l_envp; *ep && i < L_ENV_POOL_SIZE - 1; ep++, i++)
+            l_env_pool[i] = *ep;
+        l_env_pool_used = i;
+        l_env_pool[i] = (char *)0;
+        l_envp = l_env_pool;
+    }
+
+    // Allocate the new entry in our static buffer
+    if (l_env_buf_used + entry_len > L_ENV_BUF_SIZE) return -1;
+    char *entry = l_env_buf + l_env_buf_used;
+    l_memcpy(entry, name, nlen);
+    entry[nlen] = '=';
+    l_memcpy(entry + nlen + 1, value, vlen);
+    entry[nlen + 1 + vlen] = '\0';
+    l_env_buf_used += entry_len;
+
+    // Search for existing key and replace
+    for (int i = 0; i < l_env_pool_used; i++) {
+        if (l_strncmp(l_env_pool[i], name, nlen) == 0 && l_env_pool[i][nlen] == '=') {
+            l_env_pool[i] = entry;
+            return 0;
+        }
+    }
+
+    // Append new entry
+    if (l_env_pool_used >= L_ENV_POOL_SIZE - 1) return -1;
+    l_env_pool[l_env_pool_used++] = entry;
+    l_env_pool[l_env_pool_used] = (char *)0;
+    return 0;
+}
+
+static inline int l_unsetenv(const char *name) {
+    if (!name || !*name || !l_envp) return -1;
+    size_t nlen = l_strlen(name);
+
+    if (!l_env_pool_init) {
+        l_env_pool_init = 1;
+        int i = 0;
+        for (char **ep = l_envp; *ep && i < L_ENV_POOL_SIZE - 1; ep++, i++)
+            l_env_pool[i] = *ep;
+        l_env_pool_used = i;
+        l_env_pool[i] = (char *)0;
+        l_envp = l_env_pool;
+    }
+
+    for (int i = 0; i < l_env_pool_used; i++) {
+        if (l_strncmp(l_env_pool[i], name, nlen) == 0 && l_env_pool[i][nlen] == '=') {
+            // Shift remaining entries down
+            for (int j = i; j < l_env_pool_used - 1; j++)
+                l_env_pool[j] = l_env_pool[j + 1];
+            l_env_pool_used--;
+            l_env_pool[l_env_pool_used] = (char *)0;
+            return 0;
+        }
+    }
+    return -1;
 }
 
 #endif
@@ -5871,6 +6390,345 @@ static inline int l_buf_push_int(L_Buf *b, int value) {
 }
 static inline L_Str l_buf_as_str(const L_Buf *b) {
     return l_str_from((const char *)b->data, b->len);
+}
+
+// --- L_Map: arena-backed hash table (FNV-1a, open addressing, linear probing) ---
+
+static inline unsigned int l_map_hash(const char *key, size_t len) {
+    unsigned int h = 2166136261u;
+    for (size_t i = 0; i < len; i++) {
+        h ^= (unsigned char)key[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static inline L_Map l_map_init(L_Arena *a, size_t capacity) {
+    L_Map m;
+    // Round up to power of 2
+    size_t cap = 16;
+    while (cap < capacity) cap <<= 1;
+    m.arena = a;
+    m.cap = cap;
+    m.len = 0;
+    m.slots = (L_MapSlot *)l_arena_alloc(a, cap * sizeof(L_MapSlot));
+    if (m.slots) l_memset(m.slots, 0, cap * sizeof(L_MapSlot));
+    return m;
+}
+
+static inline void *l_map_get(L_Map *m, const char *key, size_t keylen) {
+    if (!m->slots || m->cap == 0) return (void *)0;
+    unsigned int h = l_map_hash(key, keylen);
+    size_t mask = m->cap - 1;
+    size_t idx = h & mask;
+    for (size_t i = 0; i < m->cap; i++) {
+        L_MapSlot *s = &m->slots[(idx + i) & mask];
+        if (s->occupied == 0) return (void *)0;
+        if (s->occupied == 1 && s->hash == h && s->keylen == keylen && l_memcmp(s->key, key, keylen) == 0)
+            return s->value;
+    }
+    return (void *)0;
+}
+
+static inline int l_map_put(L_Map *m, const char *key, size_t keylen, void *value) {
+    if (!m->slots || m->cap == 0) return -1;
+    // Load factor check: reject if >75% full
+    if (m->len * 4 >= m->cap * 3) return -1;
+    unsigned int h = l_map_hash(key, keylen);
+    size_t mask = m->cap - 1;
+    size_t idx = h & mask;
+    size_t first_tomb = m->cap; // sentinel
+    for (size_t i = 0; i < m->cap; i++) {
+        size_t si = (idx + i) & mask;
+        L_MapSlot *s = &m->slots[si];
+        if (s->occupied == 0) {
+            size_t target = (first_tomb < m->cap) ? first_tomb : si;
+            L_MapSlot *t = &m->slots[target];
+            t->key = key; t->keylen = keylen; t->value = value; t->hash = h; t->occupied = 1;
+            m->len++;
+            return 0;
+        }
+        if (s->occupied == 2 && first_tomb == m->cap) first_tomb = si;
+        if (s->occupied == 1 && s->hash == h && s->keylen == keylen && l_memcmp(s->key, key, keylen) == 0) {
+            s->value = value; // update existing
+            return 0;
+        }
+    }
+    return -1;
+}
+
+static inline int l_map_del(L_Map *m, const char *key, size_t keylen) {
+    if (!m->slots || m->cap == 0) return -1;
+    unsigned int h = l_map_hash(key, keylen);
+    size_t mask = m->cap - 1;
+    size_t idx = h & mask;
+    for (size_t i = 0; i < m->cap; i++) {
+        L_MapSlot *s = &m->slots[(idx + i) & mask];
+        if (s->occupied == 0) return -1;
+        if (s->occupied == 1 && s->hash == h && s->keylen == keylen && l_memcmp(s->key, key, keylen) == 0) {
+            s->occupied = 2; // tombstone
+            m->len--;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+// --- L_Tm: time conversion ---
+
+static inline L_Tm l_gmtime(long long timestamp) {
+    L_Tm tm;
+    long long secs = timestamp;
+    int sign = 1;
+    if (secs < 0) { sign = -1; secs = -secs; }
+
+    long long day_secs = secs % 86400;
+    if (sign < 0 && day_secs > 0) day_secs = 86400 - day_secs;
+    tm.sec = (int)(day_secs % 60);
+    tm.min = (int)((day_secs / 60) % 60);
+    tm.hour = (int)(day_secs / 3600);
+
+    long long days = timestamp / 86400;
+    if (timestamp < 0 && (timestamp % 86400) != 0) days--;
+
+    tm.wday = (int)((days + 4) % 7); // Jan 1 1970 = Thursday
+    if (tm.wday < 0) tm.wday += 7;
+
+    // Civil date from day count (Rata Die algorithm variant for Unix epoch)
+    long long z = days + 719468; // days from 0000-03-01
+    long long era = (z >= 0 ? z : z - 146096) / 146097;
+    long long doe = z - era * 146097; // day of era [0, 146096]
+    long long yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365; // year of era
+    long long y = yoe + era * 400;
+    long long doy = doe - (365*yoe + yoe/4 - yoe/100); // day of year [0, 365]
+    long long mp = (5*doy + 2) / 153; // month [0, 11], March=0
+    long long d = doy - (153*mp + 2) / 5 + 1;
+    long long m = mp + (mp < 10 ? 3 : -9);
+    if (m <= 2) y++;
+
+    tm.year = (int)(y - 1900);
+    tm.mon = (int)(m - 1);
+    tm.mday = (int)d;
+
+    // Day of year
+    {
+        static const int mdays[] = {0,31,59,90,120,151,181,212,243,273,304,334};
+        tm.yday = mdays[tm.mon] + tm.mday - 1;
+        // leap year check
+        int yr = tm.year + 1900;
+        if (tm.mon > 1 && ((yr % 4 == 0 && yr % 100 != 0) || yr % 400 == 0))
+            tm.yday++;
+    }
+
+    return tm;
+}
+
+static inline L_Tm l_localtime(long long timestamp) {
+    // Get timezone offset
+    long long offset = 0;
+#ifdef _WIN32
+    TIME_ZONE_INFORMATION tzi;
+    DWORD r = GetTimeZoneInformation(&tzi);
+    offset = -(long long)tzi.Bias * 60;
+    if (r == TIME_ZONE_ID_DAYLIGHT)
+        offset -= (long long)tzi.DaylightBias * 60;
+#else
+    // Try TZ env var for simple UTC+N format, otherwise default to UTC
+    const char *tz = l_getenv("TZ");
+    if (tz) {
+        // Parse simple formats: "UTC+5", "UTC-3", "EST5", etc.
+        const char *p = tz;
+        while (*p && *p != '+' && *p != '-') p++;
+        if (*p == '+' || *p == '-') {
+            int neg = (*p == '+'); // POSIX: UTC+5 means 5 hours WEST (negative offset)
+            p++;
+            int hours = 0;
+            while (*p >= '0' && *p <= '9') { hours = hours * 10 + (*p - '0'); p++; }
+            offset = (long long)hours * 3600;
+            if (neg) offset = -offset;
+        }
+    }
+#endif
+    return l_gmtime(timestamp + offset);
+}
+
+static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm *tm) {
+    static const char *wdays[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    static const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+    size_t pos = 0;
+    if (max == 0) return 0;
+    for (const char *f = fmt; *f && pos < max - 1; f++) {
+        if (*f != '%') { buf[pos++] = *f; continue; }
+        f++;
+        if (!*f) break;
+        char tmp[8];
+        const char *s = tmp;
+        int len = 0;
+        switch (*f) {
+            case 'Y': { int y = tm->year + 1900;
+                tmp[0]=(char)('0'+y/1000); tmp[1]=(char)('0'+(y/100)%10);
+                tmp[2]=(char)('0'+(y/10)%10); tmp[3]=(char)('0'+y%10);
+                len = 4; break; }
+            case 'm': tmp[0]=(char)('0'+(tm->mon+1)/10); tmp[1]=(char)('0'+(tm->mon+1)%10); len=2; break;
+            case 'd': tmp[0]=(char)('0'+tm->mday/10); tmp[1]=(char)('0'+tm->mday%10); len=2; break;
+            case 'H': tmp[0]=(char)('0'+tm->hour/10); tmp[1]=(char)('0'+tm->hour%10); len=2; break;
+            case 'M': tmp[0]=(char)('0'+tm->min/10); tmp[1]=(char)('0'+tm->min%10); len=2; break;
+            case 'S': tmp[0]=(char)('0'+tm->sec/10); tmp[1]=(char)('0'+tm->sec%10); len=2; break;
+            case 'a': s = wdays[tm->wday % 7]; len = 3; break;
+            case 'b': s = months[tm->mon % 12]; len = 3; break;
+            case '%': tmp[0] = '%'; len = 1; break;
+            default: tmp[0] = '%'; tmp[1] = *f; len = 2; break;
+        }
+        for (int i = 0; i < len && pos < max - 1; i++) buf[pos++] = s[i];
+    }
+    buf[pos] = '\0';
+    return (int)pos;
+}
+
+// --- l_fnmatch: glob pattern matching ---
+
+static inline int l_fnmatch(const char *pattern, const char *string) {
+    const char *p = pattern, *s = string;
+    const char *star_p = (void *)0, *star_s = (void *)0;
+
+    while (*s) {
+        if (*p == '\\' && *(p+1)) {
+            p++;
+            if (*p == *s) { p++; s++; continue; }
+            goto backtrack;
+        }
+        if (*p == '*') {
+            star_p = ++p;
+            star_s = s;
+            continue;
+        }
+        if (*p == '?') { p++; s++; continue; }
+        if (*p == '[') {
+            p++;
+            int negate = 0, match = 0;
+            if (*p == '!' || *p == '^') { negate = 1; p++; }
+            while (*p && *p != ']') {
+                char lo = *p++;
+                if (*p == '-' && *(p+1) && *(p+1) != ']') {
+                    p++; // skip '-'
+                    char hi = *p++;
+                    if ((unsigned char)*s >= (unsigned char)lo && (unsigned char)*s <= (unsigned char)hi)
+                        match = 1;
+                } else {
+                    if (*s == lo) match = 1;
+                }
+            }
+            if (*p == ']') p++;
+            if (negate ? match : !match) goto backtrack;
+            s++;
+            continue;
+        }
+        if (*p == *s) { p++; s++; continue; }
+    backtrack:
+        if (star_p) {
+            p = star_p;
+            s = ++star_s;
+            continue;
+        }
+        return -1;
+    }
+    while (*p == '*') p++;
+    return *p ? -1 : 0;
+}
+
+// --- L_Sha256: SHA-256 implementation ---
+
+static inline void l_sha256_init(L_Sha256 *ctx) {
+    ctx->state[0] = 0x6a09e667u; ctx->state[1] = 0xbb67ae85u;
+    ctx->state[2] = 0x3c6ef372u; ctx->state[3] = 0xa54ff53au;
+    ctx->state[4] = 0x510e527fu; ctx->state[5] = 0x9b05688cu;
+    ctx->state[6] = 0x1f83d9abu; ctx->state[7] = 0x5be0cd19u;
+    ctx->count = 0;
+    l_memset(ctx->buf, 0, 64);
+}
+
+static inline unsigned int l_sha256_rotr(unsigned int x, int n) {
+    return (x >> n) | (x << (32 - n));
+}
+
+static inline void l_sha256_transform(unsigned int state[8], const unsigned char block[64]) {
+    static const unsigned int K[64] = {
+        0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
+        0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
+        0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
+        0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
+        0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
+        0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
+        0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
+        0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u
+    };
+    unsigned int w[64], a, b, c, d, e, f, g, h;
+    for (int i = 0; i < 16; i++)
+        w[i] = ((unsigned int)block[i*4]<<24) | ((unsigned int)block[i*4+1]<<16) |
+               ((unsigned int)block[i*4+2]<<8) | (unsigned int)block[i*4+3];
+    for (int i = 16; i < 64; i++) {
+        unsigned int s0 = l_sha256_rotr(w[i-15],7) ^ l_sha256_rotr(w[i-15],18) ^ (w[i-15]>>3);
+        unsigned int s1 = l_sha256_rotr(w[i-2],17) ^ l_sha256_rotr(w[i-2],19) ^ (w[i-2]>>10);
+        w[i] = w[i-16] + s0 + w[i-7] + s1;
+    }
+    a=state[0]; b=state[1]; c=state[2]; d=state[3];
+    e=state[4]; f=state[5]; g=state[6]; h=state[7];
+    for (int i = 0; i < 64; i++) {
+        unsigned int S1 = l_sha256_rotr(e,6) ^ l_sha256_rotr(e,11) ^ l_sha256_rotr(e,25);
+        unsigned int ch = (e & f) ^ (~e & g);
+        unsigned int t1 = h + S1 + ch + K[i] + w[i];
+        unsigned int S0 = l_sha256_rotr(a,2) ^ l_sha256_rotr(a,13) ^ l_sha256_rotr(a,22);
+        unsigned int maj = (a & b) ^ (a & c) ^ (b & c);
+        unsigned int t2 = S0 + maj;
+        h=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
+    }
+    state[0]+=a; state[1]+=b; state[2]+=c; state[3]+=d;
+    state[4]+=e; state[5]+=f; state[6]+=g; state[7]+=h;
+}
+
+static inline void l_sha256_update(L_Sha256 *ctx, const void *data, size_t len) {
+    const unsigned char *p = (const unsigned char *)data;
+    size_t fill = (size_t)(ctx->count & 63);
+    ctx->count += len;
+    if (fill && fill + len >= 64) {
+        size_t n = 64 - fill;
+        l_memcpy(ctx->buf + fill, p, n);
+        l_sha256_transform(ctx->state, ctx->buf);
+        p += n; len -= n; fill = 0;
+    }
+    while (len >= 64) {
+        l_sha256_transform(ctx->state, p);
+        p += 64; len -= 64;
+    }
+    if (len) l_memcpy(ctx->buf + fill, p, len);
+}
+
+static inline void l_sha256_final(L_Sha256 *ctx, unsigned char hash[32]) {
+    unsigned long long bits = ctx->count * 8;
+    size_t fill = (size_t)(ctx->count & 63);
+    ctx->buf[fill++] = 0x80;
+    if (fill > 56) {
+        l_memset(ctx->buf + fill, 0, 64 - fill);
+        l_sha256_transform(ctx->state, ctx->buf);
+        fill = 0;
+    }
+    l_memset(ctx->buf + fill, 0, 56 - fill);
+    for (int i = 0; i < 8; i++)
+        ctx->buf[56 + i] = (unsigned char)(bits >> (56 - i * 8));
+    l_sha256_transform(ctx->state, ctx->buf);
+    for (int i = 0; i < 8; i++) {
+        hash[i*4]   = (unsigned char)(ctx->state[i] >> 24);
+        hash[i*4+1] = (unsigned char)(ctx->state[i] >> 16);
+        hash[i*4+2] = (unsigned char)(ctx->state[i] >> 8);
+        hash[i*4+3] = (unsigned char)(ctx->state[i]);
+    }
+}
+
+static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]) {
+    L_Sha256 ctx;
+    l_sha256_init(&ctx);
+    l_sha256_update(&ctx, data, len);
+    l_sha256_final(&ctx, hash);
 }
 
 inline int l_path_exists(const char *path) {

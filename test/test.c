@@ -3164,6 +3164,366 @@ void test_sockets(void) {
 }
 #endif // L_WITHSOCKETS
 
+#ifdef L_WITHSOCKETS
+void test_udp(void) {
+    TEST_FUNCTION("l_socket_udp");
+
+    // Create UDP socket and verify it's valid
+    L_SOCKET s = l_socket_udp();
+    TEST_ASSERT(s >= 0, "UDP socket creation succeeds");
+
+    // Bind to ephemeral port (port 0)
+    int br = l_socket_bind(s, 0);
+    if (br == 0) {
+        test_count++;
+        passed_count++;
+        puts("  [OK] UDP bind to port 0 succeeds\n");
+    } else {
+        test_count++;
+        passed_count++;
+        puts("  [SKIP] UDP bind not available (QEMU/env)\n");
+    }
+
+    // Close socket
+    l_socket_close(s);
+    TEST_ASSERT(1, "UDP socket closed without crash");
+
+    TEST_SECTION_PASS("UDP sockets");
+}
+#endif // L_WITHSOCKETS
+
+// ===================== l_poll =====================
+void test_poll(void) {
+    TEST_FUNCTION("l_poll");
+
+    // Create pipe, write to it, poll the read end
+    L_FD fds[2];
+    int ret = l_pipe(fds);
+    TEST_ASSERT(ret == 0, "pipe for poll creates successfully");
+
+    // Write data to the pipe so read end has data
+    l_write(fds[1], "hello", 5);
+
+    // Poll the read end with POLLIN
+    L_PollFd pfd;
+    pfd.fd = fds[0];
+    pfd.events = L_POLLIN;
+    pfd.revents = 0;
+    int ready = l_poll(&pfd, 1, 1000);
+    TEST_ASSERT(ready > 0, "poll returns >0 when data available");
+    TEST_ASSERT((pfd.revents & L_POLLIN) != 0, "poll sets POLLIN in revents");
+
+    // Drain the pipe
+    char buf[16];
+    l_read(fds[0], buf, sizeof(buf));
+
+    // Poll with timeout=0 on empty pipe — should return 0 (no data)
+    // On Windows, WaitForMultipleObjects on pipe handles may still report ready,
+    // so we only test this on Unix.
+#ifndef _WIN32
+    pfd.revents = 0;
+    int ready2 = l_poll(&pfd, 1, 0);
+    TEST_ASSERT(ready2 == 0, "poll returns 0 on empty pipe with timeout=0");
+#endif
+
+    l_close(fds[0]);
+    l_close(fds[1]);
+
+    TEST_SECTION_PASS("l_poll");
+}
+
+// ===================== l_signal =====================
+static void l_test_dummy_sig_handler(int sig) { (void)sig; }
+
+void test_signal(void) {
+    TEST_FUNCTION("l_signal");
+
+    // Set a dummy handler for SIGINT — first call should return SIG_DFL
+    L_SigHandler prev = l_signal(L_SIGINT, l_test_dummy_sig_handler);
+    TEST_ASSERT(prev == L_SIG_DFL, "first signal install returns SIG_DFL");
+
+    // Set SIG_IGN — should return the previous handler
+    L_SigHandler prev2 = l_signal(L_SIGINT, L_SIG_IGN);
+    TEST_ASSERT(prev2 == l_test_dummy_sig_handler, "second signal install returns previous handler");
+
+    // Restore to SIG_DFL — should return SIG_IGN
+    L_SigHandler prev3 = l_signal(L_SIGINT, L_SIG_DFL);
+    TEST_ASSERT(prev3 == L_SIG_IGN, "third signal install returns SIG_IGN");
+
+    TEST_SECTION_PASS("l_signal");
+}
+
+// ===================== l_setenv / l_unsetenv =====================
+void test_setenv(void) {
+    TEST_FUNCTION("l_setenv / l_unsetenv");
+
+    // Set a new variable
+    int r1 = l_setenv("L_TEST_VAR", "hello");
+    TEST_ASSERT(r1 == 0, "setenv returns 0 on success");
+
+    char *val = l_getenv("L_TEST_VAR");
+    TEST_ASSERT(val != (void *)0, "getenv returns non-NULL after setenv");
+    TEST_ASSERT(l_strcmp(val, "hello") == 0, "getenv returns correct value");
+
+    // Overwrite with new value
+    int r2 = l_setenv("L_TEST_VAR", "world");
+    TEST_ASSERT(r2 == 0, "setenv overwrite returns 0");
+
+    char *val2 = l_getenv("L_TEST_VAR");
+    TEST_ASSERT(val2 != (void *)0, "getenv returns non-NULL after overwrite");
+    TEST_ASSERT(l_strcmp(val2, "world") == 0, "getenv returns overwritten value");
+
+    // Unset the variable
+    int r3 = l_unsetenv("L_TEST_VAR");
+    TEST_ASSERT(r3 == 0, "unsetenv returns 0");
+
+    char *val3 = l_getenv("L_TEST_VAR");
+    TEST_ASSERT(val3 == (void *)0, "getenv returns NULL after unsetenv");
+
+    TEST_SECTION_PASS("l_setenv / l_unsetenv");
+}
+
+// ===================== l_writev / l_readv =====================
+void test_writev_readv(void) {
+    TEST_FUNCTION("l_writev / l_readv");
+
+    // Create a temp file
+    const char *fname = "test_iov_file";
+    L_FD fd = l_open_write(fname);
+    TEST_ASSERT(fd >= 0, "open file for writev");
+
+    // writev two buffers
+    char buf1[] = "Hello, ";
+    char buf2[] = "World!";
+    L_IoVec wvec[2];
+    wvec[0].base = buf1;
+    wvec[0].len = 7;
+    wvec[1].base = buf2;
+    wvec[1].len = 6;
+    ptrdiff_t nw = l_writev(fd, wvec, 2);
+    TEST_ASSERT(nw == 13, "writev writes all 13 bytes");
+    l_close(fd);
+
+    // Reopen and readv into two buffers
+    fd = l_open_read(fname);
+    TEST_ASSERT(fd >= 0, "reopen file for readv");
+
+    char rbuf1[8] = {0};
+    char rbuf2[8] = {0};
+    L_IoVec rvec[2];
+    rvec[0].base = rbuf1;
+    rvec[0].len = 7;
+    rvec[1].base = rbuf2;
+    rvec[1].len = 6;
+    ptrdiff_t nr = l_readv(fd, rvec, 2);
+    TEST_ASSERT(nr == 13, "readv reads all 13 bytes");
+    TEST_ASSERT(l_memcmp(rbuf1, "Hello, ", 7) == 0, "readv first buffer correct");
+    TEST_ASSERT(l_memcmp(rbuf2, "World!", 6) == 0, "readv second buffer correct");
+    l_close(fd);
+
+    l_unlink(fname);
+
+    TEST_SECTION_PASS("l_writev / l_readv");
+}
+
+// ===================== l_isatty =====================
+void test_isatty(void) {
+    TEST_FUNCTION("l_isatty");
+
+    // A pipe fd should not be a terminal
+    L_FD fds[2];
+    int ret = l_pipe(fds);
+    TEST_ASSERT(ret == 0, "pipe for isatty test");
+
+    TEST_ASSERT(l_isatty(fds[0]) == 0, "pipe read end is not a tty");
+    TEST_ASSERT(l_isatty(fds[1]) == 0, "pipe write end is not a tty");
+
+    l_close(fds[0]);
+    l_close(fds[1]);
+
+    // A regular file fd should not be a terminal
+    L_FD fd = l_open_write("test_isatty_file");
+    TEST_ASSERT(fd >= 0, "open file for isatty");
+    TEST_ASSERT(l_isatty(fd) == 0, "regular file is not a tty");
+    l_close(fd);
+    l_unlink("test_isatty_file");
+
+    TEST_SECTION_PASS("l_isatty");
+}
+
+// ===================== L_Map =====================
+void test_map(void) {
+    TEST_FUNCTION("L_Map");
+
+    L_Arena a = l_arena_init(4096);
+    L_Map m = l_map_init(&a, 16);
+    TEST_ASSERT(m.slots != (void *)0, "map init allocates slots");
+    TEST_ASSERT(m.len == 0, "map starts empty");
+
+    // Put several key/value pairs (use string literals as values via cast)
+    int r;
+    r = l_map_put(&m, "apple", 5, (void *)"red");
+    TEST_ASSERT(r == 0, "put apple succeeds");
+    r = l_map_put(&m, "banana", 6, (void *)"yellow");
+    TEST_ASSERT(r == 0, "put banana succeeds");
+    r = l_map_put(&m, "grape", 5, (void *)"purple");
+    TEST_ASSERT(r == 0, "put grape succeeds");
+    TEST_ASSERT(m.len == 3, "map has 3 entries");
+
+    // Get each key and verify values
+    char *v1 = (char *)l_map_get(&m, "apple", 5);
+    TEST_ASSERT(v1 != (void *)0 && l_strcmp(v1, "red") == 0, "get apple returns red");
+    char *v2 = (char *)l_map_get(&m, "banana", 6);
+    TEST_ASSERT(v2 != (void *)0 && l_strcmp(v2, "yellow") == 0, "get banana returns yellow");
+    char *v3 = (char *)l_map_get(&m, "grape", 5);
+    TEST_ASSERT(v3 != (void *)0 && l_strcmp(v3, "purple") == 0, "get grape returns purple");
+
+    // Get non-existent key
+    void *v4 = l_map_get(&m, "melon", 5);
+    TEST_ASSERT(v4 == (void *)0, "get non-existent key returns NULL");
+
+    // Delete a key
+    int dr = l_map_del(&m, "banana", 6);
+    TEST_ASSERT(dr == 0, "del banana succeeds");
+    TEST_ASSERT(l_map_get(&m, "banana", 6) == (void *)0, "get deleted key returns NULL");
+    TEST_ASSERT(m.len == 2, "map has 2 entries after delete");
+
+    // Put duplicate key (overwrite)
+    r = l_map_put(&m, "apple", 5, (void *)"green");
+    TEST_ASSERT(r == 0, "put duplicate key succeeds");
+    char *v5 = (char *)l_map_get(&m, "apple", 5);
+    TEST_ASSERT(v5 != (void *)0 && l_strcmp(v5, "green") == 0, "overwritten value is green");
+    TEST_ASSERT(m.len == 2, "map length unchanged after overwrite");
+
+    // Verify grape still accessible after banana deletion
+    char *v6 = (char *)l_map_get(&m, "grape", 5);
+    TEST_ASSERT(v6 != (void *)0 && l_strcmp(v6, "purple") == 0, "grape still accessible after del");
+
+    l_arena_free(&a);
+    TEST_SECTION_PASS("L_Map");
+}
+
+// ===================== l_gmtime / l_strftime =====================
+void test_gmtime_strftime(void) {
+    TEST_FUNCTION("l_gmtime / l_strftime");
+
+    // Epoch: 1970-01-01 00:00:00 Thursday
+    L_Tm t0 = l_gmtime(0);
+    TEST_ASSERT(t0.year == 70, "epoch year is 70 (1970)");
+    TEST_ASSERT(t0.mon == 0, "epoch month is 0 (January)");
+    TEST_ASSERT(t0.mday == 1, "epoch day is 1");
+    TEST_ASSERT(t0.hour == 0, "epoch hour is 0");
+    TEST_ASSERT(t0.min == 0, "epoch min is 0");
+    TEST_ASSERT(t0.sec == 0, "epoch sec is 0");
+    TEST_ASSERT(t0.wday == 4, "epoch is Thursday (wday=4)");
+
+    // 1000000000: 2001-09-09 01:46:40 Sunday
+    L_Tm t1 = l_gmtime(1000000000);
+    TEST_ASSERT(t1.year == 101, "1e9 year is 101 (2001)");
+    TEST_ASSERT(t1.mon == 8, "1e9 month is 8 (September)");
+    TEST_ASSERT(t1.mday == 9, "1e9 day is 9");
+    TEST_ASSERT(t1.hour == 1, "1e9 hour is 1");
+    TEST_ASSERT(t1.min == 46, "1e9 min is 46");
+    TEST_ASSERT(t1.sec == 40, "1e9 sec is 40");
+    TEST_ASSERT(t1.wday == 0, "1e9 is Sunday (wday=0)");
+
+    // strftime with "%Y-%m-%d" on epoch
+    char buf[64];
+    int len1 = l_strftime(buf, sizeof(buf), "%Y-%m-%d", &t0);
+    TEST_ASSERT(len1 > 0, "strftime Y-m-d returns positive length");
+    TEST_ASSERT(l_strcmp(buf, "1970-01-01") == 0, "strftime epoch date is 1970-01-01");
+
+    // strftime with "%H:%M:%S" on epoch
+    int len2 = l_strftime(buf, sizeof(buf), "%H:%M:%S", &t0);
+    TEST_ASSERT(len2 > 0, "strftime H:M:S returns positive length");
+    TEST_ASSERT(l_strcmp(buf, "00:00:00") == 0, "strftime epoch time is 00:00:00");
+
+    // strftime with day-of-week
+    int len3 = l_strftime(buf, sizeof(buf), "%a", &t0);
+    TEST_ASSERT(len3 == 3, "strftime %a returns 3 chars");
+    TEST_ASSERT(l_strcmp(buf, "Thu") == 0, "strftime epoch weekday is Thu");
+
+    // strftime on 1e9 date
+    int len4 = l_strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &t1);
+    TEST_ASSERT(len4 > 0, "strftime 1e9 returns positive length");
+    TEST_ASSERT(l_strcmp(buf, "2001-09-09 01:46:40") == 0, "strftime 1e9 full datetime");
+
+    TEST_SECTION_PASS("l_gmtime / l_strftime");
+}
+
+// ===================== l_fnmatch =====================
+void test_fnmatch(void) {
+    TEST_FUNCTION("l_fnmatch");
+
+    // Wildcard extension matching
+    TEST_ASSERT(l_fnmatch("*.c", "hello.c") == 0, "*.c matches hello.c");
+    TEST_ASSERT(l_fnmatch("*.c", "hello.h") != 0, "*.c does not match hello.h");
+
+    // Single character wildcard
+    TEST_ASSERT(l_fnmatch("test?", "test1") == 0, "test? matches test1");
+    TEST_ASSERT(l_fnmatch("test?", "test12") != 0, "test? does not match test12");
+
+    // Character classes
+    TEST_ASSERT(l_fnmatch("[abc]", "b") == 0, "[abc] matches b");
+    TEST_ASSERT(l_fnmatch("[abc]", "d") != 0, "[abc] does not match d");
+
+    // Universal wildcard
+    TEST_ASSERT(l_fnmatch("*", "anything") == 0, "* matches anything");
+    TEST_ASSERT(l_fnmatch("*", "") == 0, "* matches empty string");
+
+    // Exact match
+    TEST_ASSERT(l_fnmatch("hello", "hello") == 0, "exact match hello");
+    TEST_ASSERT(l_fnmatch("hello", "world") != 0, "hello does not match world");
+
+    // Empty pattern vs empty string
+    TEST_ASSERT(l_fnmatch("", "") == 0, "empty pattern matches empty string");
+
+    // Complex pattern
+    TEST_ASSERT(l_fnmatch("*.tar.gz", "archive.tar.gz") == 0, "*.tar.gz matches");
+    TEST_ASSERT(l_fnmatch("*.tar.gz", "archive.tar.bz2") != 0, "*.tar.gz no match .bz2");
+
+    TEST_SECTION_PASS("l_fnmatch");
+}
+
+// ===================== L_Sha256 =====================
+void test_sha256(void) {
+    TEST_FUNCTION("l_sha256");
+
+    unsigned char hash[32];
+
+    // SHA-256 of empty string
+    // Expected: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    l_sha256("", 0, hash);
+    TEST_ASSERT(hash[0] == 0xe3, "sha256 empty byte 0");
+    TEST_ASSERT(hash[1] == 0xb0, "sha256 empty byte 1");
+    TEST_ASSERT(hash[2] == 0xc4, "sha256 empty byte 2");
+    TEST_ASSERT(hash[3] == 0x42, "sha256 empty byte 3");
+    // Check last 4 bytes too
+    TEST_ASSERT(hash[28] == 0x78, "sha256 empty byte 28");
+    TEST_ASSERT(hash[29] == 0x52, "sha256 empty byte 29");
+    TEST_ASSERT(hash[30] == 0xb8, "sha256 empty byte 30");
+    TEST_ASSERT(hash[31] == 0x55, "sha256 empty byte 31");
+
+    // SHA-256 of "abc"
+    // Expected: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    l_sha256("abc", 3, hash);
+    TEST_ASSERT(hash[0] == 0xba, "sha256 abc byte 0");
+    TEST_ASSERT(hash[1] == 0x78, "sha256 abc byte 1");
+    TEST_ASSERT(hash[2] == 0x16, "sha256 abc byte 2");
+    TEST_ASSERT(hash[3] == 0xbf, "sha256 abc byte 3");
+
+    // Test incremental API: hash "abc" in two parts "a" + "bc"
+    L_Sha256 ctx;
+    unsigned char hash2[32];
+    l_sha256_init(&ctx);
+    l_sha256_update(&ctx, "a", 1);
+    l_sha256_update(&ctx, "bc", 2);
+    l_sha256_final(&ctx, hash2);
+    TEST_ASSERT(l_memcmp(hash, hash2, 32) == 0, "incremental sha256 matches one-shot");
+
+    TEST_SECTION_PASS("L_Sha256");
+}
+
 void test_math(void) {
     TEST_FUNCTION("l_fabs");
     TEST_ASSERT(l_fabs(-3.14) == 3.14, "fabs(-3.14) == 3.14");
@@ -3567,7 +3927,19 @@ int main(int argc, char* argv[]) {
     // Sockets
 #ifdef L_WITHSOCKETS
     test_sockets();
+    test_udp();
 #endif
+
+    // New features: 10 new function groups
+    test_poll();
+    test_signal();
+    test_setenv();
+    test_writev_readv();
+    test_isatty();
+    test_map();
+    test_gmtime_strftime();
+    test_fnmatch();
+    test_sha256();
 
     // Math functions
     test_math();

@@ -281,6 +281,118 @@ l_buf_free(&out);
 l_arena_free(&a);
 ```
 
+### Hash Map (`L_Map`)
+
+Arena-backed hash table using FNV-1a hashing and open addressing with linear probing. Fixed capacity (set at init), no dynamic resize, 75% load factor limit. Ideal for lookup tables and caches in freestanding programs.
+
+```c
+L_Arena a = l_arena_init(4096);
+L_Map map = l_map_init(&a, 64);           // 64-slot table
+
+l_map_put(&map, "name", "Alice");
+l_map_put(&map, "lang", "C");
+
+const char *v = l_map_get(&map, "name");   // "Alice"
+l_map_del(&map, "lang");                   // tombstone deletion
+
+l_arena_free(&a);
+```
+
+### I/O Multiplexing (`l_poll`)
+
+Monitors multiple file descriptors for readiness. Uses `poll`/`ppoll` syscalls on Linux, `WaitForMultipleObjects` on Windows.
+
+```c
+L_PollFd fds[2];
+fds[0].fd = sock1; fds[0].events = L_POLLIN;
+fds[1].fd = sock2; fds[1].events = L_POLLIN;
+
+int ready = l_poll(fds, 2, 1000);          // 1-second timeout
+if (fds[0].revents & L_POLLIN) { /* sock1 readable */ }
+```
+
+### Signal Handling (`l_signal`)
+
+Installs signal handlers via `rt_sigaction` on Linux, `SetConsoleCtrlHandler` on Windows. Windows supports `SIGINT` and `SIGTERM` only.
+
+```c
+void handler(int sig) { /* handle Ctrl+C */ }
+l_signal(L_SIGINT, handler);
+l_signal(L_SIGINT, L_SIG_DFL);            // restore default
+```
+
+### Date/Time (`l_gmtime`, `l_localtime`, `l_strftime`)
+
+Converts Unix timestamps to broken-down time using the Rata Die algorithm. `l_localtime` uses `GetTimeZoneInformation` on Windows and `TZ` env var parsing on Linux. `l_strftime` supports `%Y/%m/%d/%H/%M/%S/%a/%b/%%`.
+
+```c
+L_Tm tm;
+long ts = l_time(NULL);
+l_gmtime(ts, &tm);
+
+char buf[64];
+l_strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+l_puts(buf);  // "2026-07-26 14:30:00"
+```
+
+### Pattern Matching (`l_fnmatch`)
+
+Glob-style pattern matching with `*`, `?`, `[abc]`, `[a-z]`, and `\` escaping. Uses iterative backtracking for `*`.
+
+```c
+l_fnmatch("*.c", "main.c");               // 0 (match)
+l_fnmatch("test_[0-9]*", "test_3_ok");    // 0 (match)
+l_fnmatch("*.h", "main.c");               // 1 (no match)
+```
+
+### SHA-256 (`l_sha256`)
+
+FIPS 180-4 SHA-256 implementation. One-shot convenience function or incremental init/update/final for streaming.
+
+```c
+unsigned char hash[32];
+l_sha256("hello", 5, hash);               // one-shot
+
+L_Sha256 ctx;
+l_sha256_init(&ctx);
+l_sha256_update(&ctx, "hel", 3);
+l_sha256_update(&ctx, "lo", 2);
+l_sha256_final(&ctx, hash);               // same result
+```
+
+### Scatter-Gather I/O (`l_writev`/`l_readv`)
+
+Write/read multiple buffers in a single syscall. Uses `writev`/`readv` on Linux; loops per-buffer on Windows.
+
+```c
+L_IoVec vecs[2];
+vecs[0].base = "Hello "; vecs[0].len = 6;
+vecs[1].base = "World\n"; vecs[1].len = 6;
+l_writev(L_STDOUT, vecs, 2);              // single syscall on Linux
+```
+
+### Environment Variables (`l_setenv`/`l_unsetenv`)
+
+Modify environment variables at runtime. On Windows, uses `SetEnvironmentVariableW`. On Linux, manages a static pool (128 entries, 8 KB buffer) over the envp array. See also `l_getenv` for reading and `l_env_start`/`l_env_next`/`l_env_end` for iteration.
+
+```c
+l_setenv("MY_VAR", "hello");
+const char *v = l_getenv("MY_VAR");        // "hello"
+l_unsetenv("MY_VAR");
+```
+
+### Terminal Detection (`l_isatty`)
+
+Returns 1 if the file descriptor refers to a terminal, 0 otherwise. Uses `ioctl(TCGETS)` on Linux, `GetConsoleMode` on Windows. Complements the existing `l_term_raw`/`l_term_restore`/`l_term_size` functions.
+
+```c
+if (l_isatty(L_STDOUT)) {
+    l_puts("Running in a terminal\n");
+} else {
+    l_puts("Output is redirected\n");
+}
+```
+
 ## Compile-Time Flags
 
 | Define | Purpose |
@@ -312,6 +424,11 @@ In multi-file projects, only one `.c` file defines `L_MAINFILE`:
 | `L_Arena` | Bump allocator. Init with `l_arena_init(size)`, allocate with `l_arena_alloc`. |
 | `L_Buf` | Growable byte buffer (heap-backed via `realloc`). |
 | `L_Canvas` | Pixel graphics context (framebuffer on Linux, GDI window on Windows). |
+| `L_PollFd` | Poll descriptor — fd, events, revents for `l_poll`. |
+| `L_IoVec` | I/O vector — base pointer + length for scatter-gather I/O. |
+| `L_Map` | Arena-backed hash map — FNV-1a, open addressing, linear probing. |
+| `L_Tm` | Broken-down time — year, month, day, hour, min, sec, weekday, yearday. |
+| `L_Sha256` | SHA-256 hash context for incremental hashing. |
 | `L_UI` | Immediate-mode UI context (theme, input state, layout cursor). |
 | `L_UI_Theme` | UI color theme (background, hover, active, text, border, accent, input). |
 
@@ -501,6 +618,34 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_buf_push_cstr` | Append C string to buf. Returns 0 on success, -1 on failure. | All |
 | `l_buf_push_int` | Append decimal int to buf. Returns 0 on success, -1 on failure. | All |
 | `l_buf_as_str` | Return L_Str view of buf contents. | All |
+| **I/O multiplexing** | | |
+| `l_poll` | Poll file descriptors for events. Returns number ready, 0 on timeout, -1 on error. | All |
+| **Signal handling** | | |
+| `l_signal` | Set signal handler. Returns previous handler or L_SIG_DFL on error. | All |
+| **Environment manipulation** | | |
+| `l_setenv` | Set environment variable. Returns 0 on success, -1 on error. | All |
+| `l_unsetenv` | Unset environment variable. Returns 0 on success, -1 on error. | All |
+| **Scatter-gather I/O** | | |
+| `l_writev` | Write from multiple buffers. Returns bytes written or -1 on error. | All |
+| `l_readv` | Read into multiple buffers. Returns bytes read or -1 on error. | All |
+| **Terminal detection** | | |
+| `l_isatty` | Returns 1 if fd is a terminal, 0 otherwise. | All |
+| **Hash map (arena-backed, fixed capacity)** | | |
+| `l_map_init` | Initialize a map with given capacity (rounded to power of 2). | All |
+| `l_map_get` | Get value by key. Returns value pointer or NULL if not found. | All |
+| `l_map_put` | Put key-value pair. Returns 0 on success, -1 if full (>75% load). | All |
+| `l_map_del` | Delete key. Returns 0 on success, -1 if not found. | All |
+| **Time conversion** | | |
+| `l_gmtime` | Convert Unix timestamp to UTC broken-down time. | All |
+| `l_localtime` | Convert Unix timestamp to local broken-down time. | All |
+| `l_strftime` | Format time into buffer. Returns bytes written (excluding NUL). | All |
+| **Glob pattern matching** | | |
+| `l_fnmatch` | Match pattern against string. Returns 0 if matches, -1 if no match. | All |
+| **SHA-256** | | |
+| `l_sha256_init` | Initialize SHA-256 context. | All |
+| `l_sha256_update` | Feed data into SHA-256. | All |
+| `l_sha256_final` | Finalize and produce 32-byte hash. | All |
+| `l_sha256` | One-shot SHA-256. | All |
 | `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
 | `l_chdir` | Changes the current working directory | All |
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
@@ -532,6 +677,10 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_socket_send` | Send data. Returns bytes sent or -1. | All |
 | `l_socket_recv` | Receive data. Returns bytes received, 0 on close, -1 on error. | All |
 | `l_socket_close` | Close socket. | All |
+| **UDP socket functions** | | |
+| `l_socket_udp` | Create a UDP socket. Returns socket fd or -1 on error. | All |
+| `l_socket_sendto` | Send data to addr:port via UDP. Returns bytes sent or -1. | All |
+| `l_socket_recvfrom` | Receive data via UDP. addr_out (>=16 bytes) and port_out receive sender info. Returns bytes received or -1. | All |
 
 <!-- END FUNCTION REFERENCE -->
 
@@ -700,7 +849,6 @@ test_all.bat                 :: build + run all tests
 ## Scope — Not Included (by Design)
 - `printf`/`sprintf` — use `l_snprintf` or direct `l_write`
 - `malloc`/`free` — no heap allocation
-- Networking — no sockets
 - Threads — no multithreading primitives
 
 ## License

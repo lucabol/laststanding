@@ -638,3 +638,32 @@ Refactored demos to use L_Str/L_Buf helpers, updated README, fixed CI verify.
 - L_Str zero-copy operations (trim, substring, find) only help when you don't need in-place mutation. Shell tokenizers that insert null terminators are better left with raw char* manipulation.
 - The Taskfile verify `strings | grep "free"` pattern produces false positives from string literals containing English words like "freestanding" and "arena free". Use `__libc|@GLIBC|ld-linux|libc\.so` for stdlib detection — these are definitively linkage artifacts.
 - `l_buf_push_cstr`/`l_buf_push_int` are the practical workhorse helpers for demo code — they eliminate ugly manual `itoa` + char-by-char copy patterns without needing L_Str at all.
+
+## Work Session — 10-Feature Sprint
+Added 10 new features to l_os.h (5275→6053 lines). All cross-platform (Linux x86_64/ARM/AArch64 + Windows).
+
+**Features:**
+1. **l_poll()** — I/O multiplexing via poll/ppoll syscalls on Linux (AArch64 uses ppoll since no poll syscall exists), WaitForMultipleObjects on Windows. Converts L_FD (ptrdiff_t) to kernel int fd for the syscall.
+2. **l_signal()** — Signal handling via rt_sigaction on Linux (arch-specific syscall numbers), SetConsoleCtrlHandler on Windows (SIGINT/SIGTERM only).
+3. **l_setenv()/l_unsetenv()** — Env manipulation. Windows uses SetEnvironmentVariableW. Linux uses static pool (128 entries, 8KB buffer) over l_envp array — first call copies environ into pool, subsequent calls modify in place.
+4. **l_writev()/l_readv()** — Scatter-gather I/O via __NR_writev/__NR_readv syscalls on Linux. Windows loops l_write/l_read per iovec.
+5. **l_isatty()** — Terminal detection via ioctl(TCGETS) on Linux, GetConsoleMode on Windows.
+6. **L_Map** — Arena-backed hash table. FNV-1a hash, open addressing with linear probing, tombstone deletion. Fixed capacity (power of 2), no resize. 75% load factor limit.
+7. **l_gmtime()/l_localtime()/l_strftime()** — Time conversion using Rata Die algorithm (days since epoch → civil date). localtime uses GetTimeZoneInformation on Windows, TZ env var parsing on Linux. strftime supports %Y/%m/%d/%H/%M/%S/%a/%b/%%.
+8. **l_fnmatch()** — Glob pattern matching with iterative backtracking for *. Supports ?, [abc], [a-z], \ escaping.
+9. **UDP sockets** — l_socket_udp/l_socket_sendto/l_socket_recvfrom inside L_WITHSOCKETS. Direct syscalls on Linux, Winsock2 on Windows. IP address serialization for recvfrom.
+10. **SHA-256** — Standard FIPS 180-4 implementation. Init/update/final + one-shot convenience. ~90 lines.
+
+**Types added:** L_PollFd, L_SigHandler, L_IoVec, L_MapSlot, L_Map, L_Tm, L_Sha256 (all in types section with include guard).
+
+**Override macros added:** setenv, unsetenv, isatty, poll, signal, writev, readv, fnmatch, gmtime, strftime.
+
+**Verified:** Windows build (clang) clean, all tests pass.
+
+## Learnings
+- AArch64 Linux has no poll syscall — must use ppoll (NR=73) with timespec conversion and NULL sigmask.
+- rt_sigaction on Linux requires architecture-specific syscall numbers: x86_64=13, AArch64=134, ARM=174. Signal mask size parameter is 8 (bytes for 64-signal set).
+- L_FD is ptrdiff_t (8 bytes on 64-bit) but kernel pollfd expects int fd — must convert before syscall.
+- Linux setenv without libc requires managing the environ array. A static pool approach works: copy envp pointers on first call, then modify the pool. 128 entries and 8KB string buffer is sufficient for freestanding use.
+- Windows signal handling is limited — only SIGINT (Ctrl+C) and SIGTERM (Ctrl+Break) via SetConsoleCtrlHandler. Other signals are no-ops.
+- SHA-256 transform uses big-endian byte order for message schedule — must manually construct u32 from bytes.
