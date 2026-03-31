@@ -382,6 +382,17 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_closedir` | Closes a directory handle. | All |
 | `l_mmap` | Maps a file or anonymous memory into the process address space | All |
 | `l_munmap` | Unmaps a previously mapped region | All |
+| **Arena function declarations** | | |
+| `l_arena_init` | Allocate an arena of `size` bytes via mmap. On failure, base=NULL. | All |
+| `l_arena_alloc` | Bump-allocate n bytes (8-byte aligned). Returns NULL if arena is full. | All |
+| `l_arena_reset` | Reset used to 0. Memory is NOT freed — arena can be reused. | All |
+| `l_arena_free` | Free the backing memory. Sets base=NULL. | All |
+| **Buffer function declarations** | | |
+| `l_buf_init` | Zero-initialize a buffer. | All |
+| `l_buf_push` | Append n bytes. Returns 0 on success, -1 on failure. | All |
+| `l_buf_printf` | Formatted append using l_vsnprintf. Returns bytes written or -1. | All |
+| `l_buf_clear` | Set len=0 (keep allocated memory). | All |
+| `l_buf_free` | Free backing memory and zero the struct. | All |
 | `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
 | `l_chdir` | Changes the current working directory | All |
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |

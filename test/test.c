@@ -2929,6 +2929,115 @@ void test_getpid_kill_llabs(void) {
     TEST_SECTION_PASS("l_getpid / l_llabs");
 }
 
+void test_arena(void) {
+    TEST_FUNCTION("L_Arena");
+
+    L_Arena a = l_arena_init(4096);
+    TEST_ASSERT(a.base != (unsigned char *)0, "arena init returns non-NULL base");
+    TEST_ASSERT(a.cap == 4096, "arena init sets cap");
+    TEST_ASSERT(a.used == 0, "arena init sets used=0");
+
+    void *p1 = l_arena_alloc(&a, 16);
+    TEST_ASSERT(p1 != (void *)0, "arena alloc returns non-NULL");
+    TEST_ASSERT(((size_t)p1 % 8) == 0, "arena alloc aligned to 8");
+
+    void *p2 = l_arena_alloc(&a, 32);
+    TEST_ASSERT(p2 != (void *)0, "arena second alloc non-NULL");
+    TEST_ASSERT(((size_t)p2 % 8) == 0, "arena second alloc aligned");
+    TEST_ASSERT((unsigned char *)p2 >= (unsigned char *)p1 + 16, "allocs do not overlap");
+
+    // Write and read back through arena
+    l_memset(p1, 0xAB, 16);
+    l_memset(p2, 0xCD, 32);
+    TEST_ASSERT(((unsigned char *)p1)[0] == 0xAB, "arena write/read p1");
+    TEST_ASSERT(((unsigned char *)p2)[0] == 0xCD, "arena write/read p2");
+
+    // Reset and reuse
+    l_arena_reset(&a);
+    TEST_ASSERT(a.used == 0, "arena reset sets used=0");
+    void *p3 = l_arena_alloc(&a, 16);
+    TEST_ASSERT(p3 == a.base, "alloc after reset reuses base region");
+
+    // Arena full
+    L_Arena tiny = l_arena_init(64);
+    TEST_ASSERT(tiny.base != (unsigned char *)0, "small arena init");
+    void *fill = l_arena_alloc(&tiny, 64);
+    TEST_ASSERT(fill != (void *)0, "fill small arena");
+    void *over = l_arena_alloc(&tiny, 1);
+    TEST_ASSERT(over == (void *)0, "arena full returns NULL");
+    l_arena_free(&tiny);
+    TEST_ASSERT(tiny.base == (unsigned char *)0, "arena free sets base NULL");
+
+    l_arena_free(&a);
+    TEST_ASSERT(a.base == (unsigned char *)0, "arena free main");
+
+    TEST_SECTION_PASS("L_Arena");
+}
+
+void test_buf(void) {
+    TEST_FUNCTION("L_Buf");
+
+    L_Buf b;
+    l_buf_init(&b);
+    TEST_ASSERT(b.data == (unsigned char *)0, "buf init zeroes data");
+    TEST_ASSERT(b.len == 0, "buf init zeroes len");
+    TEST_ASSERT(b.cap == 0, "buf init zeroes cap");
+
+    // Push and verify
+    const char *hello = "hello";
+    TEST_ASSERT(l_buf_push(&b, hello, 5) == 0, "buf push succeeds");
+    TEST_ASSERT(b.len == 5, "buf len after push");
+    TEST_ASSERT(l_memcmp(b.data, "hello", 5) == 0, "buf data matches");
+
+    // Multiple pushes accumulate
+    TEST_ASSERT(l_buf_push(&b, " world", 6) == 0, "buf second push");
+    TEST_ASSERT(b.len == 11, "buf len accumulates");
+    TEST_ASSERT(l_memcmp(b.data, "hello world", 11) == 0, "buf accumulated data");
+
+    // Printf
+    int wrote = l_buf_printf(&b, " %d", 42);
+    TEST_ASSERT(wrote == 3, "buf printf returns bytes written");
+    TEST_ASSERT(b.len == 14, "buf len after printf");
+    TEST_ASSERT(l_memcmp(b.data, "hello world 42", 14) == 0, "buf printf data");
+
+    // Clear
+    l_buf_clear(&b);
+    TEST_ASSERT(b.len == 0, "buf clear resets len");
+    TEST_ASSERT(b.data != (unsigned char *)0, "buf clear keeps data");
+    TEST_ASSERT(b.cap > 0, "buf clear keeps cap");
+
+    // Push beyond initial capacity triggers growth
+    size_t old_cap = b.cap;
+    size_t big = old_cap + 1;
+    unsigned char *tmp = (unsigned char *)l_mmap((void *)0, big, L_PROT_READ | L_PROT_WRITE,
+                                                 L_MAP_PRIVATE | L_MAP_ANONYMOUS, (L_FD)-1, 0);
+    l_memset(tmp, 0x77, big);
+    TEST_ASSERT(l_buf_push(&b, tmp, big) == 0, "buf push triggers growth");
+    TEST_ASSERT(b.cap > old_cap, "buf cap grew");
+    TEST_ASSERT(b.len == big, "buf len after large push");
+    TEST_ASSERT(b.data[0] == 0x77 && b.data[big - 1] == 0x77, "buf large push data correct");
+    l_munmap(tmp, big);
+
+    // Large push > 4096
+    l_buf_clear(&b);
+    size_t huge = 8192;
+    unsigned char *htmp = (unsigned char *)l_mmap((void *)0, huge, L_PROT_READ | L_PROT_WRITE,
+                                                  L_MAP_PRIVATE | L_MAP_ANONYMOUS, (L_FD)-1, 0);
+    l_memset(htmp, 0xAA, huge);
+    TEST_ASSERT(l_buf_push(&b, htmp, huge) == 0, "buf large push >4096");
+    TEST_ASSERT(b.len == huge, "buf len after huge push");
+    TEST_ASSERT(b.data[0] == 0xAA && b.data[huge - 1] == 0xAA, "buf huge data correct");
+    l_munmap(htmp, huge);
+
+    // Free
+    l_buf_free(&b);
+    TEST_ASSERT(b.data == (unsigned char *)0, "buf free zeroes data");
+    TEST_ASSERT(b.len == 0, "buf free zeroes len");
+    TEST_ASSERT(b.cap == 0, "buf free zeroes cap");
+
+    TEST_SECTION_PASS("L_Buf");
+}
+
 int main(int argc, char* argv[]) {
     l_getenv_init(argc, argv);
 
@@ -3032,6 +3141,10 @@ int main(int argc, char* argv[]) {
     test_dprintf();
     test_read_line();
     test_getpid_kill_llabs();
+
+    // Arena and buffer
+    test_arena();
+    test_buf();
 
     puts("\n");
     puts("=====================================\n");

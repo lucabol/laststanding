@@ -175,6 +175,23 @@ typedef struct {
 #pragma GCC diagnostic ignored "-Wlanguage-extension-token"
 #endif
 
+// Arena (bump allocator) — backed by l_mmap/l_munmap
+#ifndef L_ARENA_TYPES_DEFINED
+#define L_ARENA_TYPES_DEFINED
+typedef struct {
+    unsigned char *base;
+    size_t used;
+    size_t cap;
+} L_Arena;
+
+// Growable byte buffer — backed by l_mmap/l_munmap
+typedef struct {
+    unsigned char *data;
+    size_t len;
+    size_t cap;
+} L_Buf;
+#endif
+
 #ifdef L_WITHDEFS
 
 // String functions
@@ -411,6 +428,30 @@ void l_closedir(L_Dir *dir);
 void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset);
 /// Unmaps a previously mapped region
 int l_munmap(void *addr, size_t length);
+
+// Arena function declarations
+/// Allocate an arena of `size` bytes via mmap. On failure, base=NULL.
+static inline L_Arena l_arena_init(size_t size);
+/// Bump-allocate n bytes (8-byte aligned). Returns NULL if arena is full.
+static inline void *l_arena_alloc(L_Arena *a, size_t n);
+/// Reset used to 0. Memory is NOT freed — arena can be reused.
+static inline void l_arena_reset(L_Arena *a);
+/// Free the backing memory. Sets base=NULL.
+static inline void l_arena_free(L_Arena *a);
+
+// Buffer function declarations
+/// Zero-initialize a buffer.
+static inline void l_buf_init(L_Buf *b);
+/// Append n bytes. Returns 0 on success, -1 on failure.
+static inline int l_buf_push(L_Buf *b, const void *src, size_t n);
+/// Formatted append using l_vsnprintf. Returns bytes written or -1.
+#ifdef L_WITHSNPRINTF
+static inline int l_buf_printf(L_Buf *b, const char *fmt, ...);
+#endif
+/// Set len=0 (keep allocated memory).
+static inline void l_buf_clear(L_Buf *b);
+/// Free backing memory and zero the struct.
+static inline void l_buf_free(L_Buf *b);
 
 /// Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error.
 char *l_getcwd(char *buf, size_t size);
@@ -4822,6 +4863,96 @@ static inline int l_find_executable(const char *cmd, char *out, size_t outsz) {
         }
     }
     return 0;
+}
+
+// --- L_Arena: bump allocator ---
+
+static inline L_Arena l_arena_init(size_t size) {
+    L_Arena a;
+    void *p = l_mmap((void *)0, size, L_PROT_READ | L_PROT_WRITE,
+                     L_MAP_PRIVATE | L_MAP_ANONYMOUS, (L_FD)-1, 0);
+    if (p == L_MAP_FAILED) {
+        a.base = (unsigned char *)0;
+        a.used = 0;
+        a.cap = 0;
+    } else {
+        a.base = (unsigned char *)p;
+        a.used = 0;
+        a.cap = size;
+    }
+    return a;
+}
+
+static inline void *l_arena_alloc(L_Arena *a, size_t n) {
+    size_t align = sizeof(void *);
+    size_t aligned = (a->used + align - 1) & ~(align - 1);
+    if (aligned + n > a->cap) return (void *)0;
+    void *ptr = a->base + aligned;
+    a->used = aligned + n;
+    return ptr;
+}
+
+static inline void l_arena_reset(L_Arena *a) {
+    a->used = 0;
+}
+
+static inline void l_arena_free(L_Arena *a) {
+    if (a->base) l_munmap(a->base, a->cap);
+    a->base = (unsigned char *)0;
+    a->used = 0;
+    a->cap = 0;
+}
+
+// --- L_Buf: growable byte buffer ---
+
+static inline void l_buf_init(L_Buf *b) {
+    b->data = (unsigned char *)0;
+    b->len = 0;
+    b->cap = 0;
+}
+
+static inline int l_buf_push(L_Buf *b, const void *src, size_t n) {
+    if (b->len + n > b->cap) {
+        size_t newcap = b->cap ? b->cap : 4096;
+        while (newcap < b->len + n) newcap *= 2;
+        void *p = l_mmap((void *)0, newcap, L_PROT_READ | L_PROT_WRITE,
+                         L_MAP_PRIVATE | L_MAP_ANONYMOUS, (L_FD)-1, 0);
+        if (p == L_MAP_FAILED) return -1;
+        if (b->data) {
+            l_memcpy(p, b->data, b->len);
+            l_munmap(b->data, b->cap);
+        }
+        b->data = (unsigned char *)p;
+        b->cap = newcap;
+    }
+    l_memcpy(b->data + b->len, src, n);
+    b->len += n;
+    return 0;
+}
+
+#ifdef L_WITHSNPRINTF
+static inline int l_buf_printf(L_Buf *b, const char *fmt, ...) {
+    char tmp[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = l_vsnprintf(tmp, sizeof(tmp), fmt, ap);
+    va_end(ap);
+    if (n < 0) return -1;
+    size_t wrote = (size_t)n < sizeof(tmp) ? (size_t)n : sizeof(tmp) - 1;
+    if (l_buf_push(b, tmp, wrote) < 0) return -1;
+    return (int)wrote;
+}
+#endif
+
+static inline void l_buf_clear(L_Buf *b) {
+    b->len = 0;
+}
+
+static inline void l_buf_free(L_Buf *b) {
+    if (b->data) l_munmap(b->data, b->cap);
+    b->data = (unsigned char *)0;
+    b->len = 0;
+    b->cap = 0;
 }
 
 #endif // L_OSH
