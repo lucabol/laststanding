@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "updated_at": "2026-04-01",
+  "suite_inventory": [
+    "tests/test.c",
+    "tests/test_strings.c",
+    "tests/test_fs.c",
+    "tests/test_utils.c",
+    "tests/test_net.c",
+    "tests/gfx_test.c",
+    "tests/ui_test.c",
+    "tests/smoke/showcase_smoke.ps1",
+    "tests/smoke/showcase_smoke.sh"
+  ],
+  "suite_modes": {
+    "tests/test_net.c": {
+      "default": "manual",
+      "entrypoints": [
+        "runtime_checks.bat",
+        "./Taskfile test_runtime",
+        "./Taskfile test_runtime_arm",
+        "./Taskfile test_runtime_aarch64"
+      ],
+      "notes": "Socket runtime checks and showcase/example execution are opt-in because they are expensive and can trigger firewall prompts. Default regression still compiles the shard."
+    }
+  },
+  "header_summaries": {
+    "l_os.h": {
+      "covered": [
+        "l_poll",
+        "l_term_raw",
+        "l_term_restore",
+        "l_read_nonblock",
+        "l_term_size",
+        "l_localtime"
+      ],
+      "indirect": [
+        "l_execve"
+      ],
+      "uncovered": []
+    },
+    "l_gfx.h": {
+      "covered": [
+        "l_canvas_alive",
+        "l_canvas_close",
+        "l_canvas_key",
+        "l_canvas_mouse"
+      ],
+      "indirect": [],
+      "uncovered": [
+        "l_canvas_open",
+        "l_canvas_flush"
+      ]
+    },
+    "l_ui.h": {
+      "covered": [
+        "l_ui_init",
+        "l_ui_button",
+        "l_ui_checkbox",
+        "l_ui_slider",
+        "l_ui_textbox",
+        "l_ui_panel",
+        "l_ui_separator",
+        "l_ui_column_begin",
+        "l_ui_row_begin",
+        "l_ui_next",
+        "l_ui_layout_end"
+      ],
+      "indirect": [],
+      "uncovered": []
+    }
+  },
+  "symbols": {
+    "l_term_raw": {
+      "owner": "tests/test.c",
+      "status": "covered",
+      "notes": "Smoke-covered together with l_term_restore using a zero-length nonblocking read to avoid blocking."
+    },
+    "l_term_restore": {
+      "owner": "tests/test.c",
+      "status": "covered",
+      "notes": "Exercised immediately after l_term_raw so terminal mode is restored in the same test."
+    },
+    "l_read_nonblock": {
+      "owner": "tests/test.c",
+      "status": "covered",
+      "notes": "Zero-length read path is deterministic across platforms and verifies immediate return."
+    },
+    "l_term_size": {
+      "owner": "tests/test.c",
+      "status": "covered",
+      "notes": "Asserts positive, sane dimensions without depending on an exact console size."
+    },
+    "l_localtime": {
+      "owner": "tests/test_utils.c",
+      "status": "covered",
+      "notes": "Validated against plausible timezone offsets everywhere and exact TZ parsing on non-Windows."
+    },
+    "l_execve": {
+      "owner": "tests/test.c",
+      "status": "indirect",
+      "notes": "Still exercised via l_spawn and l_spawn_stdio child exec paths; direct exec would replace the test process."
+    },
+    "l_poll": {
+      "owner": "tests/test_fs.c",
+      "status": "covered",
+      "notes": "Default regression covers pipe readiness without opening sockets; socket-backed poll flows remain in manual test_net runtime checks."
+    },
+    "l_canvas_alive": {
+      "owner": "tests/gfx_test.c",
+      "status": "covered",
+      "notes": "Backend helper state is exercised with synthetic canvases."
+    },
+    "l_canvas_close": {
+      "owner": "tests/gfx_test.c",
+      "status": "covered",
+      "notes": "Verified to tolerate unopened canvases."
+    },
+    "l_canvas_key": {
+      "owner": "tests/gfx_test.c",
+      "status": "covered",
+      "notes": "Windows key queue behavior is covered with a synthetic queued key."
+    },
+    "l_canvas_mouse": {
+      "owner": "tests/gfx_test.c",
+      "status": "covered",
+      "notes": "Cached mouse state path is covered without requiring a live device."
+    },
+    "l_canvas_open": {
+      "owner": "tests/gfx_test.c",
+      "status": "uncovered",
+      "notes": "Left intentionally uncovered in CI because it requires a live framebuffer or windowing environment."
+    },
+    "l_canvas_flush": {
+      "owner": "tests/gfx_test.c",
+      "status": "uncovered",
+      "notes": "Left intentionally uncovered in CI because it requires a live framebuffer or windowing environment."
+    }
+  }
+}

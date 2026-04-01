@@ -1,8 +1,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$FixtureDir = Join-Path $PSScriptRoot 'showcase_smoke'
-$BinDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'bin'
+$TestsDir = Split-Path $PSScriptRoot -Parent
+$RepoRoot = Split-Path $TestsDir -Parent
+$FixtureDir = Join-Path $TestsDir 'fixtures\showcase_smoke'
+$BinDir = Join-Path $RepoRoot 'bin'
 $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("laststanding-showcase-smoke-" + [guid]::NewGuid().ToString('N'))
 
 function Test-ByteEqual {

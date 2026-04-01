@@ -792,63 +792,67 @@ Immediate-mode UI library built on `l_gfx.h`. No heap allocation, no widget tree
 
 ## Example Programs
 
-Every program in `test/` compiles to a small, self-contained binary with no libc dependency.
+Every program in `examples/` compiles to a small, self-contained binary with no libc dependency.
 
 ### Utilities
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **base64** | Base64 encoder/decoder (RFC 4648) | [base64.c](test/base64.c) |
-| **checksum** | SHA-256 file hash | [checksum.c](test/checksum.c) |
-| **config** | INI config file parser (L_Map + L_Str) | [config.c](test/config.c) |
-| **countlines** | Line counter | [countlines.c](test/countlines.c) |
-| **find** | Recursive file finder with glob matching | [find.c](test/find.c) |
-| **grep** | Substring or glob pattern filter (`-g` flag) | [grep.c](test/grep.c) |
-| **hexdump** | Hex + ASCII file dump | [hexdump.c](test/hexdump.c) |
-| **hello** | Hello world (README example) | [hello.c](test/hello.c) |
-| **http_get** | Simple HTTP GET over TCP sockets (IPv4 or hostname) | [http_get.c](test/http_get.c) |
-| **file_io** | File read/write (README example) | [file_io.c](test/file_io.c) |
-| **ls** | Directory listing (`-a`, `-l` with timestamps) | [ls.c](test/ls.c) |
-| **printenv** | Print environment variables | [printenv.c](test/printenv.c) |
-| **sort** | Line sort (`-r`, `-f`, `-n`, `-u`) | [sort.c](test/sort.c) |
-| **upper** | Uppercase filter | [upper.c](test/upper.c) |
-| **wc** | Line/word/byte counter | [wc.c](test/wc.c) |
+| **base64** | Base64 encoder/decoder (RFC 4648) | [base64.c](examples/base64.c) |
+| **checksum** | SHA-256 file hash | [checksum.c](examples/checksum.c) |
+| **config** | INI config file parser (L_Map + L_Str) | [config.c](examples/config.c) |
+| **countlines** | Line counter | [countlines.c](examples/countlines.c) |
+| **find** | Recursive file finder with glob matching | [find.c](examples/find.c) |
+| **grep** | Substring or glob pattern filter (`-g` flag) | [grep.c](examples/grep.c) |
+| **hexdump** | Hex + ASCII file dump | [hexdump.c](examples/hexdump.c) |
+| **hello** | Hello world (README example) | [hello.c](examples/hello.c) |
+| **http_get** | Simple HTTP GET over TCP sockets (IPv4 or hostname) | [http_get.c](examples/http_get.c) |
+| **file_io** | File read/write (README example) | [file_io.c](examples/file_io.c) |
+| **ls** | Directory listing (`-a`, `-l` with timestamps) | [ls.c](examples/ls.c) |
+| **printenv** | Print environment variables | [printenv.c](examples/printenv.c) |
+| **sort** | Line sort (`-r`, `-f`, `-n`, `-u`) | [sort.c](examples/sort.c) |
+| **upper** | Uppercase filter | [upper.c](examples/upper.c) |
+| **wc** | Line/word/byte counter | [wc.c](examples/wc.c) |
 
 ### Interactive Programs
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **led** | Vim-style text editor (hjkl, insert/normal/command, :w/:q, search, SIGWINCH resize) | [led.c](test/led.c) |
-| **mandelbrot** | Fixed-point fractal renderer — pan, zoom, iteration control | [mandelbrot.c](test/mandelbrot.c) |
-| **sh** | Shell — builtins (cd, pwd, echo, export), L_Map lookup, PATH search, quotes, I/O redirection, pipes | [sh.c](test/sh.c) |
-| **snake** | Terminal Snake game with WASD controls | [snake.c](test/snake.c) |
+| **led** | Vim-style text editor (hjkl, insert/normal/command, :w/:q, search, SIGWINCH resize) | [led.c](examples/led.c) |
+| **mandelbrot** | Fixed-point fractal renderer — pan, zoom, iteration control | [mandelbrot.c](examples/mandelbrot.c) |
+| **sh** | Shell — builtins (cd, pwd, echo, export), L_Map lookup, PATH search, quotes, I/O redirection, pipes | [sh.c](examples/sh.c) |
+| **snake** | Terminal Snake game with WASD controls | [snake.c](examples/snake.c) |
 
 ### Graphical Demos (`l_gfx.h`)
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **gfx_demo** | Static drawing — rectangles, circles, text (README example) | [gfx_demo.c](test/gfx_demo.c) |
-| **bounce** | Bouncing ball animation — run with `-f` for fullscreen (README example) | [bounce.c](test/bounce.c) |
-| **life** | Conway's Game of Life — 80×60 grid, pause/randomize/clear | [life.c](test/life.c) |
-| **plasma** | Rainbow plasma — animated sine-wave color cycling | [plasma.c](test/plasma.c) |
-| **starfield** | 3D starfield — 200 stars with perspective projection | [starfield.c](test/starfield.c) |
-| **fire** | Doom-style fire — bottom-up heat propagation | [fire.c](test/fire.c) |
-| **clock** | Analog clock — hour/minute/second hands, ticking in real time | [clock.c](test/clock.c) |
+| **gfx_demo** | Static drawing — rectangles, circles, text (README example) | [gfx_demo.c](examples/gfx_demo.c) |
+| **bounce** | Bouncing ball animation — run with `-f` for fullscreen (README example) | [bounce.c](examples/bounce.c) |
+| **life** | Conway's Game of Life — 80×60 grid, pause/randomize/clear | [life.c](examples/life.c) |
+| **plasma** | Rainbow plasma — animated sine-wave color cycling | [plasma.c](examples/plasma.c) |
+| **starfield** | 3D starfield — 200 stars with perspective projection | [starfield.c](examples/starfield.c) |
+| **fire** | Doom-style fire — bottom-up heat propagation | [fire.c](examples/fire.c) |
+| **clock** | Analog clock — hour/minute/second hands, ticking in real time | [clock.c](examples/clock.c) |
 
 ### UI Demos (`l_ui.h`)
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **ui_demo** | Full widget showcase — buttons, checkbox, slider, textbox, layout | [ui_demo.c](test/ui_demo.c) |
-| **ui_controls** | RGB color mixer — three sliders, hex input, live color preview | [ui_controls.c](test/ui_controls.c) |
+| **ui_demo** | Full widget showcase — buttons, checkbox, slider, textbox, layout | [ui_demo.c](examples/ui_demo.c) |
+| **ui_controls** | RGB color mixer — three sliders, hex input, live color preview | [ui_controls.c](examples/ui_controls.c) |
 
 ### Test Suite
 
 | Program | Assertions | Source |
 |---------|-----------|--------|
-| **test** | 710 (Linux/ARM/AArch64), 688 (Windows) | [test.c](test/test.c) |
-| **gfx_test** | 28 (in-memory pixel buffer tests) | [gfx_test.c](test/gfx_test.c) |
-| **ui_test** | UI widget logic tests (simulated canvas) | [ui_test.c](test/ui_test.c) |
+| **test** | Process/self-spawn regression shard | [test.c](tests/test.c) |
+| **test_strings** | String, conversion, memory, and formatting shard | [test_strings.c](tests/test_strings.c) |
+| **test_fs** | Filesystem, environment, and low-level I/O shard | [test_fs.c](tests/test_fs.c) |
+| **test_utils** | Utility, data-structure, time, and math shard | [test_utils.c](tests/test_utils.c) |
+| **test_net** | Manual socket/runtime shard (`l_poll` stays in default `test_fs`) | [test_net.c](tests/test_net.c) |
+| **gfx_test** | 28 (in-memory pixel buffer tests) | [gfx_test.c](tests/gfx_test.c) |
+| **ui_test** | UI widget logic tests (simulated canvas) | [ui_test.c](tests/ui_test.c) |
 
 ## Directory Structure
 
@@ -856,12 +860,16 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 l_os.h          — Core runtime header (strings, I/O, processes, terminal)
 l_gfx.h        — Pixel graphics header (drawing, font, canvas)
 l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
-test/           — All example programs and tests
+examples/       — Example programs and utilities (30 programs)
+tests/          — Test suites (test.c, test_strings.c, test_fs.c, test_utils.c, test_net.c, gfx_test.c, ui_test.c)
+tests/fixtures/ — Test data files (binaries, expected outputs)
+tests/smoke/    — Smoke test scripts (showcase_smoke.sh, showcase_smoke.ps1)
 bin/            — Compiled binaries (generated)
 misc/           — Reference implementations (incl. multi-client echo_server via l_poll)
 Taskfile        — Linux/macOS build automation (bash)
 build.bat       — Windows build script
-test_all.bat    — Windows build + test
+test_all.bat    — Windows build + default regression tests
+runtime_checks.bat — Windows on-demand socket + showcase checks
 ci.ps1          — Cross-platform CI (PowerShell)
 ```
 
@@ -869,13 +877,15 @@ ci.ps1          — Cross-platform CI (PowerShell)
 
 ### Linux/macOS
 ```sh
-./Taskfile test              # build + run all tests
+./Taskfile test              # build everything + run default regression tests
+./Taskfile test_runtime      # run socket + showcase runtime checks on demand
 ./Taskfile build clang 2     # build with clang at -O2
 ```
 
 ### Windows
 ```bat
-test_all.bat                 :: build + run all tests
+test_all.bat                 :: build everything + run default regression tests
+runtime_checks.bat           :: run socket + showcase runtime checks on demand
 ```
 
 ### Full CI (all platforms from Windows via WSL)

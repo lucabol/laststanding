@@ -6,8 +6,10 @@ set "NEED_BUILD=0"
 if not exist bin\test.exe (
     set "NEED_BUILD=1"
 ) else (
-    for %%f in (test\*.c) do (
-        if not exist "bin\%%~nf.exe" set "NEED_BUILD=1"
+    for %%d in (tests examples) do (
+        for %%f in (%%d\*.c) do (
+            if not exist "bin\%%~nf.exe" set "NEED_BUILD=1"
+        )
     )
 )
 
@@ -18,7 +20,8 @@ if "!NEED_BUILD!"=="1" (
     echo Skipping build: all binaries up-to-date.
 )
 
-for %%f in (bin\test*.exe) do (
+echo === Running default regression tests ===
+for %%f in (bin\test.exe bin\test_strings.exe bin\test_fs.exe bin\test_utils.exe bin\gfx_test.exe bin\ui_test.exe) do (
     if exist "%%f" (
         echo --- Running %%f ---
         "%%f"
@@ -29,7 +32,4 @@ for %%f in (bin\test*.exe) do (
         echo.
     )
 )
-
-powershell -NoProfile -ExecutionPolicy Bypass -File test\showcase_smoke.ps1
-if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
 exit /b 0

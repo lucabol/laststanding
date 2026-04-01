@@ -24,7 +24,7 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
       ;;
   esac
 
-  for f in test/*.c; do
+  for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
@@ -49,7 +49,7 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
       ;;
   esac
 
-  for f in test/*.c; do
+  for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
@@ -71,7 +71,7 @@ function build_aarch64 {    # Build for AArch64 (arm64) {compiler:aarch64-linux-
       ;;
   esac
 
-  for f in test/*.c; do
+  for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.aarch64
@@ -83,7 +83,22 @@ function showcase_smoke {    # Run showcase smoke tests {binarysuffix:} {runnera
   if [ $# -gt 0 ]; then
     shift
   fi
-  bash test/showcase_smoke.sh "$SUFFIX" "$@"
+  bash tests/smoke/showcase_smoke.sh "$SUFFIX" "$@"
+}
+
+function runtime_checks {    # Run socket/runtime checks on demand {binarysuffix:} {runnerargs:}
+  local SUFFIX="${1:-}"
+  if [ $# -gt 0 ]; then
+    shift
+  fi
+
+  echo "=== Running socket/runtime checks ==="
+  if [ $# -gt 0 ]; then
+    "$@" "bin/test_net${SUFFIX}" || exit 1
+  else
+    "bin/test_net${SUFFIX}" || exit 1
+  fi
+  showcase_smoke "$SUFFIX" "$@" || exit 1
 }
 
 function verify {    # Verify executables don't depend on stdlib and contain no bloat {compiler:gcc} {optimizationchar:3}
@@ -166,13 +181,11 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
   echo "=== Verification complete ==="
 }
 
-function test {    # Build and run all tests in bin directory plus showcase smoke tests
+function test {    # Build and run default regression tests (examples compile, runtime checks are on-demand)
   build "$@"
-  echo "=== Running all executables in bin/ ==="
+  echo "=== Running default regression tests in bin/ ==="
   local fail=0
-  for exe in bin/test*; do
-    # Skip Windows (.exe) and cross-compiled ARM/AArch64 binaries
-    case "$exe" in *.exe|*.armhf|*.aarch64) continue ;; esac
+  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/gfx_test bin/ui_test; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       "$exe"
@@ -187,14 +200,18 @@ function test {    # Build and run all tests in bin directory plus showcase smok
     echo "=== SOME TESTS FAILED ==="
     exit 1
   fi
-  showcase_smoke "" || exit 1
 }
 
-function test_arm {    # Build and run all tests for ARM using QEMU plus showcase smoke tests
+function test_runtime {    # Build and run socket/runtime checks on demand
+  build "$@"
+  runtime_checks ""
+}
+
+function test_arm {    # Build and run default ARM regression tests using QEMU
   build_arm "$@"
-  echo "=== Running all ARM executables in bin/ with QEMU ==="
+  echo "=== Running default ARM regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test*.armhf; do
+  for exe in bin/test.armhf bin/test_strings.armhf bin/test_fs.armhf bin/test_utils.armhf bin/gfx_test.armhf bin/ui_test.armhf; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-arm -L /usr/arm-linux-gnueabihf "$exe"
@@ -209,14 +226,18 @@ function test_arm {    # Build and run all tests for ARM using QEMU plus showcas
     echo "=== SOME ARM TESTS FAILED ==="
     exit 1
   fi
-  showcase_smoke ".armhf" qemu-arm -L /usr/arm-linux-gnueabihf || exit 1
 }
 
-function test_aarch64 {    # Build and run all tests for AArch64 using QEMU plus showcase smoke tests
+function test_runtime_arm {    # Build and run ARM socket/runtime checks on demand {compiler:arm-linux-gnueabihf-gcc} {optimizationchar:3}
+  build_arm "$@"
+  runtime_checks ".armhf" qemu-arm -L /usr/arm-linux-gnueabihf
+}
+
+function test_aarch64 {    # Build and run default AArch64 regression tests using QEMU
   build_aarch64 "$@"
-  echo "=== Running all AArch64 executables in bin/ with QEMU ==="
+  echo "=== Running default AArch64 regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test*.aarch64; do
+  for exe in bin/test.aarch64 bin/test_strings.aarch64 bin/test_fs.aarch64 bin/test_utils.aarch64 bin/gfx_test.aarch64 bin/ui_test.aarch64; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-aarch64 -L /usr/aarch64-linux-gnu "$exe"
@@ -231,7 +252,11 @@ function test_aarch64 {    # Build and run all tests for AArch64 using QEMU plus
     echo "=== SOME AARCH64 TESTS FAILED ==="
     exit 1
   fi
-  showcase_smoke ".aarch64" qemu-aarch64 -L /usr/aarch64-linux-gnu || exit 1
+}
+
+function test_runtime_aarch64 {    # Build and run AArch64 socket/runtime checks on demand {compiler:aarch64-linux-gnu-gcc} {optimizationchar:3}
+  build_aarch64 "$@"
+  runtime_checks ".aarch64" qemu-aarch64 -L /usr/aarch64-linux-gnu
 }
 
 function verify_arm {    # Verify ARM executables are stdlib-independent and bloat-free {compiler:arm-linux-gnueabihf-gcc} {optimizationchar:3}

@@ -1,9 +1,8 @@
 #define L_MAINFILE
 #include "l_ui.h"
+#include "test_support.h"
 
-static int test_count = 0;
-#define TEST_FUNCTION(name) puts("  Testing " name "...\n")
-#define TEST_ASSERT(cond, msg) do { test_count++; if (!(cond)) { puts("    [FAIL] " msg "\n"); exit(-1); } else { puts("    [OK] " msg "\n"); } } while(0)
+TEST_DECLARE_COUNTERS();
 
 // In-memory canvas for widget tests (no display needed)
 static uint32_t test_pixels[64 * 64];

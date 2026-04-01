@@ -138,7 +138,7 @@ function Get-BuildSummary {
     }
     if ($cmd.Length -gt 42) { $cmd = $cmd.Substring(0, 39) + "..." }
 
-    # Count compiled files from output (build.bat echoes filenames)
+    # Count compiled files from output (build scripts echo basenames)
     $fileCount = 0
     foreach ($line in ($Output -split "`n")) {
         $t = $line.Trim()
@@ -147,7 +147,9 @@ function Get-BuildSummary {
         }
     }
     if ($fileCount -eq 0) {
-        $fileCount = @(Get-ChildItem -Path (Join-Path $RepoRoot "test") -Filter "*.c" -File -ErrorAction SilentlyContinue).Count
+        $fileCount =
+            @(Get-ChildItem -Path (Join-Path $RepoRoot 'tests') -Filter '*.c' -File -ErrorAction SilentlyContinue).Count +
+            @(Get-ChildItem -Path (Join-Path $RepoRoot 'examples') -Filter '*.c' -File -ErrorAction SilentlyContinue).Count
     }
 
     $parts = @()
@@ -160,10 +162,13 @@ function Get-TestSummary {
     param([string]$TargetName, [string]$Output)
 
     $okCount = ([regex]::Matches($Output, '\[OK\]')).Count
-    $runCount = ([regex]::Matches($Output, '--- Running')).Count
+    $regressionCount = ([regex]::Matches($Output, '--- Running bin[\\/][^ ]+ ---')).Count
+    $runCount = ([regex]::Matches($Output, '--- Running ')).Count
+    $smokeCount = $runCount - $regressionCount
 
     $parts = @()
-    if ($runCount -gt 0) { $parts += "$runCount binaries" }
+    if ($regressionCount -gt 0) { $parts += "$regressionCount regression binaries" }
+    if ($smokeCount -gt 0) { $parts += "$smokeCount smoke checks" }
     if ($okCount -gt 0) { $parts += "$okCount assertions" }
     if ($TargetName -match 'ARM' -or $TargetName -match 'AArch64') { $parts += "(QEMU)" }
 
@@ -548,8 +553,8 @@ function Invoke-CrlfFix {
     if ($ShowAll) { Write-Host "  Stripping CRLF for WSL..." -ForegroundColor DarkGray }
     $targets = Get-ChildItem -Path $RepoRoot -Include '*.c','*.h' -Recurse -File
     $taskfile = Join-Path $RepoRoot 'Taskfile'
-    $showcaseSmokeScript = Join-Path $RepoRoot 'test\showcase_smoke.sh'
-    $showcaseSmokeDir = Join-Path $RepoRoot 'test\showcase_smoke'
+    $showcaseSmokeScript = Join-Path $RepoRoot 'tests\smoke\showcase_smoke.sh'
+    $showcaseSmokeDir = Join-Path $RepoRoot 'tests\fixtures\showcase_smoke'
     if (Test-Path $taskfile) { $targets += Get-Item $taskfile }
     if (Test-Path $showcaseSmokeScript) { $targets += Get-Item $showcaseSmokeScript }
     if (Test-Path $showcaseSmokeDir) { $targets += Get-ChildItem -Path $showcaseSmokeDir -Recurse -File }

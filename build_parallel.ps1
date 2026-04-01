@@ -1,13 +1,18 @@
 # Parallel compilation helper for build.bat
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File build_parallel.ps1 -CC <compiler> -SrcDir test -OutDir bin
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File build_parallel.ps1 -CC <compiler> -SrcDirs tests,examples -OutDir bin
 param(
     [Parameter(Mandatory)][string]$CC,
-    [string]$SrcDir = 'test',
+    [string[]]$SrcDirs = @('tests', 'examples'),
     [string]$OutDir = 'bin'
 )
 
 $maxJobs = if ($env:NUMBER_OF_PROCESSORS) { [int]$env:NUMBER_OF_PROCESSORS } else { 4 }
-$files = Get-ChildItem -Path "$SrcDir\*.c"
+$files = foreach ($dir in $SrcDirs) {
+    if (Test-Path $dir) {
+        Get-ChildItem -Path (Join-Path $dir '*.c') -File
+    }
+}
+$files = $files | Sort-Object FullName
 $failed = [System.Collections.ArrayList]::new()
 $procs = [System.Collections.ArrayList]::new()
 

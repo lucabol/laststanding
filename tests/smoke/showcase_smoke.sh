@@ -3,8 +3,8 @@
 set -u -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIXTURE_DIR="$SCRIPT_DIR/showcase_smoke"
-BIN_DIR="$(cd "$SCRIPT_DIR/../bin" && pwd)"
+FIXTURE_DIR="$(cd "$SCRIPT_DIR/../fixtures/showcase_smoke" && pwd)"
+BIN_DIR="$(cd "$SCRIPT_DIR/../../bin" && pwd)"
 SUFFIX="${1:-}"
 if [ $# -gt 0 ]; then
   shift
