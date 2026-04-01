@@ -1853,6 +1853,52 @@ void test_strtok_r(void) {
     TEST_SECTION_PASS("l_strtok_r");
 }
 
+// ===================== l_strsep =====================
+
+void test_strsep(void) {
+    TEST_FUNCTION("l_strsep");
+
+    char buf[64];
+    char *p;
+
+    /* basic comma-delimited: all three tokens */
+    l_strncpy(buf, "one,two,three", sizeof(buf));
+    p = buf;
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "one") == 0, "first token 'one'");
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "two") == 0, "second token 'two'");
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "three") == 0, "third token 'three'");
+    TEST_ASSERT(l_strsep(&p, ",") == (char *)0, "exhausted returns NULL");
+
+    /* consecutive delimiters produce empty tokens (unlike strtok_r) */
+    l_strncpy(buf, "a,,b", sizeof(buf));
+    p = buf;
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "a") == 0, "empty-tok: first 'a'");
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "") == 0, "empty-tok: empty middle");
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "b") == 0, "empty-tok: last 'b'");
+    TEST_ASSERT(l_strsep(&p, ",") == (char *)0, "empty-tok: exhausted");
+
+    /* single-token string (no delimiter) */
+    l_strncpy(buf, "hello", sizeof(buf));
+    p = buf;
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "hello") == 0, "single token");
+    TEST_ASSERT(p == (char *)0, "stringp set to NULL after last token");
+    TEST_ASSERT(l_strsep(&p, ",") == (char *)0, "NULL stringp returns NULL");
+
+    /* empty string */
+    l_strncpy(buf, "", sizeof(buf));
+    p = buf;
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ","), "") == 0, "empty string gives empty token");
+
+    /* multi-char delimiter set */
+    l_strncpy(buf, "a:b/c", sizeof(buf));
+    p = buf;
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ":/"), "a") == 0, "multi-delim: 'a'");
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ":/"), "b") == 0, "multi-delim: 'b'");
+    TEST_ASSERT(l_strcmp(l_strsep(&p, ":/"), "c") == 0, "multi-delim: 'c'");
+
+    TEST_SECTION_PASS("l_strsep");
+}
+
 // ===================== l_basename / l_dirname =====================
 
 void test_basename_dirname(void) {
@@ -4055,6 +4101,7 @@ int main(int argc, char* argv[]) {
     test_strspn();
     test_strpbrk();
     test_strtok_r();
+    test_strsep();
     test_basename_dirname();
 
     // Conversion functions

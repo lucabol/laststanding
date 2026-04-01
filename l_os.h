@@ -316,6 +316,9 @@ size_t l_strcspn(const char *s, const char *reject);
 char *l_strpbrk(const char *s, const char *accept);
 /// Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant)
 char *l_strtok_r(char *str, const char *delim, char **saveptr);
+/// BSD-style string separator: returns *stringp and advances it past the next delimiter char,
+/// or NULL if *stringp is NULL; unlike strtok_r, preserves empty tokens
+char *l_strsep(char **stringp, const char *delim);
 /// Returns pointer to the filename component of path (after last '/' or '\')
 const char *l_basename(const char *path);
 /// Writes the directory component of path into buf (up to bufsize), returns buf
@@ -1068,6 +1071,7 @@ int WINAPI mainCRTStartup(void)
 #  define strcspn l_strcspn
 #  define strpbrk l_strpbrk
 #  define strtok_r l_strtok_r
+#  define strsep   l_strsep
 #  define basename l_basename
 #  define dirname l_dirname
 
@@ -2830,6 +2834,25 @@ inline char *l_strtok_r(char *str, const char *delim, char **saveptr) {
         *saveptr = p;
     }
     return str;
+}
+
+/* BSD strsep: returns the token starting at *stringp and advances *stringp
+ * past the next delimiter (NUL-terminated in-place).  Unlike strtok_r,
+ * consecutive delimiters produce empty tokens, and no delimiter-set
+ * skipping is performed at the start.  Returns NULL when *stringp is NULL. */
+inline char *l_strsep(char **stringp, const char *delim) {
+    char *start = *stringp;
+    if (!start) return (char *)0;
+    char *p = start;
+    while (*p && !l_strchr(delim, *p))
+        p++;
+    if (*p) {
+        *p = '\0';
+        *stringp = p + 1;
+    } else {
+        *stringp = (char *)0;
+    }
+    return start;
 }
 
 inline const char *l_basename(const char *path) {
