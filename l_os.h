@@ -1613,15 +1613,40 @@ inline int l_strncmp(const char *s1, const char *s2, size_t n) {
 }
 
 inline int l_strcmp(const char *s1, const char *s2) {
-    unsigned char u1, u2;
+    /* Byte-scan until s1 is word-aligned. */
+    while ((uintptr_t)s1 & (sizeof(uintptr_t) - 1U)) {
+        unsigned char u1 = (unsigned char)*s1++;
+        unsigned char u2 = (unsigned char)*s2++;
+        if (u1 != u2) return u1 - u2;
+        if (u1 == '\0') return 0;
+    }
 
+    /* Word-at-a-time when s2 is also word-aligned: compare a full machine
+     * word per iteration.  Stop when words differ OR either word contains a
+     * zero byte (Hacker's Delight has-zero-byte: (w-LONES)&~w&HIGHS != 0). */
+    if (!((uintptr_t)s2 & (sizeof(uintptr_t) - 1U))) {
+        typedef uintptr_t __attribute__((may_alias)) word_alias;
+        const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;
+        const uintptr_t highs = lones << 7;
+        const word_alias *wp1 = (const word_alias *)(const void *)s1;
+        const word_alias *wp2 = (const word_alias *)(const void *)s2;
+        while (1) {
+            uintptr_t w1 = *wp1;
+            uintptr_t w2 = *wp2;
+            if (w1 != w2 || ((w1 - lones) & ~w1 & highs))
+                break;
+            wp1++; wp2++;
+        }
+        s1 = (const char *)wp1;
+        s2 = (const char *)wp2;
+    }
+
+    /* Byte-by-byte tail (or full scan for unaligned s2). */
     for (;;) {
-        u1 = (unsigned char) *s1++;
-        u2 = (unsigned char) *s2++;
-        if (u1 != u2)
-            return u1 - u2;
-        if (u1 == '\0')
-            return 0;
+        unsigned char u1 = (unsigned char)*s1++;
+        unsigned char u2 = (unsigned char)*s2++;
+        if (u1 != u2) return u1 - u2;
+        if (u1 == '\0') return 0;
     }
 }
 

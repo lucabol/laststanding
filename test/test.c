@@ -423,6 +423,21 @@ void test_strcmp(void) {
 
     TEST_ASSERT(l_strcmp("\x80", "\x01") > 0, "unsigned: 0x80 > 0x01");
 
+    /* word-at-a-time path: long strings that are equal, differ at end */
+    {
+        char a[64], b[64];
+        /* 32 identical chars followed by a difference */
+        l_memset(a, 'x', 32); a[32] = 'a'; a[33] = '\0';
+        l_memset(b, 'x', 32); b[32] = 'b'; b[33] = '\0';
+        TEST_ASSERT(l_strcmp(a, b) < 0, "long: differ at last char");
+        b[32] = 'a';
+        TEST_ASSERT(l_strcmp(a, b) == 0, "long: 33-char equal");
+        /* one char longer */
+        b[33] = 'z'; b[34] = '\0';
+        TEST_ASSERT(l_strcmp(a, b) < 0, "long: prefix < longer");
+        TEST_ASSERT(l_strcmp(b, a) > 0, "long: longer > prefix");
+    }
+
     TEST_SECTION_PASS("l_strcmp");
 }
 
