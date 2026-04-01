@@ -538,6 +538,34 @@ Added `L_Str` — a pointer+length fat string type backed by `L_Arena`. Placed i
 
 ---
 
+### Windows clang / l_poll Fix Decision
+
+**Author:** Lambert (Tester)  
+**Date:** 2026-04-01  
+**Status:** Accepted
+
+**Decision:** Accept Dallas's Windows `l_poll` fix.
+
+**Root Cause:**
+`l_poll()` on Windows was returning `-1` on a listening socket because the old Windows path fed a Winsock `SOCKET` directly into `WaitForMultipleObjects`, which only works on waitable kernel handles — not Winsock sockets.
+
+**Fix Applied:**
+- Socket-backed polling now correctly goes through `select()` on Windows
+- Non-socket Windows polling (handles and pipes) keeps the existing `WaitForMultipleObjects` path (no regression)
+- `test/test_net.c` hostname and loopback TCP/UDP regressions now pass
+
+**Validation:**
+- `build.bat` passes with Windows clang
+- `test_all.bat` passes
+- `verify.bat` passes
+- `bin\test_net.exe` passes after fresh rebuild
+- Minimal repro against old header fails (`l_poll` → `-1`)
+- Minimal repro against current `l_os.h` passes
+
+**Assessment:** Correctly scoped, no side effects, ready for integration.
+
+---
+
 ### L_Str Demo Refactoring: Where It Helps, Where It Doesn't
 
 **Author:** Dallas  
