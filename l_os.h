@@ -1428,6 +1428,24 @@ inline void *l_memmove(void *dst, const void *src, size_t len)
     } else {
         d += len;
         s += len;
+        /* Handle tail bytes until d is word-aligned for backward copy. */
+        while (len && ((uintptr_t)d & (sizeof(uintptr_t) - 1U))) {
+            *--d = *--s;
+            len--;
+        }
+        /* Word-at-a-time backward copy when s is also word-aligned. */
+        if (len >= sizeof(uintptr_t) && !((uintptr_t)s & (sizeof(uintptr_t) - 1U))) {
+            typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+            uptr_alias       *dp = (uptr_alias *)(void *)d;
+            const uptr_alias *sp = (const uptr_alias *)(const void *)s;
+            size_t nw = len / sizeof(uptr_alias);
+            while (nw--)
+                *--dp = *--sp;
+            d   = (char *)(void *)dp;
+            s   = (const char *)(const void *)sp;
+            len &= sizeof(uptr_alias) - 1U;
+        }
+        /* Remaining head bytes. */
         while (len--)
             *--d = *--s;
     }

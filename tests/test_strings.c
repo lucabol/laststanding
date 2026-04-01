@@ -868,6 +868,15 @@ void test_memmove(void) {
     l_memmove(&sa, &sb, 1);
     TEST_ASSERT(sa == 'B', "single byte memmove");
 
+    /* Large backward-overlap test: exercises the word-at-a-time backward path.
+     * With 128 bytes shifted by 1 position backward, the loop handles ~16 words. */
+    char bigbuf[256];
+    for (int i = 0; i < 128; i++) bigbuf[i] = (char)(i + 1);
+    l_memmove(bigbuf, bigbuf + 1, 127);
+    int big_ok = 1;
+    for (int i = 0; i < 127; i++) { if (bigbuf[i] != (char)(i + 2)) { big_ok = 0; break; } }
+    TEST_ASSERT(big_ok, "large backward overlap memmove (word-at-a-time path)");
+
     TEST_SECTION_PASS("l_memmove");
 }
 
