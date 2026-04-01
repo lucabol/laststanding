@@ -5736,16 +5736,46 @@ inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr
 inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
 {
     if (nfds <= 0) return 0;
-    HANDLE handles[64];
     int count = nfds < 64 ? nfds : 64;
+    for (int i = 0; i < count; i++) fds[i].revents = 0;
+
+#ifdef L_WITHSOCKETS
+    /* Use select() — works for sockets on Windows.
+       L_SOCKET values are raw Winsock SOCKET handles (not fd-table indices). */
+    fd_set rfds, wfds, efds;
+    FD_ZERO(&rfds); FD_ZERO(&wfds); FD_ZERO(&efds);
     for (int i = 0; i < count; i++) {
-        handles[i] = l_win_fd_handle(fds[i].fd);
-        fds[i].revents = 0;
+        SOCKET s = (SOCKET)(uintptr_t)fds[i].fd;
+        if (fds[i].events & L_POLLIN)  FD_SET(s, &rfds);
+        if (fds[i].events & L_POLLOUT) FD_SET(s, &wfds);
+        FD_SET(s, &efds);
     }
+    struct timeval tv, *tvp = (struct timeval *)0;
+    if (timeout_ms >= 0) {
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        tvp = &tv;
+    }
+    int ret = select(0, &rfds, &wfds, &efds, tvp);
+    if (ret <= 0) return ret;
+    int ready = 0;
+    for (int i = 0; i < count; i++) {
+        SOCKET s = (SOCKET)(uintptr_t)fds[i].fd;
+        if ((fds[i].events & L_POLLIN)  && FD_ISSET(s, &rfds))  fds[i].revents |= L_POLLIN;
+        if ((fds[i].events & L_POLLOUT) && FD_ISSET(s, &wfds))  fds[i].revents |= L_POLLOUT;
+        if (FD_ISSET(s, &efds)) fds[i].revents |= L_POLLERR;
+        if (fds[i].revents) ready++;
+    }
+    return ready;
+#else
+    /* Non-socket fallback: WaitForMultipleObjects for pipes/handles */
+    HANDLE handles[64];
+    for (int i = 0; i < count; i++)
+        handles[i] = l_win_fd_handle(fds[i].fd);
     DWORD timeout = (timeout_ms < 0) ? INFINITE : (DWORD)timeout_ms;
-    DWORD ret = WaitForMultipleObjects((DWORD)count, handles, FALSE, timeout);
-    if (ret == WAIT_TIMEOUT) return 0;
-    if (ret == WAIT_FAILED) return -1;
+    DWORD wret = WaitForMultipleObjects((DWORD)count, handles, FALSE, timeout);
+    if (wret == WAIT_TIMEOUT) return 0;
+    if (wret == WAIT_FAILED) return -1;
     int ready = 0;
     for (int i = 0; i < count; i++) {
         DWORD result = WaitForSingleObject(handles[i], 0);
@@ -5755,6 +5785,7 @@ inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
         }
     }
     return ready;
+#endif
 }
 
 // l_signal — Windows: SetConsoleCtrlHandler for SIGINT/SIGTERM
