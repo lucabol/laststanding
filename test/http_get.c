@@ -3,29 +3,29 @@
 #include "l_os.h"
 
 // http_get: simple HTTP GET over TCP sockets
-// Usage: http_get <ip> <port> <path>
-// Example: http_get 93.184.216.34 80 /index.html
-// NOTE: IP address only (no DNS resolution) — use tools like `dig` to resolve hostnames first.
+// Usage: http_get <host> <port> <path>
+// Example: http_get example.com 80 /index.html
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        l_puts("Usage: http_get <ip> <port> <path>\n");
+        l_puts("Usage: http_get <host> <port> <path>\n");
         l_puts("Perform a simple HTTP GET request.\n");
-        l_puts("NOTE: IP address only, no DNS resolution.\n");
-        l_puts("Example: http_get 93.184.216.34 80 /index.html\n");
+        l_puts("Host may be an IPv4 address or hostname.\n");
+        l_puts("Example: http_get example.com 80 /index.html\n");
         return 0;
     }
 
-    const char *ip = argv[1];
+    const char *host = argv[1];
+    char ip[16];
     int port = l_atoi(argv[2]);
     const char *path = argv[3];
 
     L_SOCKET sock = l_socket_tcp();
     if (sock < 0) { l_puts("Error: cannot create socket\n"); return 1; }
 
-    if (l_socket_connect(sock, ip, port) < 0) {
+    if (l_resolve(host, ip) < 0 || l_socket_connect(sock, ip, port) < 0) {
         l_puts("Error: cannot connect to ");
-        l_puts(ip);
+        l_puts(host);
         l_puts("\n");
         l_socket_close(sock);
         return 1;
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
     l_buf_push_cstr(&req, "GET ");
     l_buf_push_cstr(&req, path);
     l_buf_push_cstr(&req, " HTTP/1.1\r\nHost: ");
-    l_buf_push_cstr(&req, ip);
+    l_buf_push_cstr(&req, host);
     l_buf_push_cstr(&req, "\r\nConnection: close\r\n\r\n");
 
     l_socket_send(sock, req.data, req.len);

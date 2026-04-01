@@ -780,6 +780,8 @@ static inline unsigned short l_htons(unsigned short h);
 static inline unsigned int l_htonl(unsigned int h);
 /// Parse dotted-quad IP string to network-order u32. Returns 0 on error.
 static inline unsigned int l_inet_addr(const char *ip);
+/// Resolve hostname to IPv4 dotted-quad string. ip_out must be at least 16 bytes. If hostname is already IPv4 text, copies it unchanged. Returns 0 on success, -1 on error.
+int l_resolve(const char *hostname, char *ip_out);
 
 // TCP socket functions
 /// Create a TCP socket. Returns socket fd or -1 on error.
@@ -2967,11 +2969,13 @@ static inline unsigned int l_htonl(unsigned int h) {
            ((h << 8) & 0xFF0000u) | ((h << 24) & 0xFF000000u);
 }
 
-static inline unsigned int l_inet_addr(const char *ip) {
+static inline int l_parse_ipv4(const char *ip, unsigned int *out_addr) {
     unsigned int result = 0;
     unsigned int octet = 0;
     int dots = 0;
     int shift = 0;
+
+    if (!ip || !*ip) return 0;
     for (const char *p = ip; ; p++) {
         if (*p >= '0' && *p <= '9') {
             octet = octet * 10 + (unsigned int)(*p - '0');
@@ -2987,7 +2991,310 @@ static inline unsigned int l_inet_addr(const char *ip) {
         }
     }
     if (dots != 3) return 0;
+    if (out_addr) *out_addr = result;
+    return 1;
+}
+
+static inline unsigned int l_inet_addr(const char *ip) {
+    unsigned int result = 0;
+    if (!l_parse_ipv4(ip, &result)) return 0;
     return result;
+}
+
+#ifdef _WIN32
+static inline int l_wsa_init(void);
+#endif
+
+static inline void l_format_ipv4(unsigned int ip, char *out) {
+    int pos = 0;
+    for (int i = 0; i < 4; i++) {
+        unsigned int octet = (ip >> (i * 8)) & 0xFFu;
+        if (octet >= 100) out[pos++] = (char)('0' + octet / 100);
+        if (octet >= 10) out[pos++] = (char)('0' + (octet / 10) % 10);
+        out[pos++] = (char)('0' + octet % 10);
+        if (i < 3) out[pos++] = '.';
+    }
+    out[pos] = '\0';
+}
+
+static inline int l_valid_hostname(const char *name) {
+    size_t label_len = 0;
+
+    if (!name || !*name) return 0;
+    for (const char *p = name; ; p++) {
+        char ch = *p;
+        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+            (ch >= '0' && ch <= '9')) {
+            label_len++;
+        } else if (ch == '-') {
+            if (label_len == 0) return 0;
+            label_len++;
+        } else if (ch == '.' || ch == '\0') {
+            if (label_len == 0) return 0;
+            if (p[-1] == '-') return 0;
+            if (label_len > 63) return 0;
+            if (ch == '\0') break;
+            label_len = 0;
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static inline size_t l_dns_skip_name(const unsigned char *msg, size_t msg_len, size_t off) {
+    while (off < msg_len) {
+        unsigned char len = msg[off];
+        if (len == 0) return off + 1;
+        if ((len & 0xC0u) == 0xC0u) {
+            if (off + 1 >= msg_len) return 0;
+            return off + 2;
+        }
+        if (len & 0xC0u) return 0;
+        off++;
+        if (off + len > msg_len) return 0;
+        off += len;
+    }
+    return 0;
+}
+
+static inline size_t l_dns_encode_name(unsigned char *buf, size_t buf_sz, const char *name) {
+    size_t off = 0;
+    size_t start = 0;
+    if (!name || !*name) return 0;
+    for (;;) {
+        size_t label_len = 0;
+        while (name[start + label_len] && name[start + label_len] != '.')
+            label_len++;
+        if (label_len == 0 || label_len > 63 || off + 1 + label_len >= buf_sz) return 0;
+        buf[off++] = (unsigned char)label_len;
+        l_memcpy(buf + off, name + start, label_len);
+        off += label_len;
+        if (!name[start + label_len]) break;
+        start += label_len + 1;
+    }
+    if (off >= buf_sz) return 0;
+    buf[off++] = 0;
+    return off;
+}
+
+#ifndef _WIN32
+static inline int l_hosts_lookup_ipv4(const char *name, unsigned int *out_addr) {
+    char buf[4097];
+    size_t name_len;
+    size_t i = 0;
+    L_FD fd;
+    ssize_t n;
+
+    if (!name || !*name) return 0;
+    fd = l_open_read("/etc/hosts");
+    if (fd < 0) return 0;
+    n = l_read(fd, buf, sizeof(buf) - 1);
+    l_close(fd);
+    if (n <= 0) return 0;
+    buf[n] = '\0';
+    name_len = l_strlen(name);
+
+    while (i < (size_t)n) {
+        char ip[16];
+        unsigned int addr = 0;
+        int addr_ok = 0;
+        size_t start, tok_len;
+
+        while (i < (size_t)n && (buf[i] == ' ' || buf[i] == '\t')) i++;
+        if (i >= (size_t)n) break;
+        if (buf[i] == '#' || buf[i] == '\r' || buf[i] == '\n') {
+            while (i < (size_t)n && buf[i] != '\n') i++;
+            if (i < (size_t)n) i++;
+            continue;
+        }
+
+        start = i;
+        while (i < (size_t)n && buf[i] != ' ' && buf[i] != '\t' &&
+               buf[i] != '\r' && buf[i] != '\n' && buf[i] != '#')
+            i++;
+        tok_len = i - start;
+        if (tok_len < sizeof(ip)) {
+            l_memcpy(ip, buf + start, tok_len);
+            ip[tok_len] = '\0';
+            addr_ok = l_parse_ipv4(ip, &addr);
+        }
+
+        while (i < (size_t)n && buf[i] != '\r' && buf[i] != '\n') {
+            while (i < (size_t)n && (buf[i] == ' ' || buf[i] == '\t')) i++;
+            if (i >= (size_t)n || buf[i] == '#' || buf[i] == '\r' || buf[i] == '\n')
+                break;
+            start = i;
+            while (i < (size_t)n && buf[i] != ' ' && buf[i] != '\t' &&
+                   buf[i] != '\r' && buf[i] != '\n' && buf[i] != '#')
+                i++;
+            tok_len = i - start;
+            if (addr_ok && tok_len == name_len &&
+                l_strncasecmp(buf + start, name, name_len) == 0) {
+                if (out_addr) *out_addr = addr;
+                return 1;
+            }
+        }
+
+        while (i < (size_t)n && buf[i] != '\n') i++;
+        if (i < (size_t)n) i++;
+    }
+
+    return 0;
+}
+
+static inline int l_resolv_conf_nameserver(char *out, size_t out_sz) {
+    char buf[2049];
+    size_t i = 0;
+    L_FD fd;
+    ssize_t n;
+
+    if (!out || out_sz < 16) return 0;
+    fd = l_open_read("/etc/resolv.conf");
+    if (fd < 0) return 0;
+    n = l_read(fd, buf, sizeof(buf) - 1);
+    l_close(fd);
+    if (n <= 0) return 0;
+    buf[n] = '\0';
+
+    while (i < (size_t)n) {
+        size_t start, tok_len;
+        while (i < (size_t)n && (buf[i] == ' ' || buf[i] == '\t')) i++;
+        if (i >= (size_t)n) break;
+        if (buf[i] == '#' || buf[i] == '\r' || buf[i] == '\n') {
+            while (i < (size_t)n && buf[i] != '\n') i++;
+            if (i < (size_t)n) i++;
+            continue;
+        }
+        if (i + 10 >= (size_t)n ||
+            l_strncmp(buf + i, "nameserver", 10) != 0 ||
+            (buf[i + 10] != ' ' && buf[i + 10] != '\t')) {
+            while (i < (size_t)n && buf[i] != '\n') i++;
+            if (i < (size_t)n) i++;
+            continue;
+        }
+        i += 10;
+        while (i < (size_t)n && (buf[i] == ' ' || buf[i] == '\t')) i++;
+        start = i;
+        while (i < (size_t)n && buf[i] != ' ' && buf[i] != '\t' &&
+               buf[i] != '\r' && buf[i] != '\n' && buf[i] != '#')
+            i++;
+        tok_len = i - start;
+        if (tok_len == 0 || tok_len >= out_sz) continue;
+        l_memcpy(out, buf + start, tok_len);
+        out[tok_len] = '\0';
+        return l_parse_ipv4(out, (unsigned int *)0);
+    }
+
+    return 0;
+}
+
+static inline int l_dns_lookup_ipv4(const char *name, unsigned int *out_addr) {
+    unsigned char query[512];
+    unsigned char resp[512];
+    char nameserver[16];
+    unsigned short id;
+    size_t off;
+    size_t i;
+    L_SOCKET sock;
+    ptrdiff_t n;
+    L_PollFd pfd;
+
+    if (!name || !*name) return 0;
+    if (!l_resolv_conf_nameserver(nameserver, sizeof(nameserver))) return 0;
+
+    id = (unsigned short)(l_getpid() ^ (int)l_time((long long *)0));
+    query[0] = (unsigned char)(id >> 8);
+    query[1] = (unsigned char)(id & 0xFF);
+    query[2] = 0x01;
+    query[3] = 0x00;
+    query[4] = 0x00;
+    query[5] = 0x01;
+    query[6] = query[7] = query[8] = query[9] = query[10] = query[11] = 0x00;
+    off = 12;
+    off += l_dns_encode_name(query + off, sizeof(query) - off, name);
+    if (off <= 12 || off + 4 > sizeof(query)) return 0;
+    query[off++] = 0x00;
+    query[off++] = 0x01;
+    query[off++] = 0x00;
+    query[off++] = 0x01;
+
+    sock = l_socket_udp();
+    if (sock < 0) return 0;
+    if (l_socket_sendto(sock, query, off, nameserver, 53) < 0) {
+        l_socket_close(sock);
+        return 0;
+    }
+
+    pfd.fd = (L_FD)sock;
+    pfd.events = L_POLLIN;
+    pfd.revents = 0;
+    if (l_poll(&pfd, 1, 2000) <= 0 || !(pfd.revents & L_POLLIN)) {
+        l_socket_close(sock);
+        return 0;
+    }
+
+    n = l_socket_recvfrom(sock, resp, sizeof(resp), (char *)0, (int *)0);
+    l_socket_close(sock);
+    if (n < 12) return 0;
+    if (resp[0] != query[0] || resp[1] != query[1]) return 0;
+    if (!(resp[2] & 0x80) || (resp[3] & 0x0F)) return 0;
+
+    off = 12;
+    for (i = 0; i < (size_t)((resp[4] << 8) | resp[5]); i++) {
+        off = l_dns_skip_name(resp, (size_t)n, off);
+        if (off == 0 || off + 4 > (size_t)n) return 0;
+        off += 4;
+    }
+
+    for (i = 0; i < (size_t)((resp[6] << 8) | resp[7]); i++) {
+        unsigned short type, class_, rdlen;
+        off = l_dns_skip_name(resp, (size_t)n, off);
+        if (off == 0 || off + 10 > (size_t)n) return 0;
+        type = (unsigned short)((resp[off] << 8) | resp[off + 1]);
+        class_ = (unsigned short)((resp[off + 2] << 8) | resp[off + 3]);
+        rdlen = (unsigned short)((resp[off + 8] << 8) | resp[off + 9]);
+        off += 10;
+        if (off + rdlen > (size_t)n) return 0;
+        if (type == 1 && class_ == 1 && rdlen == 4) {
+            if (out_addr) {
+                *out_addr = (unsigned int)resp[off] |
+                            ((unsigned int)resp[off + 1] << 8) |
+                            ((unsigned int)resp[off + 2] << 16) |
+                            ((unsigned int)resp[off + 3] << 24);
+            }
+            return 1;
+        }
+        off += rdlen;
+    }
+
+    return 0;
+}
+#endif
+
+inline int l_resolve(const char *hostname, char *ip_out) {
+    unsigned int addr;
+    if (!hostname || !*hostname || !ip_out) return -1;
+    if (l_parse_ipv4(hostname, &addr)) {
+        l_strcpy(ip_out, hostname);
+        return 0;
+    }
+    if (!l_valid_hostname(hostname)) return -1;
+#ifdef _WIN32
+    if (l_wsa_init() < 0) return -1;
+    {
+        struct hostent *host = gethostbyname(hostname);
+        if (!host || !host->h_addr_list || !host->h_addr_list[0] || host->h_length != 4)
+            return -1;
+        l_memcpy(&addr, host->h_addr_list[0], 4);
+    }
+#else
+    if (!l_hosts_lookup_ipv4(hostname, &addr) &&
+        !l_dns_lookup_ipv4(hostname, &addr))
+        return -1;
+#endif
+    l_format_ipv4(addr, ip_out);
+    return 0;
 }
 
 #endif // L_WITHSOCKETS
@@ -4415,11 +4722,12 @@ inline L_SOCKET l_socket_tcp(void)
 inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
 {
     L_SockAddrIn sa;
+    unsigned int ip;
     l_memset(&sa, 0, sizeof(sa));
     sa.sin_family = 2;
     sa.sin_port = l_htons((unsigned short)port);
-    sa.sin_addr = l_inet_addr(addr);
-    if (sa.sin_addr == 0) return -1;
+    if (!l_parse_ipv4(addr, &ip)) return -1;
+    sa.sin_addr = ip;
 #if defined(__x86_64__)
     long ret = my_syscall3(42 /*__NR_connect*/, sock, (long)&sa, (long)sizeof(sa));
 #elif defined(__aarch64__)
@@ -4519,11 +4827,12 @@ inline L_SOCKET l_socket_udp(void)
 inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
 {
     L_SockAddrIn sa;
+    unsigned int ip;
     l_memset(&sa, 0, sizeof(sa));
     sa.sin_family = 2;
     sa.sin_port = l_htons((unsigned short)port);
-    sa.sin_addr = l_inet_addr(addr);
-    if (sa.sin_addr == 0) return -1;
+    if (!l_parse_ipv4(addr, &ip)) return -1;
+    sa.sin_addr = ip;
 #if defined(__x86_64__)
     long ret = my_syscall6(44 /*__NR_sendto*/, s, (long)data, (long)len, 0, (long)&sa, (long)sizeof(sa));
 #elif defined(__aarch64__)
@@ -5631,11 +5940,12 @@ inline L_SOCKET l_socket_tcp(void)
 inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
 {
     struct sockaddr_in sa;
+    unsigned int ip;
     l_memset(&sa, 0, sizeof(sa));
     sa.sin_family = AF_INET;
     sa.sin_port = l_htons((unsigned short)port);
-    sa.sin_addr.s_addr = l_inet_addr(addr);
-    if (sa.sin_addr.s_addr == 0) return -1;
+    if (!l_parse_ipv4(addr, &ip)) return -1;
+    sa.sin_addr.s_addr = ip;
     if (connect((SOCKET)sock, (const struct sockaddr *)&sa, (int)sizeof(sa)) == SOCKET_ERROR)
         return -1;
     return 0;
@@ -5697,11 +6007,12 @@ inline L_SOCKET l_socket_udp(void)
 inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
 {
     struct sockaddr_in sa;
+    unsigned int ip;
     l_memset(&sa, 0, sizeof(sa));
     sa.sin_family = AF_INET;
     sa.sin_port = l_htons((unsigned short)port);
-    sa.sin_addr.s_addr = l_inet_addr(addr);
-    if (sa.sin_addr.s_addr == 0) return -1;
+    if (!l_parse_ipv4(addr, &ip)) return -1;
+    sa.sin_addr.s_addr = ip;
     int ret = sendto((SOCKET)s, (const char *)data, (int)len, 0, (const struct sockaddr *)&sa, (int)sizeof(sa));
     if (ret == SOCKET_ERROR) return -1;
     return (ptrdiff_t)ret;
@@ -5740,6 +6051,53 @@ inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
     for (int i = 0; i < count; i++) fds[i].revents = 0;
 
 #ifdef L_WITHSOCKETS
+    HANDLE handles[64];
+    int all_handles = 1;
+    for (int i = 0; i < count; i++) {
+        handles[i] = l_win_fd_handle(fds[i].fd);
+        if (handles[i] == INVALID_HANDLE_VALUE)
+            all_handles = 0;
+    }
+
+    if (all_handles) {
+        DWORD start = GetTickCount();
+        for (;;) {
+            int ready = 0;
+            for (int i = 0; i < count; i++) {
+                DWORD type = GetFileType(handles[i]);
+                if ((fds[i].events & L_POLLIN) && type == FILE_TYPE_PIPE) {
+                    DWORD avail = 0;
+                    if (PeekNamedPipe(handles[i], NULL, 0, NULL, &avail, NULL)) {
+                        if (avail > 0) {
+                            fds[i].revents |= L_POLLIN;
+                            ready++;
+                        }
+                    } else {
+                        DWORD err = GetLastError();
+                        if (err == ERROR_BROKEN_PIPE || err == ERROR_PIPE_NOT_CONNECTED)
+                            fds[i].revents |= L_POLLHUP;
+                        else
+                            fds[i].revents |= L_POLLERR;
+                        ready++;
+                    }
+                } else {
+                    DWORD result = WaitForSingleObject(handles[i], 0);
+                    if (result == WAIT_OBJECT_0) {
+                        fds[i].revents |= fds[i].events;
+                        ready++;
+                    } else if (result == WAIT_FAILED) {
+                        fds[i].revents |= L_POLLERR;
+                        ready++;
+                    }
+                }
+            }
+            if (ready > 0) return ready;
+            if (timeout_ms == 0) return 0;
+            if (timeout_ms > 0 && (DWORD)timeout_ms <= GetTickCount() - start) return 0;
+            Sleep(1);
+        }
+    }
+
     /* Use select() — works for sockets on Windows.
        L_SOCKET values are raw Winsock SOCKET handles (not fd-table indices). */
     fd_set rfds, wfds, efds;

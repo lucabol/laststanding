@@ -686,3 +686,5 @@ Finalized the 10-feature sprint: README, CI, commit, push.
 - gen-docs.ps1 regenerates the function reference table between `<!-- BEGIN FUNCTION REFERENCE -->` and `<!-- END FUNCTION REFERENCE -->` markers. Safe to run repeatedly — it's idempotent.
 - ci.ps1 also calls gen-docs.ps1 at the end of a full run, so docs are regenerated automatically during CI.
 - The "Scope — Not Included" section in README was stale — still said "no sockets" despite TCP/UDP being implemented. Always check scope claims when adding features that invalidate them.
+- Hostname resolution is exposed as `l_resolve(const char *hostname, char *ip_out)`, with IPv4 passthrough so callers can hand it either a dotted quad or a hostname; `l_inet_addr` remains parser-only and still returns 0 for `"localhost"`.
+- Unix hostname lookup should stay allocation-free and local-first: check `/etc/hosts` before doing a single UDP A-record query to the first `/etc/resolv.conf` nameserver; Windows can use Winsock name lookup already available from `ws2_32`.

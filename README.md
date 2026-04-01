@@ -709,6 +709,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_htons` | Convert 16-bit value from host to network byte order | All |
 | `l_htonl` | Convert 32-bit value from host to network byte order | All |
 | `l_inet_addr` | Parse dotted-quad IP string to network-order u32. Returns 0 on error. | All |
+| `l_resolve` | Resolve hostname to IPv4 dotted-quad string. ip_out must be at least 16 bytes. If hostname is already IPv4 text, copies it unchanged. Returns 0 on success, -1 on error. | All |
 | **TCP socket functions** | | |
 | `l_socket_tcp` | Create a TCP socket. Returns socket fd or -1 on error. | All |
 | `l_socket_connect` | Connect to addr:port. Returns 0 on success, -1 on error. | All |
@@ -805,7 +806,7 @@ Every program in `test/` compiles to a small, self-contained binary with no libc
 | **grep** | Substring or glob pattern filter (`-g` flag) | [grep.c](test/grep.c) |
 | **hexdump** | Hex + ASCII file dump | [hexdump.c](test/hexdump.c) |
 | **hello** | Hello world (README example) | [hello.c](test/hello.c) |
-| **http_get** | Simple HTTP GET over TCP sockets (IP only, no DNS) | [http_get.c](test/http_get.c) |
+| **http_get** | Simple HTTP GET over TCP sockets (IPv4 or hostname) | [http_get.c](test/http_get.c) |
 | **file_io** | File read/write (README example) | [file_io.c](test/file_io.c) |
 | **ls** | Directory listing (`-a`, `-l` with timestamps) | [ls.c](test/ls.c) |
 | **printenv** | Print environment variables | [printenv.c](test/printenv.c) |
