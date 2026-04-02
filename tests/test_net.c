@@ -258,10 +258,38 @@ void test_udp(void) {
     TEST_SECTION_PASS("UDP sockets");
 }
 
+void test_valid_hostname(void) {
+    TEST_FUNCTION("l_valid_hostname");
+
+    /* Valid hostnames */
+    TEST_ASSERT(l_valid_hostname("example.com") == 1, "valid: simple domain");
+    TEST_ASSERT(l_valid_hostname("localhost") == 1, "valid: single label");
+    TEST_ASSERT(l_valid_hostname("sub.domain.example.co.uk") == 1, "valid: multi-label");
+    TEST_ASSERT(l_valid_hostname("a1b2c3") == 1, "valid: alphanumeric");
+    TEST_ASSERT(l_valid_hostname("my-host.example.com") == 1, "valid: hyphen in label");
+    TEST_ASSERT(l_valid_hostname("A") == 1, "valid: single uppercase letter");
+    TEST_ASSERT(l_valid_hostname("UPPER.COM") == 1, "valid: all uppercase");
+    TEST_ASSERT(l_valid_hostname("xn--nxasmq6b.com") == 1, "valid: IDN punycode label");
+
+    /* Invalid hostnames */
+    TEST_ASSERT(l_valid_hostname(NULL) == 0, "invalid: NULL pointer");
+    TEST_ASSERT(l_valid_hostname("") == 0, "invalid: empty string");
+    TEST_ASSERT(l_valid_hostname("-bad.com") == 0, "invalid: label starts with hyphen");
+    TEST_ASSERT(l_valid_hostname("bad-.com") == 0, "invalid: label ends with hyphen");
+    TEST_ASSERT(l_valid_hostname(".bad.com") == 0, "invalid: starts with dot");
+    TEST_ASSERT(l_valid_hostname("bad..com") == 0, "invalid: consecutive dots");
+    TEST_ASSERT(l_valid_hostname("bad host") == 0, "invalid: space in name");
+    TEST_ASSERT(l_valid_hostname("bad!.com") == 0, "invalid: special character");
+    TEST_ASSERT(l_valid_hostname("com.") == 0, "invalid: trailing dot (empty last label)");
+
+    TEST_SECTION_PASS("l_valid_hostname");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     test_sockets();
     test_udp();
+    test_valid_hostname();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");

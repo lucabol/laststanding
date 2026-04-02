@@ -1049,6 +1049,30 @@ void test_snprintf(void) {
     l_snprintf(buf, sizeof(buf), "%lu", (unsigned long)999999UL);
     TEST_ASSERT(l_strcmp(buf, "999999") == 0, "%lu unsigned long");
 
+    /* %lld long long */
+    l_snprintf(buf, sizeof(buf), "%lld", (long long)-1LL);
+    TEST_ASSERT(l_strcmp(buf, "-1") == 0, "%lld negative one");
+    l_snprintf(buf, sizeof(buf), "%lld", (long long)9223372036854775807LL);
+    TEST_ASSERT(l_strcmp(buf, "9223372036854775807") == 0, "%lld INT64_MAX");
+
+    /* %llu unsigned long long */
+    l_snprintf(buf, sizeof(buf), "%llu", (unsigned long long)0ULL);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%llu zero");
+    l_snprintf(buf, sizeof(buf), "%llu", (unsigned long long)18446744073709551615ULL);
+    TEST_ASSERT(l_strcmp(buf, "18446744073709551615") == 0, "%llu UINT64_MAX");
+
+    /* %p pointer */
+    l_snprintf(buf, sizeof(buf), "%p", (void *)0);
+    TEST_ASSERT(l_strcmp(buf, "0x0") == 0, "%p null pointer");
+    l_snprintf(buf, sizeof(buf), "%p", (void *)0xFF);
+    TEST_ASSERT(l_strcmp(buf, "0xff") == 0, "%p 0xFF");
+
+    /* %zu size_t */
+    l_snprintf(buf, sizeof(buf), "%zu", (size_t)0);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%zu zero");
+    l_snprintf(buf, sizeof(buf), "%zu", (size_t)4096);
+    TEST_ASSERT(l_strcmp(buf, "4096") == 0, "%zu 4096");
+
     /* buffer truncation: return value = total chars that would be written */
     int ret = l_snprintf(buf, 4, "hello");
     TEST_ASSERT(ret == 5, "truncation: return value is full length");
