@@ -35,6 +35,7 @@ foreach ($f in $files) {
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $CC
     $psi.Arguments = "-I. -I$relDir `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
+    $psi.WorkingDirectory = $PWD.Path
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
     $psi.RedirectStandardError = $true
