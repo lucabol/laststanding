@@ -27,13 +27,18 @@ foreach ($f in $files) {
         $extraLibs = "-lws2_32"
     }
 
+    # Add -I<source_dir> so includes relative to the source file resolve
+    # (e.g. test_support.h in tests/) regardless of which clang is on PATH.
+    $srcDir = $f.DirectoryName
+
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $CC
-    $psi.Arguments = "-I. `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
+    $psi.Arguments = "-I. -I`"$srcDir`" `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
+    $psi.RedirectStandardError = $true
     $proc = [System.Diagnostics.Process]::Start($psi)
-    [void]$procs.Add(@{ Name = $name; Proc = $proc })
+    [void]$procs.Add(@{ Name = $name; Proc = $proc; SrcFile = $f.FullName })
 
     # Throttle to $maxJobs concurrent processes
     while (($procs | Where-Object { -not $_.Proc.HasExited }).Count -ge $maxJobs) {
@@ -43,11 +48,19 @@ foreach ($f in $files) {
 
 # Wait for remaining
 foreach ($p in $procs) {
+    $stderr = $p.Proc.StandardError.ReadToEnd()
     $p.Proc.WaitForExit()
-    if ($p.Proc.ExitCode -ne 0) { [void]$failed.Add($p.Name) }
+    if ($p.Proc.ExitCode -ne 0) {
+        [void]$failed.Add(@{ Name = $p.Name; Stderr = $stderr })
+    }
 }
 
 if ($failed.Count -gt 0) {
-    foreach ($n in $failed) { Write-Host "FAILED: $n" }
+    foreach ($entry in $failed) {
+        Write-Host "FAILED: $($entry.Name)"
+        if ($entry.Stderr) {
+            Write-Host $entry.Stderr
+        }
+    }
     exit 1
 }
