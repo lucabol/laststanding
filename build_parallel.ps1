@@ -27,13 +27,14 @@ foreach ($f in $files) {
         $extraLibs = "-lws2_32"
     }
 
-    # Add -I<source_dir> so includes relative to the source file resolve
+    # Add -I<relative_dir> so includes relative to the source file resolve
     # (e.g. test_support.h in tests/) regardless of which clang is on PATH.
-    $srcDir = $f.DirectoryName
+    # Use the relative directory name (e.g. "tests", "examples") for portability.
+    $relDir = $f.Directory.Name
 
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $CC
-    $psi.Arguments = "-I. -I`"$srcDir`" `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
+    $psi.Arguments = "-I. -I$relDir `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
     $psi.RedirectStandardError = $true
