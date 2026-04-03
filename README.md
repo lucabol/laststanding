@@ -502,6 +502,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strcspn` | Returns length of initial segment of s consisting entirely of bytes NOT in reject | All |
 | `l_strpbrk` | Returns pointer to first occurrence in s of any character in accept, or NULL | All |
 | `l_strtok_r` | Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant) | All |
+| `l_strsep` | Extracts token from *stringp delimited by any char in delim (BSD strsep); advances *stringp past delimiter | All |
 | `l_basename` | Returns pointer to the filename component of path (after last '/' or '\') | All |
 | `l_dirname` | Writes the directory component of path into buf (up to bufsize), returns buf | All |
 | `l_path_join` | Joins directory and filename with separator, returns buf | All |
@@ -531,6 +532,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strtoll` | Converts a string to a long long (64-bit); auto-detects base when base==0; handles leading sign; sets *endptr past last digit | All |
 | `l_strtod` | Converts a string to a double; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit | All |
 | `l_atof` | Converts a string to a double (convenience wrapper around l_strtod) | All |
+| `l_strtof` | Converts a string to a float; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit | All |
 | **Math functions** | | |
 | `l_fabs` | Returns the absolute value of a double | All |
 | `l_floor` | Rounds toward negative infinity | All |
