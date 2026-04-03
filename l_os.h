@@ -6152,6 +6152,11 @@ inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
 #define L_SIGTERM 15
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wstatic-in-inline"
+#endif
+
 static L_SigHandler l_win_sig_int_handler;
 static L_SigHandler l_win_sig_term_handler;
 
@@ -6185,6 +6190,10 @@ static inline L_SigHandler l_signal(int sig, L_SigHandler handler)
     }
     return prev;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 // l_writev — Windows: loop over iovecs
 inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
