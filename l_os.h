@@ -6669,8 +6669,9 @@ static inline int l_unsetenv(const char *name) {
 #else
 
 // Linux: manipulate the environ array directly.
-// Uses a small static pool for new/modified entries.
-#define L_ENV_POOL_SIZE 128
+// Uses a static pool for new/modified entries.
+// 512 slots handles CI runners with 100-200+ env vars plus headroom for new entries.
+#define L_ENV_POOL_SIZE 512
 #define L_ENV_BUF_SIZE 8192
 
 static char l_env_buf[L_ENV_BUF_SIZE];
