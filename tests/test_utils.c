@@ -690,8 +690,43 @@ void test_str_replace_helper(void) {
     TEST_SECTION_PASS("l_str_replace");
 }
 
+// Comparator for large structs — compares by the first int field
+typedef struct { int key; char pad[512]; } BigElem;
+static int big_elem_cmp(const void *a, const void *b) {
+    int ka = ((const BigElem *)a)->key;
+    int kb = ((const BigElem *)b)->key;
+    return (ka > kb) - (ka < kb);
+}
+
+void test_qsort_large_element(void) {
+    TEST_FUNCTION("l_qsort large elements (>256 bytes)");
+
+    BigElem arr[5];
+    int keys[] = {5, 3, 1, 4, 2};
+    for (int i = 0; i < 5; i++) {
+        l_memset(&arr[i], 0, sizeof(BigElem));
+        arr[i].key = keys[i];
+        l_memset(arr[i].pad, (char)('A' + i), sizeof(arr[i].pad));
+    }
+
+    l_qsort(arr, 5, sizeof(BigElem), big_elem_cmp);
+
+    TEST_ASSERT(arr[0].key == 1, "large elem sort [0]==1");
+    TEST_ASSERT(arr[1].key == 2, "large elem sort [1]==2");
+    TEST_ASSERT(arr[2].key == 3, "large elem sort [2]==3");
+    TEST_ASSERT(arr[3].key == 4, "large elem sort [3]==4");
+    TEST_ASSERT(arr[4].key == 5, "large elem sort [4]==5");
+
+    // Verify padding survived intact (originally key=1 was arr[2], pad='C')
+    TEST_ASSERT(arr[0].pad[0] == 'C', "large elem pad preserved for key 1");
+    TEST_ASSERT(arr[4].pad[0] == 'A', "large elem pad preserved for key 5");
+
+    TEST_SECTION_PASS("l_qsort large elements");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
+    test_qsort_large_element();
     test_time();
     test_arena();
     test_buf();

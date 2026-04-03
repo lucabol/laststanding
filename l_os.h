@@ -2280,20 +2280,39 @@ inline void *l_memcpy(void *dst, const void *src, size_t len)
 static inline void l_qsort(void *base, size_t nmemb, size_t size, int (*cmp)(const void *, const void *)) {
     if (nmemb < 2) return;
     char *b = (char *)base;
+
+    // Stack buffer for the insertion-sort temp; fall back to byte-by-byte
+    // swap when the element is too large (avoids heap allocation).
     char tmp[256];
+    int use_tmp = (size <= sizeof(tmp));
 
     size_t gap = 1;
     while (gap < nmemb / 3) gap = gap * 3 + 1;
 
     for (; gap > 0; gap = (gap - 1) / 3) {
         for (size_t i = gap; i < nmemb; i++) {
-            l_memcpy(tmp, b + i * size, size);
-            size_t j = i;
-            while (j >= gap && cmp(b + (j - gap) * size, tmp) > 0) {
-                l_memcpy(b + j * size, b + (j - gap) * size, size);
-                j -= gap;
+            if (use_tmp) {
+                l_memcpy(tmp, b + i * size, size);
+                size_t j = i;
+                while (j >= gap && cmp(b + (j - gap) * size, tmp) > 0) {
+                    l_memcpy(b + j * size, b + (j - gap) * size, size);
+                    j -= gap;
+                }
+                l_memcpy(b + j * size, tmp, size);
+            } else {
+                // Byte-by-byte swap path for large elements
+                size_t j = i;
+                while (j >= gap && cmp(b + (j - gap) * size, b + j * size) > 0) {
+                    char *a_ptr = b + (j - gap) * size;
+                    char *b_ptr = b + j * size;
+                    for (size_t k = 0; k < size; k++) {
+                        char t = a_ptr[k];
+                        a_ptr[k] = b_ptr[k];
+                        b_ptr[k] = t;
+                    }
+                    j -= gap;
+                }
             }
-            l_memcpy(b + j * size, tmp, size);
         }
     }
 }
