@@ -6,6 +6,7 @@
 tags
 test_*
 !tests/test_*.c
+!tests/test_support.h
 bin/*
 .cache/
 compile_commands.json
