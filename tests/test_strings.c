@@ -1515,6 +1515,83 @@ void test_strsep(void) {
     TEST_SECTION_PASS("l_strsep");
 }
 
+void test_bin2hex_hex2bin(void) {
+    TEST_FUNCTION("l_bin2hex / l_hex2bin");
+    {
+        unsigned char data[] = {0xDE, 0xAD, 0xBE, 0xEF};
+        char hex[9];
+        int n = l_bin2hex(hex, data, 4);
+        TEST_ASSERT(n == 8, "bin2hex returns 8 for 4 bytes");
+        TEST_ASSERT(l_strcmp(hex, "deadbeef") == 0, "bin2hex produces deadbeef");
+    }
+    {
+        unsigned char out[4];
+        int n = l_hex2bin(out, "DEADBEEF", 8);
+        TEST_ASSERT(n == 4, "hex2bin returns 4 for 8 hex chars");
+        TEST_ASSERT(out[0] == 0xDE && out[1] == 0xAD && out[2] == 0xBE && out[3] == 0xEF, "hex2bin uppercase");
+    }
+    {
+        unsigned char out[4];
+        int n = l_hex2bin(out, "deadbeef", 8);
+        TEST_ASSERT(n == 4, "hex2bin lowercase returns 4");
+        TEST_ASSERT(out[0] == 0xDE && out[1] == 0xAD, "hex2bin lowercase values");
+    }
+    {
+        unsigned char out[1];
+        int n = l_hex2bin(out, "ZZ", 2);
+        TEST_ASSERT(n == -1, "hex2bin invalid char returns -1");
+    }
+    {
+        unsigned char out[1];
+        int n = l_hex2bin(out, "abc", 3);
+        TEST_ASSERT(n == -1, "hex2bin odd length returns -1");
+    }
+    {
+        char hex[1];
+        int n = l_bin2hex(hex, "", 0);
+        TEST_ASSERT(n == 0, "bin2hex zero length returns 0");
+        TEST_ASSERT(hex[0] == '\0', "bin2hex zero length NUL-terminates");
+    }
+    /* Roundtrip */
+    {
+        unsigned char data[] = {0x00, 0x01, 0x7F, 0x80, 0xFF};
+        char hex[11];
+        unsigned char back[5];
+        l_bin2hex(hex, data, 5);
+        int n = l_hex2bin(back, hex, 10);
+        TEST_ASSERT(n == 5, "roundtrip returns 5");
+        TEST_ASSERT(l_memcmp(data, back, 5) == 0, "roundtrip matches");
+    }
+    TEST_SECTION_PASS("l_bin2hex / l_hex2bin");
+}
+
+void test_printf_family(void) {
+    TEST_FUNCTION("l_printf / l_fprintf / l_vprintf / l_vfprintf");
+    /* Test via l_snprintf and l_vsnprintf since printf is a thin wrapper */
+    {
+        char buf[128];
+        int n = l_snprintf(buf, sizeof(buf), "hello %s %d", "world", 42);
+        TEST_ASSERT(n == 14, "snprintf returns 14");
+        TEST_ASSERT(l_strcmp(buf, "hello world 42") == 0, "snprintf formats correctly");
+    }
+    /* l_fprintf to a pipe and read back */
+    {
+        L_FD fds[2];
+        int r = l_pipe(fds);
+        TEST_ASSERT(r == 0, "pipe for fprintf test");
+        int n = l_fprintf(fds[1], "test %d %s", 99, "ok");
+        l_close(fds[1]);
+        TEST_ASSERT(n > 0, "fprintf returns positive");
+        char buf[64];
+        ptrdiff_t rd = l_read(fds[0], buf, sizeof(buf) - 1);
+        TEST_ASSERT(rd > 0, "read from pipe");
+        buf[rd] = '\0';
+        TEST_ASSERT(l_strcmp(buf, "test 99 ok") == 0, "fprintf output matches");
+        l_close(fds[0]);
+    }
+    TEST_SECTION_PASS("l_printf family");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     test_strlen();
@@ -1558,6 +1635,8 @@ int main(int argc, char *argv[]) {
     test_isprint_isxdigit();
     test_rand_srand();
     test_qsort_bsearch();
+    test_bin2hex_hex2bin();
+    test_printf_family();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");

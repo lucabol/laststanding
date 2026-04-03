@@ -503,6 +503,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_strpbrk` | Returns pointer to first occurrence in s of any character in accept, or NULL | All |
 | `l_strtok_r` | Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant) | All |
 | `l_strsep` | Extracts token from *stringp delimited by any char in delim (BSD strsep); advances *stringp past delimiter | All |
+| `l_bin2hex` | Converts binary data to lowercase hex string. NUL-terminates dst. Returns 2*len. | All |
+| `l_hex2bin` | Converts hex string to binary data. Returns bytes written, or -1 on invalid input. | All |
 | `l_basename` | Returns pointer to the filename component of path (after last '/' or '\') | All |
 | `l_dirname` | Writes the directory component of path into buf (up to bufsize), returns buf | All |
 | `l_path_join` | Joins directory and filename with separator, returns buf | All |
@@ -545,6 +547,15 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_log` | Natural logarithm via mantissa/exponent decomposition | All |
 | `l_pow` | Power: base^exp via exp(exp * log(base)) | All |
 | `l_atan2` | Two-argument arctangent with quadrant handling | All |
+| `l_tan` | Tangent: sin(x)/cos(x) | All |
+| `l_asin` | Inverse sine via Newton's method, valid for [-1,1] | All |
+| `l_acos` | Inverse cosine: pi/2 - asin(x) | All |
+| `l_atan` | Inverse tangent: asin(x/sqrt(1+x*x)) | All |
+| `l_log10` | Base-10 logarithm: log(x)/log(10) | All |
+| `l_log2` | Base-2 logarithm: log(x)/log(2) | All |
+| `l_round` | Round to nearest integer (halfway rounds away from zero) | All |
+| `l_trunc` | Truncate toward zero | All |
+| `l_hypot` | Euclidean distance, overflow-safe: sqrt(x*x+y*y) | All |
 | `l_itoa` | Converts an integer to a string in the given radix (2-36) | All |
 | **Memory functions** | | |
 | `l_memmove` | Copies len bytes from src to dst, handling overlapping regions | All |
@@ -562,6 +573,10 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_vsnprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
 | `l_snprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
 | `l_dprintf` | Writes formatted output to file descriptor fd. Returns number of bytes written. | All |
+| `l_printf` | Writes formatted output to stdout. Returns number of bytes written. | All |
+| `l_vfprintf` | Writes formatted output to file descriptor fd via va_list. Returns number of bytes written. | All |
+| `l_vprintf` | Writes formatted output to stdout via va_list. Returns number of bytes written. | All |
+| `l_fprintf` | Writes formatted output to file descriptor fd. Returns number of bytes written. | All |
 | **System functions** | | |
 | `l_exit` | Terminates the process with the given status code | All |
 | `l_open` | Opens a file with the given flags and mode, returns file descriptor | All |
@@ -679,6 +694,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | **Time conversion** | | |
 | `l_gmtime` | Convert Unix timestamp to UTC broken-down time. | All |
 | `l_localtime` | Convert Unix timestamp to local broken-down time. | All |
+| `l_mktime` | Convert UTC broken-down time to Unix timestamp (seconds since 1970-01-01 00:00:00 UTC). | All |
 | `l_strftime` | Format time into buffer. Returns bytes written (excluding NUL). | All |
 | **Glob pattern matching** | | |
 | `l_fnmatch` | Match pattern against string. Returns 0 if matches, -1 if no match. | All |

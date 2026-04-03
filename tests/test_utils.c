@@ -656,6 +656,111 @@ void test_math(void) {
     TEST_SECTION_PASS("math");
 }
 
+void test_math_extended(void) {
+    TEST_FUNCTION("l_tan");
+    TEST_ASSERT(l_fabs(l_tan(0.0)) < 1e-10, "tan(0) == 0");
+    TEST_ASSERT(l_fabs(l_tan(L_PI / 4.0) - 1.0) < 1e-10, "tan(pi/4) ~= 1.0");
+    TEST_ASSERT(l_fabs(l_tan(L_PI)) < 1e-8, "tan(pi) ~= 0");
+
+    TEST_FUNCTION("l_asin");
+    TEST_ASSERT(l_fabs(l_asin(0.0)) < 1e-10, "asin(0) == 0");
+    TEST_ASSERT(l_fabs(l_asin(1.0) - L_PI_2) < 1e-10, "asin(1) ~= pi/2");
+    TEST_ASSERT(l_fabs(l_asin(-1.0) + L_PI_2) < 1e-10, "asin(-1) ~= -pi/2");
+    TEST_ASSERT(l_fabs(l_asin(0.5) - 0.5235987755982988) < 1e-10, "asin(0.5) ~= pi/6");
+
+    TEST_FUNCTION("l_acos");
+    TEST_ASSERT(l_fabs(l_acos(1.0)) < 1e-10, "acos(1) == 0");
+    TEST_ASSERT(l_fabs(l_acos(0.0) - L_PI_2) < 1e-10, "acos(0) ~= pi/2");
+    TEST_ASSERT(l_fabs(l_acos(-1.0) - L_PI) < 1e-10, "acos(-1) ~= pi");
+
+    TEST_FUNCTION("l_atan");
+    TEST_ASSERT(l_fabs(l_atan(0.0)) < 1e-10, "atan(0) == 0");
+    TEST_ASSERT(l_fabs(l_atan(1.0) - L_PI / 4.0) < 1e-10, "atan(1) ~= pi/4");
+    TEST_ASSERT(l_fabs(l_atan(-1.0) + L_PI / 4.0) < 1e-10, "atan(-1) ~= -pi/4");
+
+    TEST_FUNCTION("l_log10");
+    TEST_ASSERT(l_fabs(l_log10(1.0)) < 1e-10, "log10(1) == 0");
+    TEST_ASSERT(l_fabs(l_log10(10.0) - 1.0) < 1e-10, "log10(10) ~= 1.0");
+    TEST_ASSERT(l_fabs(l_log10(100.0) - 2.0) < 1e-10, "log10(100) ~= 2.0");
+    TEST_ASSERT(l_fabs(l_log10(1000.0) - 3.0) < 1e-10, "log10(1000) ~= 3.0");
+
+    TEST_FUNCTION("l_log2");
+    TEST_ASSERT(l_fabs(l_log2(1.0)) < 1e-10, "log2(1) == 0");
+    TEST_ASSERT(l_fabs(l_log2(2.0) - 1.0) < 1e-10, "log2(2) ~= 1.0");
+    TEST_ASSERT(l_fabs(l_log2(8.0) - 3.0) < 1e-10, "log2(8) ~= 3.0");
+    TEST_ASSERT(l_fabs(l_log2(1024.0) - 10.0) < 1e-10, "log2(1024) ~= 10.0");
+
+    TEST_FUNCTION("l_round");
+    TEST_ASSERT(l_round(2.3) == 2.0, "round(2.3) == 2.0");
+    TEST_ASSERT(l_round(2.7) == 3.0, "round(2.7) == 3.0");
+    TEST_ASSERT(l_round(2.5) == 3.0, "round(2.5) == 3.0");
+    TEST_ASSERT(l_round(-2.3) == -2.0, "round(-2.3) == -2.0");
+    TEST_ASSERT(l_round(-2.7) == -3.0, "round(-2.7) == -3.0");
+    TEST_ASSERT(l_round(-2.5) == -3.0, "round(-2.5) == -3.0");
+    TEST_ASSERT(l_round(0.0) == 0.0, "round(0) == 0");
+
+    TEST_FUNCTION("l_trunc");
+    TEST_ASSERT(l_trunc(2.9) == 2.0, "trunc(2.9) == 2.0");
+    TEST_ASSERT(l_trunc(-2.9) == -2.0, "trunc(-2.9) == -2.0");
+    TEST_ASSERT(l_trunc(0.0) == 0.0, "trunc(0) == 0");
+    TEST_ASSERT(l_trunc(5.0) == 5.0, "trunc(5.0) == 5.0");
+
+    TEST_FUNCTION("l_hypot");
+    TEST_ASSERT(l_fabs(l_hypot(3.0, 4.0) - 5.0) < 1e-10, "hypot(3,4) ~= 5.0");
+    TEST_ASSERT(l_fabs(l_hypot(0.0, 5.0) - 5.0) < 1e-10, "hypot(0,5) ~= 5.0");
+    TEST_ASSERT(l_fabs(l_hypot(5.0, 0.0) - 5.0) < 1e-10, "hypot(5,0) ~= 5.0");
+    TEST_ASSERT(l_fabs(l_hypot(1.0, 1.0) - l_sqrt(2.0)) < 1e-10, "hypot(1,1) ~= sqrt(2)");
+
+    TEST_SECTION_PASS("math extended");
+}
+
+void test_mktime(void) {
+    TEST_FUNCTION("l_mktime");
+
+    /* Unix epoch: 1970-01-01 00:00:00 UTC */
+    {
+        L_Tm tm = {0};
+        tm.year = 70; tm.mon = 0; tm.mday = 1;
+        tm.hour = 0; tm.min = 0; tm.sec = 0;
+        long long ts = l_mktime(&tm);
+        TEST_ASSERT(ts == 0, "mktime epoch == 0");
+    }
+    /* 2000-01-01 00:00:00 UTC = 946684800 */
+    {
+        L_Tm tm = {0};
+        tm.year = 100; tm.mon = 0; tm.mday = 1;
+        long long ts = l_mktime(&tm);
+        TEST_ASSERT(ts == 946684800LL, "mktime 2000-01-01");
+    }
+    /* 2024-02-29 12:30:45 UTC (leap year) */
+    {
+        L_Tm tm = {0};
+        tm.year = 124; tm.mon = 1; tm.mday = 29;
+        tm.hour = 12; tm.min = 30; tm.sec = 45;
+        long long ts = l_mktime(&tm);
+        TEST_ASSERT(ts == 1709209845LL, "mktime 2024-02-29 12:30:45");
+    }
+    /* Roundtrip: mktime(gmtime(ts)) == ts */
+    {
+        long long test_times[] = {0, 86400, 946684800LL, 1609459200LL, 1700000000LL, -86400};
+        for (int i = 0; i < 6; i++) {
+            L_Tm tm = l_gmtime(test_times[i]);
+            long long back = l_mktime(&tm);
+            TEST_ASSERT(back == test_times[i], "mktime/gmtime roundtrip");
+        }
+    }
+    /* 1969-12-31 23:59:59 UTC = -1 */
+    {
+        L_Tm tm = {0};
+        tm.year = 69; tm.mon = 11; tm.mday = 31;
+        tm.hour = 23; tm.min = 59; tm.sec = 59;
+        long long ts = l_mktime(&tm);
+        TEST_ASSERT(ts == -1, "mktime pre-epoch -1");
+    }
+
+    TEST_SECTION_PASS("l_mktime");
+}
+
 void test_strtof(void) {
     TEST_FUNCTION("l_strtof");
     char *ep;
@@ -809,6 +914,8 @@ int main(int argc, char *argv[]) {
     test_fnmatch();
     test_sha256();
     test_math();
+    test_math_extended();
+    test_mktime();
     test_strtof();
     test_str_replace_helper();
 

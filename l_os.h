@@ -318,6 +318,10 @@ char *l_strpbrk(const char *s, const char *accept);
 char *l_strtok_r(char *str, const char *delim, char **saveptr);
 /// Extracts token from *stringp delimited by any char in delim (BSD strsep); advances *stringp past delimiter
 char *l_strsep(char **stringp, const char *delim);
+/// Converts binary data to lowercase hex string. NUL-terminates dst. Returns 2*len.
+static inline int l_bin2hex(char *dst, const void *src, size_t len);
+/// Converts hex string to binary data. Returns bytes written, or -1 on invalid input.
+static inline int l_hex2bin(void *dst, const char *src, size_t len);
 /// Returns pointer to the filename component of path (after last '/' or '\')
 const char *l_basename(const char *path);
 /// Writes the directory component of path into buf (up to bufsize), returns buf
@@ -402,6 +406,24 @@ static inline double l_log(double x);
 static inline double l_pow(double base, double exponent);
 /// Two-argument arctangent with quadrant handling
 static inline double l_atan2(double y, double x);
+/// Tangent: sin(x)/cos(x)
+static inline double l_tan(double x);
+/// Inverse sine via Newton's method, valid for [-1,1]
+static inline double l_asin(double x);
+/// Inverse cosine: pi/2 - asin(x)
+static inline double l_acos(double x);
+/// Inverse tangent: asin(x/sqrt(1+x*x))
+static inline double l_atan(double x);
+/// Base-10 logarithm: log(x)/log(10)
+static inline double l_log10(double x);
+/// Base-2 logarithm: log(x)/log(2)
+static inline double l_log2(double x);
+/// Round to nearest integer (halfway rounds away from zero)
+static inline double l_round(double x);
+/// Truncate toward zero
+static inline double l_trunc(double x);
+/// Euclidean distance, overflow-safe: sqrt(x*x+y*y)
+static inline double l_hypot(double x, double y);
 
 /// Converts an integer to a string in the given radix (2-36)
 char *l_itoa(int in, char* buffer, int radix);
@@ -444,6 +466,14 @@ static int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap);
 static int l_snprintf(char *buf, size_t n, const char *fmt, ...);
 /// Writes formatted output to file descriptor fd. Returns number of bytes written.
 static inline int l_dprintf(L_FD fd, const char *fmt, ...);
+/// Writes formatted output to stdout. Returns number of bytes written.
+static inline int l_printf(const char *fmt, ...);
+/// Writes formatted output to file descriptor fd via va_list. Returns number of bytes written.
+static inline int l_vfprintf(L_FD fd, const char *fmt, va_list ap);
+/// Writes formatted output to stdout via va_list. Returns number of bytes written.
+static inline int l_vprintf(const char *fmt, va_list ap);
+/// Writes formatted output to file descriptor fd. Returns number of bytes written.
+static inline int l_fprintf(L_FD fd, const char *fmt, ...);
 #endif
 
 // System functions
@@ -702,6 +732,8 @@ static inline int l_map_del(L_Map *m, const char *key, size_t keylen);
 static inline L_Tm l_gmtime(long long timestamp);
 /// Convert Unix timestamp to local broken-down time.
 static inline L_Tm l_localtime(long long timestamp);
+/// Convert UTC broken-down time to Unix timestamp (seconds since 1970-01-01 00:00:00 UTC).
+static inline long long l_mktime(L_Tm *tm);
 /// Format time into buffer. Returns bytes written (excluding NUL).
 static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm *tm);
 
@@ -1075,6 +1107,8 @@ int WINAPI mainCRTStartup(void)
 #  define strpbrk l_strpbrk
 #  define strtok_r l_strtok_r
 #  define strsep l_strsep
+#  define bin2hex l_bin2hex
+#  define hex2bin l_hex2bin
 #  define basename l_basename
 #  define dirname l_dirname
 
@@ -1113,6 +1147,15 @@ int WINAPI mainCRTStartup(void)
 #  define log   l_log
 #  define pow   l_pow
 #  define atan2 l_atan2
+#  define tan   l_tan
+#  define asin  l_asin
+#  define acos  l_acos
+#  define atan  l_atan
+#  define log10 l_log10
+#  define log2  l_log2
+#  define round l_round
+#  define trunc l_trunc
+#  define hypot l_hypot
 
 #  define memmove l_memmove
 #  define memset l_memset
@@ -1131,6 +1174,10 @@ int WINAPI mainCRTStartup(void)
 #  define vsnprintf l_vsnprintf
 #  define snprintf  l_snprintf
 #  define dprintf   l_dprintf
+#  define printf    l_printf
+#  define fprintf   l_fprintf
+#  define vprintf   l_vprintf
+#  define vfprintf  l_vfprintf
 
 #  define exit l_exit
 #  define close l_close
@@ -1192,6 +1239,7 @@ int WINAPI mainCRTStartup(void)
 #  define fnmatch l_fnmatch
 #  define system l_system
 #  define gmtime l_gmtime
+#  define mktime l_mktime
 #  define strftime l_strftime
 #  define open_read l_open_read
 #  define open_write l_open_write
@@ -2263,6 +2311,66 @@ static inline double l_atan2(double y, double x) {
     return r;
 }
 
+static inline double l_tan(double x) {
+    return l_sin(x) / l_cos(x);
+}
+
+static inline double l_asin(double x) {
+    if (x != x) return x; // NaN
+    if (x < -1.0 || x > 1.0) return 0.0 / 0.0; // NaN for out of range
+    if (x == 1.0) return L_PI_2;
+    if (x == -1.0) return -L_PI_2;
+    // Newton's method: find t such that sin(t) = x, starting from t = x
+    double t = x;
+    for (int i = 0; i < 50; i++) {
+        double st = l_sin(t);
+        double ct = l_cos(t);
+        if (l_fabs(ct) < 1e-15) break;
+        double dt = (st - x) / ct;
+        t -= dt;
+        if (l_fabs(dt) < 1e-15) break;
+    }
+    return t;
+}
+
+static inline double l_acos(double x) {
+    return L_PI_2 - l_asin(x);
+}
+
+static inline double l_atan(double x) {
+    return l_asin(x / l_sqrt(1.0 + x * x));
+}
+
+static inline double l_log10(double x) {
+    return l_log(x) / 2.302585092994046; // log(10)
+}
+
+static inline double l_log2(double x) {
+    return l_log(x) / 0.6931471805599453; // log(2) = L_LN2
+}
+
+static inline double l_round(double x) {
+    if (x >= 0.0) return l_floor(x + 0.5);
+    return l_ceil(x - 0.5);
+}
+
+static inline double l_trunc(double x) {
+    if (x != x) return x; // NaN
+    if (x == 0.0) return x;
+    return (double)(long long)x;
+}
+
+static inline double l_hypot(double x, double y) {
+    x = l_fabs(x);
+    y = l_fabs(y);
+    if (x == 0.0) return y;
+    if (y == 0.0) return x;
+    double mx = (x > y) ? x : y;
+    double mn = (x > y) ? y : x;
+    double r = mn / mx;
+    return mx * l_sqrt(1.0 + r * r);
+}
+
 //function to reverse a string
 inline void l_reverse(char str[], int length)
 {
@@ -2936,6 +3044,35 @@ inline char *l_strsep(char **stringp, const char *delim) {
         *stringp = (char *)0;
     }
     return tok;
+}
+
+static inline int l_bin2hex(char *dst, const void *src, size_t len) {
+    static const char hex[] = "0123456789abcdef";
+    const unsigned char *s = (const unsigned char *)src;
+    for (size_t i = 0; i < len; i++) {
+        dst[i * 2]     = hex[s[i] >> 4];
+        dst[i * 2 + 1] = hex[s[i] & 0x0F];
+    }
+    dst[len * 2] = '\0';
+    return (int)(len * 2);
+}
+
+static inline int l_hex2bin(void *dst, const char *src, size_t len) {
+    if (len % 2 != 0) return -1;
+    unsigned char *d = (unsigned char *)dst;
+    for (size_t i = 0; i < len; i += 2) {
+        unsigned char hi, lo;
+        if      (src[i] >= '0' && src[i] <= '9') hi = (unsigned char)(src[i] - '0');
+        else if (src[i] >= 'a' && src[i] <= 'f') hi = (unsigned char)(src[i] - 'a' + 10);
+        else if (src[i] >= 'A' && src[i] <= 'F') hi = (unsigned char)(src[i] - 'A' + 10);
+        else return -1;
+        if      (src[i+1] >= '0' && src[i+1] <= '9') lo = (unsigned char)(src[i+1] - '0');
+        else if (src[i+1] >= 'a' && src[i+1] <= 'f') lo = (unsigned char)(src[i+1] - 'a' + 10);
+        else if (src[i+1] >= 'A' && src[i+1] <= 'F') lo = (unsigned char)(src[i+1] - 'A' + 10);
+        else return -1;
+        d[i / 2] = (unsigned char)((hi << 4) | lo);
+    }
+    return (int)(len / 2);
 }
 
 inline const char *l_basename(const char *path) {
@@ -6386,9 +6523,41 @@ static inline int l_dprintf(L_FD fd, const char *fmt, ...) {
     }
     return 0;
 }
-#endif // L_WITHSNPRINTF
 
-// l_getenv: look up environment variable by name.
+/// Writes formatted output to file descriptor fd via va_list. Returns number of bytes written.
+static inline int l_vfprintf(L_FD fd, const char *fmt, va_list ap) {
+    char buf[1024];
+    int n = l_vsnprintf(buf, sizeof(buf), fmt, ap);
+    if (n > 0) {
+        int written = (int)l_write(fd, buf, (size_t)(n < (int)sizeof(buf) ? n : (int)sizeof(buf) - 1));
+        return written;
+    }
+    return 0;
+}
+
+/// Writes formatted output to stdout via va_list. Returns number of bytes written.
+static inline int l_vprintf(const char *fmt, va_list ap) {
+    return l_vfprintf(L_STDOUT, fmt, ap);
+}
+
+/// Writes formatted output to stdout. Returns number of bytes written.
+static inline int l_printf(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int written = l_vfprintf(L_STDOUT, fmt, ap);
+    va_end(ap);
+    return written;
+}
+
+/// Writes formatted output to file descriptor fd. Returns number of bytes written.
+static inline int l_fprintf(L_FD fd, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int written = l_vfprintf(fd, fmt, ap);
+    va_end(ap);
+    return written;
+}
+#endif // L_WITHSNPRINTF
 // On Unix: walks envp derived from argv (call l_getenv_init from main first).
 // On Windows: uses GetEnvironmentVariableW API directly.
 
@@ -7155,6 +7324,21 @@ static inline L_Tm l_localtime(long long timestamp) {
     }
 #endif
     return l_gmtime(timestamp + offset);
+}
+
+static inline long long l_mktime(L_Tm *tm) {
+    // Convert broken-down UTC time to Unix timestamp
+    long long y = (long long)tm->year + 1900;
+    int m = tm->mon + 1; // 1-based month
+    // Adjust year/month so March=1 for leap year calculation
+    if (m <= 2) { y--; m += 12; }
+    // Days from epoch using Rata Die variant
+    long long era = (y >= 0 ? y : y - 399) / 400;
+    long long yoe = y - era * 400; // year of era [0, 399]
+    long long doy = (153 * (m - 3) + 2) / 5 + tm->mday - 1; // day of year [0, 365]
+    long long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // day of era [0, 146096]
+    long long days = era * 146097 + doe - 719468; // days from Unix epoch
+    return days * 86400 + (long long)tm->hour * 3600 + (long long)tm->min * 60 + (long long)tm->sec;
 }
 
 static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm *tm) {
