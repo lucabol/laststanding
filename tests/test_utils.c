@@ -656,6 +656,71 @@ void test_math(void) {
     TEST_SECTION_PASS("math");
 }
 
+void test_strtof(void) {
+    TEST_FUNCTION("l_strtof");
+    char *ep;
+
+    /* Basic positive */
+    TEST_ASSERT(l_strtof("0", (char **)0) == 0.0f, "strtof '0'");
+    TEST_ASSERT(l_strtof("1", (char **)0) == 1.0f, "strtof '1'");
+    {
+        float v = l_strtof("3.14", (char **)0);
+        TEST_ASSERT(v > 3.13f && v < 3.15f, "strtof '3.14'");
+    }
+    TEST_ASSERT(l_strtof("100.0", (char **)0) == 100.0f, "strtof '100.0'");
+
+    /* Negative */
+    TEST_ASSERT(l_strtof("-1", (char **)0) == -1.0f, "strtof '-1'");
+    {
+        float v = l_strtof("-3.14", (char **)0);
+        TEST_ASSERT(v < -3.13f && v > -3.15f, "strtof '-3.14'");
+    }
+
+    /* Leading sign */
+    TEST_ASSERT(l_strtof("+2.5", (char **)0) == 2.5f, "strtof '+2.5'");
+
+    /* Leading whitespace */
+    TEST_ASSERT(l_strtof("  42.0", (char **)0) == 42.0f, "strtof leading spaces");
+
+    /* Exponent */
+    TEST_ASSERT(l_strtof("1e3", (char **)0) == 1000.0f, "strtof '1e3'");
+    TEST_ASSERT(l_strtof("1.5e2", (char **)0) == 150.0f, "strtof '1.5e2'");
+    {
+        float v = l_strtof("1E-1", (char **)0);
+        TEST_ASSERT(v > 0.09f && v < 0.11f, "strtof '1E-1'");
+    }
+    TEST_ASSERT(l_strtof("2.5e+1", (char **)0) == 25.0f, "strtof '2.5e+1'");
+    TEST_ASSERT(l_strtof("-1e2", (char **)0) == -100.0f, "strtof '-1e2'");
+
+    /* Fractional without leading digit */
+    TEST_ASSERT(l_strtof(".5", (char **)0) == 0.5f, "strtof '.5'");
+
+    /* endptr */
+    ep = (char *)0;
+    l_strtof("3.14xyz", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'x', "strtof endptr stops at non-numeric");
+
+    ep = (char *)0;
+    l_strtof("nope", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'n', "strtof no digits -> endptr at start");
+
+    /* Special: inf */
+    {
+        float inf_val = l_strtof("inf", (char **)0);
+        TEST_ASSERT(inf_val > 3.4e38f, "strtof 'inf' is infinity");
+        float ninf_val = l_strtof("-inf", (char **)0);
+        TEST_ASSERT(ninf_val < -3.4e38f, "strtof '-inf' is negative infinity");
+    }
+
+    /* Special: nan */
+    {
+        float nan_val = l_strtof("nan", (char **)0);
+        TEST_ASSERT(nan_val != nan_val, "strtof 'nan' is NaN");
+    }
+
+    TEST_SECTION_PASS("l_strtof");
+}
+
 void test_str_replace_helper(void) {
     TEST_FUNCTION("l_str_replace");
 
@@ -744,6 +809,7 @@ int main(int argc, char *argv[]) {
     test_fnmatch();
     test_sha256();
     test_math();
+    test_strtof();
     test_str_replace_helper();
 
     l_test_print_summary(passed_count, test_count);

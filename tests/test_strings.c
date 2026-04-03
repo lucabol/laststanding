@@ -1062,6 +1062,34 @@ void test_snprintf(void) {
     l_snprintf(buf, sizeof(buf), "%d + %d = %d", 1, 2, 3);
     TEST_ASSERT(l_strcmp(buf, "1 + 2 = 3") == 0, "multiple specifiers");
 
+    /* %lld long long */
+    l_snprintf(buf, sizeof(buf), "%lld", (long long)-1234567890123LL);
+    TEST_ASSERT(l_strcmp(buf, "-1234567890123") == 0, "%lld negative");
+
+    l_snprintf(buf, sizeof(buf), "%lld", (long long)0LL);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%lld zero");
+
+    /* %llu unsigned long long */
+    l_snprintf(buf, sizeof(buf), "%llu", (unsigned long long)18446744073709551615ULL);
+    TEST_ASSERT(l_strcmp(buf, "18446744073709551615") == 0, "%llu max");
+
+    l_snprintf(buf, sizeof(buf), "%llu", (unsigned long long)0ULL);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%llu zero");
+
+    /* %p pointer */
+    l_snprintf(buf, sizeof(buf), "%p", (void *)0);
+    TEST_ASSERT(l_strcmp(buf, "0x0") == 0, "%p null pointer");
+
+    l_snprintf(buf, sizeof(buf), "%p", (void *)(uintptr_t)0xABCD);
+    TEST_ASSERT(l_strcmp(buf, "0xabcd") == 0, "%p non-null");
+
+    /* %zu size_t */
+    l_snprintf(buf, sizeof(buf), "%zu", (size_t)42);
+    TEST_ASSERT(l_strcmp(buf, "42") == 0, "%zu basic");
+
+    l_snprintf(buf, sizeof(buf), "%zu", (size_t)0);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%zu zero");
+
     TEST_SECTION_PASS("l_snprintf");
 }
 
@@ -1409,6 +1437,84 @@ void test_qsort_bsearch(void) {
     TEST_SECTION_PASS("l_qsort/l_bsearch");
 }
 
+void test_strsep(void) {
+    TEST_FUNCTION("l_strsep");
+
+    /* Basic comma-separated parsing */
+    {
+        char str[] = "one,two,three";
+        char *p = str;
+        char *tok;
+
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "one") == 0, "strsep first token");
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "two") == 0, "strsep second token");
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "three") == 0, "strsep third token");
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok == (void *)0, "strsep returns NULL when done");
+        TEST_ASSERT(p == (void *)0, "strsep sets *stringp to NULL at end");
+    }
+
+    /* Empty tokens (differs from strtok_r) */
+    {
+        char str[] = "a,,b";
+        char *p = str;
+        char *tok;
+
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "a") == 0, "strsep before empty");
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "") == 0, "strsep empty token");
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "b") == 0, "strsep after empty");
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok == (void *)0, "strsep done after empty tokens");
+    }
+
+    /* NULL input */
+    {
+        char *p = (char *)0;
+        char *tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok == (void *)0, "strsep NULL input returns NULL");
+    }
+
+    /* No delimiter found */
+    {
+        char str[] = "hello";
+        char *p = str;
+        char *tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "hello") == 0, "strsep no delim returns whole string");
+        TEST_ASSERT(p == (void *)0, "strsep no delim sets *stringp to NULL");
+    }
+
+    /* Multiple delimiters */
+    {
+        char str[] = "a:b;c";
+        char *p = str;
+        char *tok;
+        tok = l_strsep(&p, ":;");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "a") == 0, "strsep multi-delim first");
+        tok = l_strsep(&p, ":;");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "b") == 0, "strsep multi-delim second");
+        tok = l_strsep(&p, ":;");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "c") == 0, "strsep multi-delim third");
+    }
+
+    /* Leading delimiter produces empty first token */
+    {
+        char str[] = ",hello";
+        char *p = str;
+        char *tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "") == 0, "strsep leading delim gives empty token");
+        tok = l_strsep(&p, ",");
+        TEST_ASSERT(tok != (void *)0 && l_strcmp(tok, "hello") == 0, "strsep after leading delim");
+    }
+
+    TEST_SECTION_PASS("l_strsep");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     test_strlen();
@@ -1446,6 +1552,7 @@ int main(int argc, char *argv[]) {
     test_strspn();
     test_strpbrk();
     test_strtok_r();
+    test_strsep();
     test_basename_dirname();
     test_min_max_clamp_abs();
     test_isprint_isxdigit();

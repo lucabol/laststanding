@@ -316,6 +316,8 @@ size_t l_strcspn(const char *s, const char *reject);
 char *l_strpbrk(const char *s, const char *accept);
 /// Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant)
 char *l_strtok_r(char *str, const char *delim, char **saveptr);
+/// Extracts token from *stringp delimited by any char in delim (BSD strsep); advances *stringp past delimiter
+char *l_strsep(char **stringp, const char *delim);
 /// Returns pointer to the filename component of path (after last '/' or '\')
 const char *l_basename(const char *path);
 /// Writes the directory component of path into buf (up to bufsize), returns buf
@@ -374,6 +376,8 @@ long long l_strtoll(const char *nptr, char **endptr, int base);
 double l_strtod(const char *nptr, char **endptr);
 /// Converts a string to a double (convenience wrapper around l_strtod)
 static inline double l_atof(const char *s);
+/// Converts a string to a float; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit
+float l_strtof(const char *nptr, char **endptr);
 
 // Math functions
 /// Returns the absolute value of a double
@@ -1070,6 +1074,7 @@ int WINAPI mainCRTStartup(void)
 #  define strcspn l_strcspn
 #  define strpbrk l_strpbrk
 #  define strtok_r l_strtok_r
+#  define strsep l_strsep
 #  define basename l_basename
 #  define dirname l_dirname
 
@@ -1093,6 +1098,7 @@ int WINAPI mainCRTStartup(void)
 #  define strtoull l_strtoull
 #  define strtoll l_strtoll
 #  define strtod  l_strtod
+#  define strtof  l_strtof
 #  define atof    l_atof
 #  define itoa l_itoa
 
@@ -1963,6 +1969,71 @@ inline double l_strtod(const char *nptr, char **endptr)
 }
 
 static inline double l_atof(const char *s) { return l_strtod(s, (char **)0); }
+
+inline float l_strtof(const char *nptr, char **endptr)
+{
+    const char *s = nptr;
+    while (l_isspace((unsigned char)*s)) s++;
+
+    int neg = 0;
+    if (*s == '-') { neg = 1; s++; }
+    else if (*s == '+') { s++; }
+
+    /* infinity */
+    if ((s[0] == 'i' || s[0] == 'I') &&
+        (s[1] == 'n' || s[1] == 'N') &&
+        (s[2] == 'f' || s[2] == 'F')) {
+        if (endptr) *endptr = (char *)(s + 3);
+        return neg ? -__builtin_inff() : __builtin_inff();
+    }
+    /* NaN */
+    if ((s[0] == 'n' || s[0] == 'N') &&
+        (s[1] == 'a' || s[1] == 'A') &&
+        (s[2] == 'n' || s[2] == 'N')) {
+        if (endptr) *endptr = (char *)(s + 3);
+        return __builtin_nanf("");
+    }
+
+    const char *start = s;
+    float val = 0.0f;
+
+    /* integer part */
+    while (*s >= '0' && *s <= '9')
+        val = val * 10.0f + (float)(*s++ - '0');
+
+    /* fractional part */
+    if (*s == '.') {
+        s++;
+        float frac = 0.1f;
+        while (*s >= '0' && *s <= '9') {
+            val += (float)(*s++ - '0') * frac;
+            frac *= 0.1f;
+        }
+    }
+
+    /* exponent */
+    if (*s == 'e' || *s == 'E') {
+        const char *es = s + 1;
+        int eneg = 0;
+        if (*es == '-') { eneg = 1; es++; }
+        else if (*es == '+') { es++; }
+        if (*es >= '0' && *es <= '9') {
+            s = es;
+            int exp = 0;
+            while (*s >= '0' && *s <= '9')
+                exp = exp * 10 + (*s++ - '0');
+            if (exp > 38) exp = 38; /* clamp to float range */
+            float epow = 1.0f;
+            for (int i = 0; i < exp; i++) epow *= 10.0f;
+            if (eneg) val /= epow;
+            else      val *= epow;
+        }
+    }
+
+    if (s == start) { if (endptr) *endptr = (char *)nptr; return 0.0f; }
+    if (endptr) *endptr = (char *)s;
+    return neg ? -val : val;
+}
 
 // ─── Math functions ──────────────────────────────────────────────────────────
 
@@ -2851,6 +2922,20 @@ inline char *l_strtok_r(char *str, const char *delim, char **saveptr) {
         *saveptr = p;
     }
     return str;
+}
+
+inline char *l_strsep(char **stringp, const char *delim) {
+    char *s = *stringp;
+    if (s == (char *)0) return (char *)0;
+    char *tok = s;
+    char *p = l_strpbrk(s, delim);
+    if (p) {
+        *p = '\0';
+        *stringp = p + 1;
+    } else {
+        *stringp = (char *)0;
+    }
+    return tok;
 }
 
 inline const char *l_basename(const char *path) {
