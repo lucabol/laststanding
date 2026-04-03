@@ -85,6 +85,43 @@ void test_strchr(void) {
     TEST_ASSERT(l_strchr(s, '\0') == s + 6, "null char returns pointer to terminator");
     TEST_ASSERT(l_strchr("", '\0') != NULL, "null char in empty string returns non-NULL");
 
+    /* Alignment-boundary tests: word-at-a-time path must be correct at
+     * every alignment offset.  Use a 32-byte buffer filled with a sentinel
+     * byte and place the target at each of the first 24 positions. */
+    {
+        char abuf[32];
+        int ok = 1;
+        int i;
+        l_memset(abuf, 'x', 31);
+        abuf[31] = '\0';
+        for (i = 0; i <= 23; i++) {
+            abuf[i] = 'Q';
+            if (l_strchr(abuf, 'Q') != abuf + i) { ok = 0; break; }
+            abuf[i] = 'x';
+        }
+        TEST_ASSERT(ok, "word-at-a-time: correct at alignment offsets 0-23");
+    }
+
+    /* Target byte == 0xFF edge case (high bit set) */
+    {
+        char hbuf[16];
+        l_memset(hbuf, 'a', 15);
+        hbuf[8]  = (char)0xFF;
+        hbuf[15] = '\0';
+        TEST_ASSERT(l_strchr(hbuf, 0xFF) == hbuf + 8, "high-bit target byte found");
+        TEST_ASSERT(l_strchr(hbuf, 0xFE) == NULL, "high-bit target byte not found");
+    }
+
+    /* Long string: target near end (forces multi-word scan) */
+    {
+        char lbuf[128];
+        l_memset(lbuf, 'a', 127);
+        lbuf[120] = 'Z';
+        lbuf[127] = '\0';
+        TEST_ASSERT(l_strchr(lbuf, 'Z') == lbuf + 120, "target near end of long string");
+        TEST_ASSERT(l_strchr(lbuf, 'W') == NULL, "absent char in long string returns NULL");
+    }
+
     TEST_SECTION_PASS("l_strchr");
 }
 

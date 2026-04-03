@@ -1585,12 +1585,49 @@ inline char *l_strncat(char *dst, const char *src, size_t n)
 
 inline char *l_strchr(const char *s, int c)
 {
-    while (*s) {
-        if (*s == (char)c)
+    unsigned char uc = (unsigned char)c;
+
+    /* Searching for NUL: advance to end of string using the fast l_strlen path. */
+    if (uc == 0)
+        return (char *)s + l_strlen(s);
+
+    /* Align to word boundary byte-at-a-time. */
+    while ((uintptr_t)s & (sizeof(uintptr_t) - 1U)) {
+        if ((unsigned char)*s == uc)
             return (char *)s;
+        if (!*s)
+            return NULL;
         s++;
     }
-    return (char)c == '\0' ? (char *)s : NULL;
+
+    /* Word-at-a-time: detect NUL or target byte in one pass.
+     * Replicate the target byte across a machine word.  XOR-ing a word w
+     * with this mask turns bytes that match the target to 0; the Hacker's
+     * Delight has-zero-byte test then fires on any match.  The same test
+     * on the raw word fires on NUL, so one iteration detects both events. */
+    typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+    const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;   /* 0x0101...01 */
+    const uintptr_t highs = lones << 7;                  /* 0x8080...80 */
+    uintptr_t       target = uc;
+    target |= target <<  8;
+    target |= target << 16;
+#if UINTPTR_MAX > 0xFFFFFFFFU
+    target |= target << 32;
+#endif
+    const uptr_alias *wp = (const uptr_alias *)(const void *)s;
+    for (;;) {
+        uintptr_t w = *wp;
+        uintptr_t x = w ^ target;
+        if (((w - lones) & ~w & highs) | ((x - lones) & ~x & highs))
+            break;
+        wp++;
+    }
+
+    /* Byte scan to locate the exact position. */
+    s = (const char *)wp;
+    while ((unsigned char)*s != uc && *s)
+        s++;
+    return (unsigned char)*s == uc ? (char *)s : NULL;
 }
 
 inline char *l_strrchr(const char *s, int c)
