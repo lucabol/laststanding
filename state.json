@@ -1,17 +1,18 @@
 {
-  "last_run": "2026-04-02T13:23:15Z",
-  "last_run_id": "23902510610",
+  "last_run": "2026-04-03T01:25:18Z",
+  "last_run_id": "23929609156",
   "monthly_activity_issue": "2026-04 (open, #89)",
   "open_prs": [
-    {"number": 85, "branch": "repo-assist/feat-strtof-2026-03-31-8d9c79cf8700a157", "title": "[Repo Assist] feat: add l_strtof (float32 string parsing)", "created": "2026-03-31", "rebased": true},
-    {"number": 86, "branch": "repo-assist/fix-qsort-large-element-2026-03-31-210f40dbcf916ba8", "title": "[Repo Assist] fix: l_qsort buffer overflow for element sizes > 256 bytes", "created": "2026-03-31", "rebased": true},
-    {"number": 87, "branch": "repo-assist/perf-strcmp-word-2026-04-01-ea5194b646b3c6ce", "title": "[Repo Assist] perf: word-at-a-time l_strcmp for aligned inputs", "created": "2026-04-01", "rebased": true},
-    {"number": 88, "branch": "repo-assist/improve-strsep-2026-04-01-83acd55d98922d84", "title": "[Repo Assist] feat: add l_strsep (BSD-style string separator)", "created": "2026-04-01", "rebased": true},
-    {"number": 91, "branch": "repo-assist/perf-memmove-strstr-2026-04-01-a6946727490879f6", "title": "[Repo Assist] perf: word-at-a-time l_memmove backward path + fix missing test_support.h", "created": "2026-04-01"},
-    {"number": 92, "branch": "repo-assist/test-snprintf-lld-valid-hostname-2026-04-02-d103f475bf7c7f08", "title": "[Repo Assist] test: add %lld/%llu/%p/%zu snprintf coverage + l_valid_hostname unit tests", "created": "2026-04-02"},
-    {"number": 93, "branch": "repo-assist/fix-test-support-header-2026-04-02", "title": "[Repo Assist] fix: add missing tests/test_support.h — unblocks all test shard builds", "created": "2026-04-02"}
+    {"number": 85, "branch": "repo-assist/feat-strtof-2026-03-31-8d9c79cf8700a157", "title": "[Repo Assist] feat: add l_strtof (float32 string parsing)", "created": "2026-03-31", "status": "needs-rebase: test/test.c path stale"},
+    {"number": 86, "branch": "repo-assist/fix-qsort-large-element-2026-03-31-210f40dbcf916ba8", "title": "[Repo Assist] fix: l_qsort buffer overflow for element sizes > 256 bytes", "created": "2026-03-31", "status": "needs-rebase: test/test.c path stale"},
+    {"number": 87, "branch": "repo-assist/perf-strcmp-word-2026-04-01-ea5194b646b3c6ce", "title": "[Repo Assist] perf: word-at-a-time l_strcmp for aligned inputs", "created": "2026-04-01", "status": "needs-rebase: test/test.c path stale"},
+    {"number": 88, "branch": "repo-assist/improve-strsep-2026-04-01-83acd55d98922d84", "title": "[Repo Assist] feat: add l_strsep (BSD-style string separator)", "created": "2026-04-01", "status": "needs-rebase: test/test.c path stale"},
+    {"number": 91, "branch": "repo-assist/perf-memmove-strstr-2026-04-01-a6946727490879f6", "title": "[Repo Assist] perf: word-at-a-time l_memmove backward path + fix missing test_support.h", "created": "2026-04-01", "rebased_this_run": true},
+    {"number": 92, "branch": "repo-assist/test-snprintf-lld-valid-hostname-2026-04-02-d103f475bf7c7f08", "title": "[Repo Assist] test: add %lld/%llu/%p/%zu snprintf coverage + l_valid_hostname unit tests", "created": "2026-04-02", "rebased_this_run": true},
+    {"number": 94, "branch": "repo-assist/fix-test-support-header-2026-04-02-85ac6e084454b91c", "title": "[Repo Assist] fix: add missing tests/test_support.h — unblocks all test shard builds", "created": "2026-04-02", "rebased_this_run": true, "critical": true},
+    {"number": "NEW", "branch": "repo-assist/test-strtof-qsort-coverage-2026-04-03", "title": "[Repo Assist] feat: add l_strtof (float32 string parsing) + 8 unit tests", "created": "2026-04-03", "note": "supersedes #85 with correct tests/ path; includes test_support.h"}
   ],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed_no_open_human_prs"},
   "checked_off_items": [],
-  "notes": "No human-authored issues. Seven open Repo Assist PRs: #85 strtof, #86 qsort fix, #87 strcmp perf, #88 strsep, #91 memmove perf + test_support.h fix, #92 test coverage (snprintf lld/llu/p/zu + l_valid_hostname), #93 standalone test_support.h fix (critical: unblocks all builds). PRs #85/#86/#87/#88 were rebased onto main this run (resolved test/test.c -> tests/test_strings.c conflict). Main branch is broken without test_support.h until #93 is merged. Pre-existing l_setenv failure on Linux (environment limitation). Next: buffered I/O helpers (l_fopen-style)."
+  "notes": "No human-authored issues. 8 open Repo Assist PRs. CRITICAL: tests/test_support.h missing from main — PR #94 (rebased, clean) must be merged to unblock all test builds. PRs #85-#88 still have stale test/test.c paths (pre-refactor). New PR created this run: l_strtof + 8 tests in tests/test_strings.c (correct path). PRs #91, #92, #94 rebased onto current main this run. Next: rebase #85-#88 or close them in favor of new PR."
 }
