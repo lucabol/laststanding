@@ -374,6 +374,8 @@ long long l_strtoll(const char *nptr, char **endptr, int base);
 double l_strtod(const char *nptr, char **endptr);
 /// Converts a string to a double (convenience wrapper around l_strtod)
 static inline double l_atof(const char *s);
+/// Converts a string to a float (convenience wrapper around l_strtod)
+static inline float l_strtof(const char *nptr, char **endptr);
 
 // Math functions
 /// Returns the absolute value of a double
@@ -1094,6 +1096,7 @@ int WINAPI mainCRTStartup(void)
 #  define strtoll l_strtoll
 #  define strtod  l_strtod
 #  define atof    l_atof
+#  define strtof  l_strtof
 #  define itoa l_itoa
 
 #  define fabs  l_fabs
@@ -1963,6 +1966,8 @@ inline double l_strtod(const char *nptr, char **endptr)
 }
 
 static inline double l_atof(const char *s) { return l_strtod(s, (char **)0); }
+
+static inline float l_strtof(const char *nptr, char **endptr) { return (float)l_strtod(nptr, endptr); }
 
 // ─── Math functions ──────────────────────────────────────────────────────────
 
