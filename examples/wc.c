@@ -1,19 +1,9 @@
+#define L_WITHSNPRINTF
 #define L_MAINFILE
 #include "l_os.h"
 
 // Minimal wc: counts lines, words, and bytes in a file (like Unix wc)
 // Usage: wc <filename> [filename2 ...]
-
-static void write_num_padded(long val, int width) {
-    char buf[20];
-    itoa(val, buf, 10);
-    int len = strlen(buf);
-    while (len < width) {
-        write(STDOUT, " ", 1);
-        len++;
-    }
-    write(STDOUT, buf, strlen(buf));
-}
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -52,12 +42,7 @@ int main(int argc, char *argv[]) {
 
         close(fd);
 
-        write_num_padded(lines, 8);
-        write_num_padded(words, 8);
-        write_num_padded(bytes, 8);
-        puts(" ");
-        puts(argv[f]);
-        puts("\n");
+        l_printf("%8ld%8ld%8ld %s\n", lines, words, bytes, argv[f]);
 
         total_lines += lines;
         total_words += words;
@@ -65,10 +50,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (argc > 2) {
-        write_num_padded(total_lines, 8);
-        write_num_padded(total_words, 8);
-        write_num_padded(total_bytes, 8);
-        puts(" total\n");
+        l_printf("%8ld%8ld%8ld total\n", total_lines, total_words, total_bytes);
     }
 
     return 0;

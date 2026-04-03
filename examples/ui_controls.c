@@ -1,3 +1,4 @@
+#define L_WITHSNPRINTF
 #define L_MAINFILE
 #include "l_ui.h"
 
@@ -8,9 +9,11 @@
 #define WIN_W 480
 #define WIN_H 360
 
-// Integer hex digit helper
-static char hex_digit(int v) {
-    return (v < 10) ? (char)('0' + v) : (char)('A' + v - 10);
+static void color_to_hex(int r, int g, int b, char *out) {
+    out[0] = '#';
+    unsigned char rgb[3] = {(unsigned char)r, (unsigned char)g, (unsigned char)b};
+    l_bin2hex(out + 1, rgb, 3);
+    for (int i = 1; i <= 6; i++) out[i] = (char)l_toupper(out[i]);
 }
 
 static int hex_val(char c) {
@@ -18,17 +21,6 @@ static int hex_val(char c) {
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     return -1;
-}
-
-static void color_to_hex(int r, int g, int b, char *out) {
-    out[0] = '#';
-    out[1] = hex_digit((r >> 4) & 0xF);
-    out[2] = hex_digit(r & 0xF);
-    out[3] = hex_digit((g >> 4) & 0xF);
-    out[4] = hex_digit(g & 0xF);
-    out[5] = hex_digit((b >> 4) & 0xF);
-    out[6] = hex_digit(b & 0xF);
-    out[7] = '\0';
 }
 
 static int hex_to_rgb(const char *hex, int *r, int *g, int *b) {
@@ -84,10 +76,7 @@ int main(int argc, char *argv[]) {
         {
             int y = l_ui_next(&ui, 8);
             char lbl[32];
-            char num[12];
-            l_strcpy(lbl, "R: ");
-            l_itoa(red, num, 10);
-            l_strcat(lbl, num);
+            l_snprintf(lbl, sizeof(lbl), "R: %d", red);
             l_ui_label(&ui, 24, y, lbl);
             y = l_ui_next(&ui, 16);
             l_ui_slider(&ui, 24, y, 200, &red, 0, 255);
@@ -97,10 +86,7 @@ int main(int argc, char *argv[]) {
         {
             int y = l_ui_next(&ui, 8);
             char lbl[32];
-            char num[12];
-            l_strcpy(lbl, "G: ");
-            l_itoa(green, num, 10);
-            l_strcat(lbl, num);
+            l_snprintf(lbl, sizeof(lbl), "G: %d", green);
             l_ui_label(&ui, 24, y, lbl);
             y = l_ui_next(&ui, 16);
             l_ui_slider(&ui, 24, y, 200, &green, 0, 255);
@@ -110,10 +96,7 @@ int main(int argc, char *argv[]) {
         {
             int y = l_ui_next(&ui, 8);
             char lbl[32];
-            char num[12];
-            l_strcpy(lbl, "B: ");
-            l_itoa(blue, num, 10);
-            l_strcat(lbl, num);
+            l_snprintf(lbl, sizeof(lbl), "B: %d", blue);
             l_ui_label(&ui, 24, y, lbl);
             y = l_ui_next(&ui, 16);
             l_ui_slider(&ui, 24, y, 200, &blue, 0, 255);

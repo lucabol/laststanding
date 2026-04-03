@@ -1,3 +1,4 @@
+#define L_WITHSNPRINTF
 #define L_MAINFILE
 #include "l_ui.h"
 
@@ -101,27 +102,19 @@ int main(int argc, char *argv[]) {
             int y = l_ui_next(&ui, 10);
             char status[128];
 
-            // Clicks
-            char num_buf[12];
-            l_itoa(click_count, num_buf, 10);
-            l_strcpy(status, "Clicks: ");
-            l_strcat(status, num_buf);
+            l_snprintf(status, sizeof(status), "Clicks: %d", click_count);
             l_ui_label(&ui, 30, y, status);
 
             y = l_ui_next(&ui, 10);
-            l_strcpy(status, "Checkbox: ");
-            l_strcat(status, checked ? "ON" : "OFF");
+            l_snprintf(status, sizeof(status), "Checkbox: %s", checked ? "ON" : "OFF");
             l_ui_label(&ui, 30, y, status);
 
             y = l_ui_next(&ui, 10);
-            l_itoa(volume, num_buf, 10);
-            l_strcpy(status, "Volume: ");
-            l_strcat(status, num_buf);
+            l_snprintf(status, sizeof(status), "Volume: %d", volume);
             l_ui_label(&ui, 30, y, status);
 
             y = l_ui_next(&ui, 10);
-            l_strcpy(status, "Name: ");
-            l_strcat(status, name);
+            l_snprintf(status, sizeof(status), "Name: %s", name);
             l_ui_label(&ui, 30, y, status);
         }
 

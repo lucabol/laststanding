@@ -26,10 +26,8 @@ static void timestamp(char *buf, size_t len) {
 
 static void log_request(const char *method, const char *path, int status, int bytes) {
     char ts[32];
-    char line[256];
     timestamp(ts, sizeof(ts));
-    l_snprintf(line, sizeof(line), "[%s] %s %s -> %d (%d bytes)\n", ts, method, path, status, bytes);
-    l_write(L_STDOUT, line, l_strlen(line));
+    l_printf("[%s] %s %s -> %d (%d bytes)\n", ts, method, path, status, bytes);
 }
 
 // Build an HTTP response into buf, return total length
@@ -125,9 +123,7 @@ int main(int argc, char *argv[]) {
     if (l_socket_bind(server, port) < 0) { l_puts("Failed to bind\n"); l_socket_close(server); return 1; }
     if (l_socket_listen(server, MAX_CLIENTS) < 0) { l_puts("Failed to listen\n"); l_socket_close(server); return 1; }
 
-    char msg[128];
-    l_snprintf(msg, sizeof(msg), "HTTP server listening on port %d (Ctrl+C to stop)\n", port);
-    l_puts(msg);
+    l_printf("HTTP server listening on port %d (Ctrl+C to stop)\n", port);
 
     L_PollFd fds[1 + MAX_CLIENTS];
     int nfds = 1;

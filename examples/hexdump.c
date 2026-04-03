@@ -1,28 +1,9 @@
+#define L_WITHSNPRINTF
 #define L_MAINFILE
 #include "l_os.h"
 
 // Minimal hexdump: displays file contents in hex + ASCII format
 // Usage: hexdump <filename>
-
-static void write_hex_byte(unsigned char b) {
-    char hex[3];
-    const char *digits = "0123456789abcdef";
-    hex[0] = digits[(b >> 4) & 0xf];
-    hex[1] = digits[b & 0xf];
-    hex[2] = ' ';
-    write(STDOUT, hex, 3);
-}
-
-static void write_offset(unsigned long off) {
-    char buf[9];
-    const char *digits = "0123456789abcdef";
-    for (int i = 7; i >= 0; i--) {
-        buf[i] = digits[off & 0xf];
-        off >>= 4;
-    }
-    buf[8] = ' ';
-    write(STDOUT, buf, 9);
-}
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -38,32 +19,29 @@ int main(int argc, char *argv[]) {
     unsigned long offset = 0;
 
     while ((n = read(fd, buf, 16)) > 0) {
-        write_offset(offset);
+        l_printf("%08lx ", offset);
 
         // Hex section
         for (int i = 0; i < 16; i++) {
-            if (i == 8) write(STDOUT, " ", 1);
+            if (i == 8) l_printf(" ");
             if (i < n)
-                write_hex_byte(buf[i]);
+                l_printf("%02x ", (unsigned int)buf[i]);
             else
-                write(STDOUT, "   ", 3);
+                l_printf("   ");
         }
 
-        write(STDOUT, " |", 2);
+        l_printf(" |");
 
         // ASCII section
-        for (int i = 0; i < n; i++) {
-            char c = l_isprint(buf[i]) ? buf[i] : '.';
-            write(STDOUT, &c, 1);
-        }
+        for (int i = 0; i < n; i++)
+            l_printf("%c", l_isprint(buf[i]) ? (char)buf[i] : '.');
 
-        write(STDOUT, "|\n", 2);
-        offset += n;
+        l_printf("|\n");
+        offset += (unsigned long)n;
     }
 
     // Final offset line
-    write_offset(offset);
-    write(STDOUT, "\n", 1);
+    l_printf("%08lx\n", offset);
 
     close(fd);
     return 0;

@@ -26,13 +26,8 @@ int main(int argc, char *argv[]) {
     unsigned char hash[32];
     l_sha256_final(&ctx, hash);
 
-    const char *hex = "0123456789abcdef";
     char out[65];
-    for (int i = 0; i < 32; i++) {
-        out[i * 2]     = hex[hash[i] >> 4];
-        out[i * 2 + 1] = hex[hash[i] & 0xf];
-    }
-    out[64] = '\0';
+    l_bin2hex(out, hash, 32);
     puts(out);
     puts("  ");
     puts(argv[1]);

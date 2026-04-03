@@ -1,3 +1,4 @@
+#define L_WITHSNPRINTF
 #define L_MAINFILE
 #include "l_os.h"
 
@@ -120,25 +121,12 @@ int main(int argc, char *argv[]) {
 
     if (long_fmt) {
         for (int i = 0; i < count; i++) {
-            char t[2] = {entries[i].type, 0};
-            l_puts(t);
-            // Right-align size in 10 chars — use 32-bit math (files < 4GB)
-            unsigned int sz = (unsigned int)entries[i].size;
-            char sbuf[20];
-            int slen = 0;
-            if (sz == 0) { sbuf[slen++] = '0'; }
-            else { unsigned int v = sz; while (v > 0) { sbuf[slen++] = '0' + (v % 10); v /= 10; } }
-            for (int p = 0; p < 10 - slen; p++) l_puts(" ");
-            for (int p = slen - 1; p >= 0; p--) { char c[2] = {sbuf[p], 0}; l_puts(c); }
-            l_puts(" ");
             // Timestamp
             L_Tm tm = l_localtime(entries[i].mtime);
             char timebuf[32];
             l_strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M", &tm);
-            l_puts(timebuf);
-            l_puts(" ");
-            l_puts(entries[i].name);
-            l_puts("\n");
+            l_printf("%c%10u %s %s\n", entries[i].type,
+                     (unsigned int)entries[i].size, timebuf, entries[i].name);
         }
     } else {
         // Default: names only, space-separated
