@@ -7244,16 +7244,16 @@ static inline void *l_map_get(L_Map *m, const char *key, size_t keylen) {
 
 static inline int l_map_put(L_Map *m, const char *key, size_t keylen, void *value) {
     if (!m->slots || m->cap == 0) return -1;
-    // Load factor check: reject if >75% full
-    if (m->len * 4 >= m->cap * 3) return -1;
     unsigned int h = l_map_hash(key, keylen);
     size_t mask = m->cap - 1;
     size_t idx = h & mask;
-    size_t first_tomb = m->cap; // sentinel
+    size_t first_tomb = m->cap; /* sentinel: index of first tombstone seen */
     for (size_t i = 0; i < m->cap; i++) {
         size_t si = (idx + i) & mask;
         L_MapSlot *s = &m->slots[si];
         if (s->occupied == 0) {
+            /* Empty slot: capacity check only needed for new insertions. */
+            if (m->len * 4 >= m->cap * 3) return -1;
             size_t target = (first_tomb < m->cap) ? first_tomb : si;
             L_MapSlot *t = &m->slots[target];
             t->key = key; t->keylen = keylen; t->value = value; t->hash = h; t->occupied = 1;
@@ -7262,9 +7262,17 @@ static inline int l_map_put(L_Map *m, const char *key, size_t keylen, void *valu
         }
         if (s->occupied == 2 && first_tomb == m->cap) first_tomb = si;
         if (s->occupied == 1 && s->hash == h && s->keylen == keylen && l_memcmp(s->key, key, keylen) == 0) {
-            s->value = value; // update existing
+            s->value = value; /* update existing — no capacity check needed */
             return 0;
         }
+    }
+    /* Probe chain exhausted with no empty slot; use tombstone if available. */
+    if (first_tomb < m->cap) {
+        if (m->len * 4 >= m->cap * 3) return -1;
+        L_MapSlot *t = &m->slots[first_tomb];
+        t->key = key; t->keylen = keylen; t->value = value; t->hash = h; t->occupied = 1;
+        m->len++;
+        return 0;
     }
     return -1;
 }

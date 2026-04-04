@@ -426,6 +426,108 @@ void test_map(void) {
     TEST_SECTION_PASS("L_Map");
 }
 
+void test_map_high_load(void) {
+    TEST_FUNCTION("L_Map high-load update");
+
+    /*
+     * Regression: l_map_put previously checked the 75% load-factor guard
+     * before scanning for an existing key, so updating a key in a map at or
+     * above 75% capacity returned -1 instead of succeeding.
+     *
+     * With capacity=16 the check triggers when m->len*4 >= 16*3 = 48,
+     * i.e. when m->len >= 12.  Insert 11 items (safely under the limit),
+     * then insert the 12th (allowed because we check before this insert),
+     * yielding m->len==12.  Now update one of those 12 keys — the old code
+     * would reject it; the fixed code must return 0.
+     */
+    L_Arena a = l_arena_init(8192);
+    L_Map m = l_map_init(&a, 16);
+    TEST_ASSERT(m.slots != (void *)0, "high-load map init");
+
+    /* keys[] are string literals; their addresses remain stable. */
+    const char *keys[] = {
+        "k00","k01","k02","k03","k04","k05",
+        "k06","k07","k08","k09","k10","k11"
+    };
+    int n = 12;
+    int i;
+    for (i = 0; i < n; i++) {
+        int r = l_map_put(&m, keys[i], 3, (void *)(uintptr_t)(i + 1));
+        TEST_ASSERT(r == 0, "high-load insert succeeds");
+    }
+    TEST_ASSERT(m.len == 12, "map has 12 entries (75% of 16)");
+
+    /* Update every existing key at full 75% load — must all succeed. */
+    for (i = 0; i < n; i++) {
+        int r = l_map_put(&m, keys[i], 3, (void *)(uintptr_t)(i + 100));
+        TEST_ASSERT(r == 0, "high-load update succeeds (not rejected by capacity check)");
+    }
+
+    /* Verify updated values. */
+    for (i = 0; i < n; i++) {
+        void *v = l_map_get(&m, keys[i], 3);
+        TEST_ASSERT(v == (void *)(uintptr_t)(i + 100), "high-load updated value correct");
+    }
+    TEST_ASSERT(m.len == 12, "map len unchanged after updates");
+
+    l_arena_free(&a);
+    TEST_SECTION_PASS("L_Map high-load update");
+}
+
+void test_str_split_edge_cases(void) {
+    TEST_FUNCTION("l_str_split edge cases");
+
+    L_Arena a = l_arena_init(4096);
+
+    /* Consecutive delimiters produce empty tokens */
+    L_Str *parts;
+    int n = l_str_split(&a, l_str("a,,b"), l_str(","), &parts);
+    TEST_ASSERT(n == 3, "consecutive delims: count=3");
+    TEST_ASSERT(l_str_eq(parts[0], l_str("a")),  "consecutive delims: part[0]=a");
+    TEST_ASSERT(parts[1].len == 0,                "consecutive delims: part[1] empty");
+    TEST_ASSERT(l_str_eq(parts[2], l_str("b")),  "consecutive delims: part[2]=b");
+
+    /* Leading delimiter produces empty first token */
+    L_Str *parts2;
+    int n2 = l_str_split(&a, l_str(",x"), l_str(","), &parts2);
+    TEST_ASSERT(n2 == 2, "leading delim: count=2");
+    TEST_ASSERT(parts2[0].len == 0,               "leading delim: part[0] empty");
+    TEST_ASSERT(l_str_eq(parts2[1], l_str("x")), "leading delim: part[1]=x");
+
+    /* Trailing delimiter produces empty last token */
+    L_Str *parts3;
+    int n3 = l_str_split(&a, l_str("y,"), l_str(","), &parts3);
+    TEST_ASSERT(n3 == 2, "trailing delim: count=2");
+    TEST_ASSERT(l_str_eq(parts3[0], l_str("y")), "trailing delim: part[0]=y");
+    TEST_ASSERT(parts3[1].len == 0,               "trailing delim: part[1] empty");
+
+    /* Multi-character delimiter */
+    L_Str *parts4;
+    int n4 = l_str_split(&a, l_str("a::b::c"), l_str("::"), &parts4);
+    TEST_ASSERT(n4 == 3, "multi-char delim: count=3");
+    TEST_ASSERT(l_str_eq(parts4[0], l_str("a")), "multi-char delim: part[0]=a");
+    TEST_ASSERT(l_str_eq(parts4[1], l_str("b")), "multi-char delim: part[1]=b");
+    TEST_ASSERT(l_str_eq(parts4[2], l_str("c")), "multi-char delim: part[2]=c");
+
+    /* Delimiter longer than string */
+    L_Str *parts5;
+    int n5 = l_str_split(&a, l_str("ab"), l_str("abc"), &parts5);
+    TEST_ASSERT(n5 == 1, "delim longer than string: count=1");
+    TEST_ASSERT(l_str_eq(parts5[0], l_str("ab")), "delim longer than string: whole string returned");
+
+    /* l_str_join with single element */
+    L_Str single[1] = { l_str("hello") };
+    L_Str joined_single = l_str_join(&a, single, 1, l_str(","));
+    TEST_ASSERT(l_str_eq(joined_single, l_str("hello")), "join single element");
+
+    /* l_str_join with zero elements */
+    L_Str joined_zero = l_str_join(&a, single, 0, l_str(","));
+    TEST_ASSERT(joined_zero.data == (const char *)0, "join zero elements returns null");
+
+    l_arena_free(&a);
+    TEST_SECTION_PASS("l_str_split edge cases");
+}
+
 void test_gmtime_strftime(void) {
     TEST_FUNCTION("l_gmtime / l_strftime");
 
@@ -909,6 +1011,8 @@ int main(int argc, char *argv[]) {
     test_str_buf();
     test_ansi_helpers();
     test_map();
+    test_map_high_load();
+    test_str_split_edge_cases();
     test_gmtime_strftime();
     test_localtime();
     test_fnmatch();
