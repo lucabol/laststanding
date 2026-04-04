@@ -5038,10 +5038,10 @@ static inline int l_opendir(const char *path, L_Dir *dir)
     // Use openat syscall directly to avoid forward-declaration issues
 #define L_O_RDONLY    0
 #define L_AT_FDCWD    (-100)
-    // O_DIRECTORY differs by arch: x86_64=0x10000, ARM/AArch64=0x4000
-#if defined(__x86_64__)
+    // O_DIRECTORY differs by arch: x86_64/RISC-V=0x10000, ARM/AArch64=0x4000
+#if defined(__x86_64__) || defined(__riscv)
 #define L_O_DIRECTORY 0x10000
-#elif defined(__aarch64__) || defined(__arm__) || defined(__riscv)
+#elif defined(__aarch64__) || defined(__arm__)
 #define L_O_DIRECTORY 0x4000
 #endif
 #if defined(__x86_64__)
