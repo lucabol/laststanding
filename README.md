@@ -1,6 +1,6 @@
 # laststanding
 
-A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Three header files give you everything from `strlen` to pixel graphics to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64) and **Windows**, with no libc at all.
+A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Three header files give you everything from `strlen` to pixel graphics to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V) and **Windows**, with no libc at all.
 
 | Header | What it provides |
 |--------|-----------------|
@@ -475,6 +475,7 @@ Binaries must be compiled freestanding:
 | Windows (clang) | `clang -I. -Oz -lkernel32 -ffreestanding -Wall -Wextra -Wpedantic -o app.exe app.c` |
 | ARM32 cross | `arm-linux-gnueabihf-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
 | AArch64 cross | `aarch64-linux-gnu-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
+| RISC-V cross | `riscv64-linux-gnu-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
 
 ## Function Reference — `l_os.h`
 
@@ -714,7 +715,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_spawn` | Spawns a new process, inheriting the current stdio descriptors. | All |
 | `l_wait` | Waits for a spawned process to finish. Returns 0 on success, -1 on error. | All |
 | `l_system` | Executes a shell command string. Returns the exit code, or -1 on spawn failure. | All |
-| **Unix-only functions** | | |
+| **Unix and WASI functions** | | |
 | `l_lseek` | Repositions the file offset of fd | Unix |
 | `l_mkdir` | Creates a directory with the given permissions | Unix |
 | `l_sched_yield` | Yields the processor to other threads | Unix |

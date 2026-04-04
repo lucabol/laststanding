@@ -60,3 +60,15 @@ jobs:
       - name: Run CI
         run: ./ci.ps1 -Target arm
         shell: pwsh
+
+  riscv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install cross-compilers
+        run: sudo apt-get update && sudo apt-get install -y gcc-riscv64-linux-gnu qemu-user
+
+      - name: Run CI
+        run: ./ci.ps1 -Target riscv
+        shell: pwsh

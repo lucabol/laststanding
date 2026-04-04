@@ -84,6 +84,122 @@ function build_aarch64 {    # Build for AArch64 (arm64) {compiler:aarch64-linux-
   done
 }
 
+function build_riscv {    # Build for RISC-V (rv64gc) {compiler:riscv64-linux-gnu-gcc} {optimizationchar:z}
+  mkdir -p bin
+  CC=${1:-riscv64-linux-gnu-gcc}
+  OPT=${2:-z}
+
+  LDFLAGS=""
+  LINK_LIB="-lgcc"
+
+  case $CC in
+    gcc)
+      CC=riscv64-linux-gnu-gcc
+      ;;
+    clang)
+      LDFLAGS="--target=riscv64-linux-gnu --sysroot=/usr/riscv64-linux-gnu -flto"
+      LINK_LIB=""
+      ;;
+  esac
+
+  for f in tests/*.c examples/*.c; do
+    x="${f##*/}"
+    x="${x%.*}";
+    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.riscv64
+  done
+}
+
+function test_riscv {    # Build and run default RISC-V regression tests using QEMU
+  build_riscv "$@"
+  echo "=== Running default RISC-V regression tests in bin/ with QEMU ==="
+  local fail=0
+  for exe in bin/test.riscv64 bin/test_strings.riscv64 bin/test_fs.riscv64 bin/test_utils.riscv64 bin/gfx_test.riscv64 bin/ui_test.riscv64; do
+    if [ -f "$exe" ] && [ -x "$exe" ]; then
+      echo "--- Running $exe ---"
+      qemu-riscv64 -L /usr/riscv64-linux-gnu "$exe"
+      if [ $? -ne 0 ]; then
+        echo "FAIL: $exe exited with error"
+        fail=1
+      fi
+      echo
+    fi
+  done
+  if [ $fail -ne 0 ]; then
+    echo "=== SOME RISC-V TESTS FAILED ==="
+    exit 1
+  fi
+}
+
+function test_runtime_riscv {    # Build and run RISC-V socket/runtime checks on demand {compiler:riscv64-linux-gnu-gcc} {optimizationchar:z}
+  build_riscv "$@"
+  runtime_checks ".riscv64" qemu-riscv64 -L /usr/riscv64-linux-gnu
+}
+
+function verify_riscv {    # Verify RISC-V executables are stdlib-independent and bloat-free {compiler:riscv64-linux-gnu-gcc} {optimizationchar:z}
+  # Build RISC-V only if binaries don't exist
+  if ! ls bin/*.riscv64 1>/dev/null 2>&1; then
+    build_riscv "$@"
+  fi
+
+  echo "=== Verifying RISC-V executables are stdlib-independent and bloat-free ==="
+
+  for exe in bin/*.riscv64; do
+    if [ -f "$exe" ]; then
+      echo
+      echo "Analyzing: $exe"
+      echo "----------------------------------------"
+
+      # Check file type (should be RISC-V ELF)
+      echo -n "  File type: "
+      file_output=$(file "$exe")
+      if echo "$file_output" | grep -q "ELF 64-bit" && echo "$file_output" | grep -q "RISC-V" && echo "$file_output" | grep -q "statically linked" && echo "$file_output" | grep -q "stripped"; then
+        echo "PASS (RISC-V ELF, static, stripped)"
+      else
+        echo "FAIL"
+        echo "    $file_output"
+      fi
+
+      # Check dynamic section
+      echo -n "  Dynamic section: "
+      if readelf -d "$exe" 2>/dev/null | grep -q "There is no dynamic section"; then
+        echo "PASS (no dynamic section)"
+      else
+        echo "PRESENT (showing dynamic dependencies):"
+        readelf -d "$exe" 2>/dev/null | grep -E "(NEEDED|Shared library)" | sed 's/^/    /' || echo "    No NEEDED entries found"
+      fi
+
+      # Check for stdlib symbols/strings
+      echo -n "  No stdlib symbols: "
+      stdlib_symbols=$(strings "$exe" | grep -E "(__libc|@GLIBC|ld-linux|libc.so)" | head -5)
+      if [ -z "$stdlib_symbols" ]; then
+        echo "PASS"
+      else
+        echo "FAIL (found stdlib references)"
+        echo "$stdlib_symbols"
+      fi
+
+      # Binary size
+      echo -n "  Binary size: "
+      total_size=$(stat -c%s "$exe" 2>/dev/null || stat -f%z "$exe" 2>/dev/null || wc -c < "$exe")
+      echo "${total_size} bytes"
+
+      # Symbol count
+      echo -n "  Symbol count: "
+      symbol_count=$(nm "$exe" 2>/dev/null | wc -l)
+      if [ "$symbol_count" -eq 0 ]; then
+        echo "PASS (no symbols - stripped)"
+      elif [ "$symbol_count" -lt 10 ]; then
+        echo "WARN ($symbol_count symbols)"
+      else
+        echo "FAIL ($symbol_count symbols - too many)"
+      fi
+    fi
+  done
+
+  echo
+  echo "=== RISC-V Verification complete ==="
+}
+
 function showcase_smoke {    # Run showcase smoke tests {binarysuffix:} {runnerargs:}
   local SUFFIX="${1:-}"
   if [ $# -gt 0 ]; then
@@ -117,7 +233,7 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
   
   for exe in bin/*; do
     # Skip Windows (.exe) and cross-compiled ARM/AArch64 binaries
-    case "$exe" in *.exe|*.armhf|*.aarch64) continue ;; esac
+    case "$exe" in *.exe|*.armhf|*.aarch64|*.riscv64) continue ;; esac
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo
       echo "Analyzing: $exe"

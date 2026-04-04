@@ -62,7 +62,104 @@ typedef   long long       L_PID;  // pid_t on Linux, process HANDLE on Windows
 #define   L_STDERR        2
 #define   L_SPAWN_INHERIT ((L_FD)-2)
 
-// Portable stat struct
+// WASI Preview 1 types and function imports (shared by startup and implementation)
+#ifdef __wasi__
+#ifndef L_WASI_TYPES_DEFINED
+#define L_WASI_TYPES_DEFINED
+
+typedef uint16_t  __wasi_errno_t;
+typedef uint32_t  __wasi_fd_t;
+typedef uint64_t  __wasi_filesize_t;
+typedef int64_t   __wasi_filedelta_t;
+typedef uint8_t   __wasi_whence_t;
+typedef uint64_t  __wasi_timestamp_t;
+typedef uint32_t  __wasi_clockid_t;
+typedef uint16_t  __wasi_oflags_t;
+typedef uint64_t  __wasi_rights_t;
+typedef uint16_t  __wasi_fdflags_t;
+typedef uint32_t  __wasi_lookupflags_t;
+typedef uint32_t  __wasi_exitcode_t;
+typedef uint32_t  __wasi_size_t_w;
+
+typedef struct { uint8_t *buf; uint32_t buf_len; } __wasi_iovec_t;
+typedef struct { const uint8_t *buf; uint32_t buf_len; } __wasi_ciovec_t;
+
+#define __WASI_WHENCE_SET 0
+#define __WASI_WHENCE_CUR 1
+#define __WASI_WHENCE_END 2
+
+#define __WASI_OFLAGS_CREAT     ((__wasi_oflags_t)1)
+#define __WASI_OFLAGS_DIRECTORY ((__wasi_oflags_t)2)
+#define __WASI_OFLAGS_EXCL      ((__wasi_oflags_t)4)
+#define __WASI_OFLAGS_TRUNC     ((__wasi_oflags_t)8)
+
+#define __WASI_FDFLAGS_APPEND   ((__wasi_fdflags_t)1)
+#define __WASI_FDFLAGS_DSYNC    ((__wasi_fdflags_t)2)
+#define __WASI_FDFLAGS_NONBLOCK ((__wasi_fdflags_t)4)
+#define __WASI_FDFLAGS_RSYNC    ((__wasi_fdflags_t)8)
+#define __WASI_FDFLAGS_SYNC     ((__wasi_fdflags_t)16)
+
+#define __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW 1
+
+#define __WASI_CLOCKID_REALTIME  0
+#define __WASI_CLOCKID_MONOTONIC 1
+
+#define __WASI_RIGHTS_FD_DATASYNC    (1ULL << 0)
+#define __WASI_RIGHTS_FD_READ        (1ULL << 1)
+#define __WASI_RIGHTS_FD_SEEK        (1ULL << 2)
+#define __WASI_RIGHTS_FD_FDSTAT_SET_FLAGS (1ULL << 3)
+#define __WASI_RIGHTS_FD_SYNC        (1ULL << 4)
+#define __WASI_RIGHTS_FD_TELL        (1ULL << 5)
+#define __WASI_RIGHTS_FD_WRITE       (1ULL << 6)
+#define __WASI_RIGHTS_FD_ADVISE      (1ULL << 7)
+#define __WASI_RIGHTS_FD_ALLOCATE    (1ULL << 8)
+#define __WASI_RIGHTS_PATH_CREATE_DIRECTORY (1ULL << 9)
+#define __WASI_RIGHTS_PATH_CREATE_FILE  (1ULL << 10)
+#define __WASI_RIGHTS_PATH_OPEN      (1ULL << 13)
+#define __WASI_RIGHTS_FD_READDIR     (1ULL << 14)
+#define __WASI_RIGHTS_PATH_FILESTAT_GET  (1ULL << 18)
+#define __WASI_RIGHTS_FD_FILESTAT_GET (1ULL << 21)
+#define __WASI_RIGHTS_FD_FILESTAT_SET_SIZE (1ULL << 22)
+#define __WASI_RIGHTS_PATH_UNLINK_FILE (1ULL << 26)
+#define __WASI_RIGHTS_PATH_REMOVE_DIRECTORY (1ULL << 25)
+
+// WASI Preview 1 function imports
+__wasi_errno_t __wasi_fd_read(__wasi_fd_t fd, const __wasi_iovec_t *iovs, size_t iovs_len, __wasi_size_t_w *nread)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("fd_read")));
+__wasi_errno_t __wasi_fd_write(__wasi_fd_t fd, const __wasi_ciovec_t *iovs, size_t iovs_len, __wasi_size_t_w *nwritten)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("fd_write")));
+__wasi_errno_t __wasi_fd_close(__wasi_fd_t fd)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("fd_close")));
+__wasi_errno_t __wasi_fd_seek(__wasi_fd_t fd, __wasi_filedelta_t offset, __wasi_whence_t whence, __wasi_filesize_t *newoffset)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("fd_seek")));
+__wasi_errno_t __wasi_path_open(__wasi_fd_t fd, __wasi_lookupflags_t dirflags,
+    const char *path, size_t path_len, __wasi_oflags_t oflags,
+    __wasi_rights_t fs_rights_base, __wasi_rights_t fs_rights_inheriting,
+    __wasi_fdflags_t fdflags, __wasi_fd_t *opened_fd)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_open")));
+_Noreturn void __wasi_proc_exit(__wasi_exitcode_t code)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("proc_exit")));
+__wasi_errno_t __wasi_args_sizes_get(__wasi_size_t_w *argc, __wasi_size_t_w *argv_buf_size)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("args_sizes_get")));
+__wasi_errno_t __wasi_args_get(uint8_t **argv, uint8_t *argv_buf)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("args_get")));
+__wasi_errno_t __wasi_environ_sizes_get(__wasi_size_t_w *environ_count, __wasi_size_t_w *environ_buf_size)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("environ_sizes_get")));
+__wasi_errno_t __wasi_environ_get(uint8_t **environ, uint8_t *environ_buf)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("environ_get")));
+__wasi_errno_t __wasi_clock_time_get(__wasi_clockid_t id, __wasi_timestamp_t precision, __wasi_timestamp_t *time)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("clock_time_get")));
+__wasi_errno_t __wasi_random_get(uint8_t *buf, __wasi_size_t_w buf_len)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("random_get")));
+__wasi_errno_t __wasi_path_create_directory(__wasi_fd_t fd, const char *path, size_t path_len)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_create_directory")));
+__wasi_errno_t __wasi_path_unlink_file(__wasi_fd_t fd, const char *path, size_t path_len)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_unlink_file")));
+__wasi_errno_t __wasi_path_remove_directory(__wasi_fd_t fd, const char *path, size_t path_len)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_remove_directory")));
+
+#endif // L_WASI_TYPES_DEFINED
+#endif // __wasi__
 #ifndef L_STAT_TYPES_DEFINED
 #define L_STAT_TYPES_DEFINED
 typedef struct {
@@ -788,8 +885,8 @@ int l_wait(L_PID pid, int *exitcode);
 /// Uses /bin/sh -c on Unix, cmd.exe /c on Windows.
 static inline int l_system(const char *cmd);
 
-#ifdef __unix__
-// Unix-only functions
+#if defined(__unix__) || defined(__wasi__)
+// Unix and WASI functions
 /// Repositions the file offset of fd
 off_t l_lseek(L_FD fd, off_t offset, int whence);
 /// Creates a directory with the given permissions
@@ -909,7 +1006,56 @@ asm(".section .text\n"
     "mov x8, 93\n"                // NR_exit == 93
     "svc #0\n"
     );
+#elif defined(__riscv)
+/* startup code for RISC-V (rv64gc) */
+asm(".section .text\n"
+    ".weak _start\n"
+    "_start:\n"
+    "ld a0, 0(sp)\n"              // argc
+    "addi a1, sp, 8\n"            // argv
+    "slli a2, a0, 3\n"            // envp = 8*argc ...
+    "add a2, a2, a1\n"            //       + argv
+    "addi a2, a2, 8\n"            //       + 8 (skip null)
+    "andi sp, sp, -16\n"          // 16-byte stack alignment
+    "call main\n"                 // main() returns status code
+    "li a7, 93\n"                 // NR_exit == 93
+    "ecall\n"
+    );
 #endif
+
+#elif defined(__wasi__)
+// WASI: _start is a normal C function exported to the runtime.
+// Types and imports are defined at file scope above.
+
+static char **l_envp;
+
+int main(int argc, char *argv[]);
+
+void _start(void) {
+    // Fetch command-line arguments
+    __wasi_size_t_w argc = 0, argv_buf_size = 0;
+    __wasi_args_sizes_get(&argc, &argv_buf_size);
+    static uint8_t *argv_ptrs[256];
+    static uint8_t argv_buf[16384];
+    if (argc > 255) argc = 255;
+    if (argv_buf_size > sizeof(argv_buf)) argv_buf_size = sizeof(argv_buf);
+    __wasi_args_get(argv_ptrs, argv_buf);
+    argv_ptrs[argc] = 0;
+
+    // Fetch environment variables
+    __wasi_size_t_w env_count = 0, env_buf_size = 0;
+    __wasi_environ_sizes_get(&env_count, &env_buf_size);
+    static uint8_t *env_ptrs[512];
+    static uint8_t env_buf[32768];
+    if (env_count > 511) env_count = 511;
+    if (env_buf_size > sizeof(env_buf)) env_buf_size = sizeof(env_buf);
+    __wasi_environ_get(env_ptrs, env_buf);
+    env_ptrs[env_count] = 0;
+    l_envp = (char **)env_ptrs;
+
+    int ret = main((int)argc, (char **)argv_ptrs);
+    __wasi_proc_exit((unsigned)ret);
+}
 
 #else // windows
 
@@ -3892,6 +4038,153 @@ inline int l_resolve(const char *hostname, char *ip_out) {
 #define O_CLOEXEC    0x80000
 #define O_DIRECTORY   0x10000
 
+#elif defined(__riscv) && __riscv_xlen == 64
+/* Syscalls for RISC-V (rv64gc) :
+ *   - registers are 64-bit
+ *   - stack is 16-byte aligned
+ *   - syscall number is passed in a7
+ *   - arguments are in a0, a1, a2, a3, a4, a5
+ *   - the system call is performed by calling ecall
+ *   - syscall return comes in a0.
+ *   - the arguments are cast to long and assigned into the target registers
+ *     which are then simply passed as registers to the asm code, so that we
+ *     don't have to experience issues with register constraints.
+ *
+ * On RISC-V, select() is not implemented so we have to use ppoll().
+ */
+
+#define my_syscall0(num)                                                      \
+({                                                                            \
+	register long _num  asm("a7") = (num);                                \
+	register long _arg1 asm("a0");                                        \
+	                                                                      \
+	asm volatile (                                                        \
+		"ecall\n"                                                     \
+		: "=r"(_arg1)                                                 \
+		: "r"(_num)                                                   \
+		: "memory"                                                    \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall1(num, arg1)                                                \
+({                                                                            \
+	register long _num  asm("a7") = (num);                                \
+	register long _arg1 asm("a0") = (long)(arg1);                         \
+	                                                                      \
+	asm volatile (                                                        \
+		"ecall\n"                                                     \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1),                                                 \
+		  "r"(_num)                                                   \
+		: "memory"                                                    \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall2(num, arg1, arg2)                                          \
+({                                                                            \
+	register long _num  asm("a7") = (num);                                \
+	register long _arg1 asm("a0") = (long)(arg1);                         \
+	register long _arg2 asm("a1") = (long)(arg2);                         \
+	                                                                      \
+	asm volatile (                                                        \
+		"ecall\n"                                                     \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2),                                     \
+		  "r"(_num)                                                   \
+		: "memory"                                                    \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall3(num, arg1, arg2, arg3)                                    \
+({                                                                            \
+	register long _num  asm("a7") = (num);                                \
+	register long _arg1 asm("a0") = (long)(arg1);                         \
+	register long _arg2 asm("a1") = (long)(arg2);                         \
+	register long _arg3 asm("a2") = (long)(arg3);                         \
+	                                                                      \
+	asm volatile (                                                        \
+		"ecall\n"                                                     \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2), "r"(_arg3),                         \
+		  "r"(_num)                                                   \
+		: "memory"                                                    \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall4(num, arg1, arg2, arg3, arg4)                              \
+({                                                                            \
+	register long _num  asm("a7") = (num);                                \
+	register long _arg1 asm("a0") = (long)(arg1);                         \
+	register long _arg2 asm("a1") = (long)(arg2);                         \
+	register long _arg3 asm("a2") = (long)(arg3);                         \
+	register long _arg4 asm("a3") = (long)(arg4);                         \
+	                                                                      \
+	asm volatile (                                                        \
+		"ecall\n"                                                     \
+		: "=r"(_arg1)                                                 \
+		: "r"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4),             \
+		  "r"(_num)                                                   \
+		: "memory"                                                    \
+	);                                                                    \
+	_arg1;                                                                \
+})
+
+#define my_syscall5(num, arg1, arg2, arg3, arg4, arg5) \
+({                                                     \
+    long _ret; \
+    register long _num asm("a7") = (num); \
+    register long _a0 asm("a0") = (long)(arg1); \
+    register long _a1 asm("a1") = (long)(arg2); \
+    register long _a2 asm("a2") = (long)(arg3); \
+    register long _a3 asm("a3") = (long)(arg4); \
+    register long _a4 asm("a4") = (long)(arg5); \
+    asm volatile ( \
+        "ecall\n" \
+        : "+r"(_a0) \
+        : "r"(_num), "r"(_a1), "r"(_a2), "r"(_a3), "r"(_a4) \
+        : "memory" \
+    ); \
+    _ret = _a0; \
+    _ret; \
+})
+
+#define my_syscall6(num, arg1, arg2, arg3, arg4, arg5, arg6) \
+({                                                           \
+    long _ret; \
+    register long _num asm("a7") = (num); \
+    register long _a0 asm("a0") = (long)(arg1); \
+    register long _a1 asm("a1") = (long)(arg2); \
+    register long _a2 asm("a2") = (long)(arg3); \
+    register long _a3 asm("a3") = (long)(arg4); \
+    register long _a4 asm("a4") = (long)(arg5); \
+    register long _a5 asm("a5") = (long)(arg6); \
+    asm volatile ( \
+        "ecall\n" \
+        : "+r"(_a0) \
+        : "r"(_num), "r"(_a1), "r"(_a2), "r"(_a3), "r"(_a4), "r"(_a5) \
+        : "memory" \
+    ); \
+    _ret = _a0; \
+    _ret; \
+})
+
+// File flags (same as AArch64)
+#define O_RDONLY            0
+#define O_WRONLY            1
+#define O_RDWR              2
+#define O_CREAT          0x40
+#define O_EXCL           0x80
+#define O_NOCTTY        0x100
+#define O_TRUNC         0x200
+#define O_APPEND        0x400
+#define O_NONBLOCK      0x800
+#define O_CLOEXEC    0x80000
+#define O_DIRECTORY   0x10000
+
 #elif defined(__arm__)
 /* Syscalls for ARM (32-bit, EABI) :
  *   - syscall number is passed in r7
@@ -4057,7 +4350,7 @@ inline int l_resolve(const char *hostname, char *ip_out) {
 #define O_DIRECTORY    0x4000
 
 #else
-#error "Supported architectures: linux x86_64, aarch64, arm, and windows. Paste relevant nolibc.h sections for more archs."
+#error "Supported architectures: linux x86_64, aarch64, arm, riscv64, and windows. Paste relevant nolibc.h sections for more archs."
 #endif
 
 // Dummy function to satisfy libgcc requirement on ARM
@@ -4310,7 +4603,7 @@ inline char *l_getcwd(char *buf, size_t size)
 {
 #if defined(__x86_64__)
     long ret = my_syscall2(79 /*__NR_getcwd*/, buf, size);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall2(17 /*__NR_getcwd*/, buf, size);
 #elif defined(__arm__)
     long ret = my_syscall2(183 /*__NR_getcwd*/, buf, size);
@@ -4336,7 +4629,7 @@ inline int l_pipe(L_FD fds[2])
     int tmp[2];
 #if defined(__x86_64__)
     long ret = my_syscall2(293 /*__NR_pipe2*/, tmp, O_CLOEXEC);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall2(59 /*__NR_pipe2*/, tmp, O_CLOEXEC);
 #elif defined(__arm__)
     long ret = my_syscall2(359 /*__NR_pipe2*/, tmp, O_CLOEXEC);
@@ -4351,7 +4644,7 @@ inline int l_dup2(L_FD oldfd, L_FD newfd)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(33 /*__NR_dup2*/, oldfd, newfd);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     if (oldfd == newfd) {
         L_Stat st;
         return l_fstat(oldfd, &st) < 0 ? -1 : (int)oldfd;
@@ -4366,7 +4659,7 @@ inline L_PID l_fork(void)
 {
 #if defined(__x86_64__)
     return (L_PID)my_syscall5(56 /*__NR_clone*/, 17 /*SIGCHLD*/, 0, 0, 0, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (L_PID)my_syscall5(220 /*__NR_clone*/, 17 /*SIGCHLD*/, 0, 0, 0, 0);
 #elif defined(__arm__)
     return (L_PID)my_syscall5(120 /*__NR_clone*/, 17 /*SIGCHLD*/, 0, 0, 0, 0);
@@ -4377,7 +4670,7 @@ inline int l_execve(const char *path, char *const argv[], char *const envp[])
 {
 #if defined(__x86_64__)
     return (int)my_syscall3(59 /*__NR_execve*/, path, argv, envp);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (int)my_syscall3(221 /*__NR_execve*/, path, argv, envp);
 #elif defined(__arm__)
     return (int)my_syscall3(11 /*__NR_execve*/, path, argv, envp);
@@ -4388,7 +4681,7 @@ inline L_PID l_waitpid(L_PID pid, int *status, int options)
 {
 #if defined(__x86_64__)
     return (L_PID)my_syscall4(61 /*__NR_wait4*/, pid, status, options, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (L_PID)my_syscall4(260 /*__NR_wait4*/, pid, status, options, 0);
 #elif defined(__arm__)
     return (L_PID)my_syscall4(114 /*__NR_wait4*/, pid, status, options, 0);
@@ -4469,7 +4762,7 @@ inline int l_truncate(const char *path, long long size)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(76 /*__NR_truncate*/, path, size);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (int)my_syscall2(45 /*__NR_truncate*/, path, size);
 #elif defined(__arm__)
     return (int)my_syscall2(193 /*__NR_truncate64*/, path, size);
@@ -4482,7 +4775,7 @@ inline int l_ftruncate(L_FD fd, long long size)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(77 /*__NR_ftruncate*/, fd, size);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (int)my_syscall2(46 /*__NR_ftruncate*/, fd, size);
 #elif defined(__arm__)
     return (int)my_syscall2(194 /*__NR_ftruncate64*/, fd, size);
@@ -4532,7 +4825,7 @@ inline int l_rename(const char *oldpath, const char *newpath)
 {
 #if defined(__x86_64__)
     return (int)my_syscall4(264 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (int)my_syscall4(38 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
 #elif defined(__arm__)
     return (int)my_syscall4(329 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
@@ -4545,7 +4838,7 @@ inline int l_access(const char *path, int mode)
 {
 #if defined(__x86_64__)
     return (int)my_syscall4(269 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (int)my_syscall4(48 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
 #elif defined(__arm__)
     return (int)my_syscall4(334 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
@@ -4558,7 +4851,7 @@ inline int l_chmod(const char *path, mode_t mode)
 {
 #if defined(__x86_64__)
     return (int)my_syscall3(268 /*__NR_fchmodat*/, AT_FDCWD, path, mode);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (int)my_syscall3(53 /*__NR_fchmodat*/, AT_FDCWD, path, mode);
 #elif defined(__arm__)
     return (int)my_syscall3(333 /*__NR_fchmodat*/, AT_FDCWD, path, mode);
@@ -4577,7 +4870,7 @@ inline int l_symlink(const char *target, const char *linkpath)
     /* symlinkat syscall numbers by arch */
 #if defined(__x86_64__)
     long ret = my_syscall3(265 /*__NR_symlinkat*/, target, AT_FDCWD, linkpath);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall3(36 /*__NR_symlinkat*/, target, AT_FDCWD, linkpath);
 #elif defined(__arm__)
     long ret = my_syscall3(331 /*__NR_symlinkat*/, target, AT_FDCWD, linkpath);
@@ -4598,7 +4891,7 @@ inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
 #else
 #if defined(__x86_64__)
     long ret = my_syscall4(267 /*__NR_readlinkat*/, AT_FDCWD, path, buf, bufsiz);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall4(78 /*__NR_readlinkat*/, AT_FDCWD, path, buf, bufsiz);
 #elif defined(__arm__)
     long ret = my_syscall4(332 /*__NR_readlinkat*/, AT_FDCWD, path, buf, bufsiz);
@@ -4621,7 +4914,7 @@ inline char *l_realpath(const char *path, char *resolved)
 #else
 #if defined(__x86_64__)
     fd = my_syscall4(257 /*__NR_openat*/, AT_FDCWD, path, 0x200000 /*O_PATH*/, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     fd = my_syscall4(56 /*__NR_openat*/, AT_FDCWD, path, 0x200000 /*O_PATH*/, 0);
 #elif defined(__arm__)
     fd = my_syscall4(322 /*__NR_openat*/, AT_FDCWD, path, 0x200000 /*O_PATH*/, 0);
@@ -4650,7 +4943,7 @@ inline char *l_realpath(const char *path, char *resolved)
     long n;
 #if defined(__x86_64__)
     n = my_syscall4(267 /*__NR_readlinkat*/, AT_FDCWD, proc_path, resolved, L_PATH_MAX - 1);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     n = my_syscall4(78 /*__NR_readlinkat*/, AT_FDCWD, proc_path, resolved, L_PATH_MAX - 1);
 #elif defined(__arm__)
     n = my_syscall4(332 /*__NR_readlinkat*/, AT_FDCWD, proc_path, resolved, L_PATH_MAX - 1);
@@ -4674,7 +4967,7 @@ inline int l_stat(const char *path, L_Stat *st)
     st->st_size  = *(long long *)(buf + 48);
     st->st_mtime = *(long long *)(buf + 88);
     return 0;
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     char buf[144];
     l_memset(buf, 0, sizeof(buf));
     long ret = my_syscall4(79 /*__NR_newfstatat*/, AT_FDCWD, path, buf, 0);
@@ -4708,7 +5001,7 @@ inline int l_fstat(L_FD fd, L_Stat *st)
     st->st_size  = *(long long *)(buf + 48);
     st->st_mtime = *(long long *)(buf + 88);
     return 0;
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     char buf[144];
     l_memset(buf, 0, sizeof(buf));
     long ret = my_syscall2(80 /*__NR_fstat*/, fd, buf);
@@ -4739,12 +5032,12 @@ inline int l_opendir(const char *path, L_Dir *dir)
     // O_DIRECTORY differs by arch: x86_64=0x10000, ARM/AArch64=0x4000
 #if defined(__x86_64__)
 #define L_O_DIRECTORY 0x10000
-#elif defined(__aarch64__) || defined(__arm__)
+#elif defined(__aarch64__) || defined(__arm__) || defined(__riscv)
 #define L_O_DIRECTORY 0x4000
 #endif
 #if defined(__x86_64__)
     L_FD fd = (L_FD)my_syscall4(257 /*__NR_openat*/, L_AT_FDCWD, path, L_O_RDONLY | L_O_DIRECTORY, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     L_FD fd = (L_FD)my_syscall4(56 /*__NR_openat*/, L_AT_FDCWD, path, L_O_RDONLY | L_O_DIRECTORY, 0);
 #elif defined(__arm__)
     L_FD fd = (L_FD)my_syscall4(322 /*__NR_openat*/, L_AT_FDCWD, path, L_O_RDONLY | L_O_DIRECTORY, 0);
@@ -4765,7 +5058,7 @@ static inline L_DirEntry *l_readdir(L_Dir *dir)
         if (dir->pos >= dir->len) {
 #if defined(__x86_64__)
             long ret = my_syscall3(217 /*__NR_getdents64*/, dir->fd, dir->buf, sizeof(dir->buf));
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
             long ret = my_syscall3(61 /*__NR_getdents64*/, dir->fd, dir->buf, sizeof(dir->buf));
 #elif defined(__arm__)
             long ret = my_syscall3(217 /*__NR_getdents64*/, dir->fd, dir->buf, sizeof(dir->buf));
@@ -4801,7 +5094,7 @@ inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, lon
 {
 #if defined(__x86_64__)
     long ret = my_syscall6(9 /*__NR_mmap*/, addr, length, prot, flags, fd, offset);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall6(222 /*__NR_mmap*/, addr, length, prot, flags, fd, offset);
 #elif defined(__arm__)
     long ret = my_syscall6(192 /*__NR_mmap2*/, addr, length, prot, flags, fd, (long)(offset >> 12));
@@ -4816,7 +5109,7 @@ inline int l_munmap(void *addr, size_t length)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(11 /*__NR_munmap*/, addr, length);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     return (int)my_syscall2(215 /*__NR_munmap*/, addr, length);
 #elif defined(__arm__)
     return (int)my_syscall2(91 /*__NR_munmap*/, addr, length);
@@ -4988,7 +5281,7 @@ inline L_SOCKET l_socket_tcp(void)
 {
 #if defined(__x86_64__)
     long ret = my_syscall3(41 /*__NR_socket*/, 2 /*AF_INET*/, 1 /*SOCK_STREAM*/, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall3(198 /*__NR_socket*/, 2, 1, 0);
 #elif defined(__arm__)
     long ret = my_syscall3(281 /*__NR_socket*/, 2, 1, 0);
@@ -5008,7 +5301,7 @@ inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
     sa.sin_addr = ip;
 #if defined(__x86_64__)
     long ret = my_syscall3(42 /*__NR_connect*/, sock, (long)&sa, (long)sizeof(sa));
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall3(203 /*__NR_connect*/, sock, (long)&sa, (long)sizeof(sa));
 #elif defined(__arm__)
     long ret = my_syscall3(284 /*__NR_connect*/, sock, (long)&sa, (long)sizeof(sa));
@@ -5025,7 +5318,7 @@ inline int l_socket_bind(L_SOCKET sock, int port)
     sa.sin_addr = 0;
 #if defined(__x86_64__)
     long ret = my_syscall3(49 /*__NR_bind*/, sock, (long)&sa, (long)sizeof(sa));
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall3(200 /*__NR_bind*/, sock, (long)&sa, (long)sizeof(sa));
 #elif defined(__arm__)
     long ret = my_syscall3(283 /*__NR_bind*/, sock, (long)&sa, (long)sizeof(sa));
@@ -5037,7 +5330,7 @@ inline int l_socket_listen(L_SOCKET sock, int backlog)
 {
 #if defined(__x86_64__)
     long ret = my_syscall2(50 /*__NR_listen*/, sock, backlog);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall2(201 /*__NR_listen*/, sock, backlog);
 #elif defined(__arm__)
     long ret = my_syscall2(285 /*__NR_listen*/, sock, backlog);
@@ -5049,7 +5342,7 @@ inline L_SOCKET l_socket_accept(L_SOCKET sock)
 {
 #if defined(__x86_64__)
     long ret = my_syscall3(43 /*__NR_accept*/, sock, 0, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall3(202 /*__NR_accept*/, sock, 0, 0);
 #elif defined(__arm__)
     long ret = my_syscall4(286 /*__NR_accept4*/, sock, 0, 0, 0);
@@ -5062,7 +5355,7 @@ inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
 {
 #if defined(__x86_64__)
     long ret = my_syscall6(44 /*__NR_sendto*/, sock, (long)data, (long)len, 0, 0, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall6(206 /*__NR_sendto*/, sock, (long)data, (long)len, 0, 0, 0);
 #elif defined(__arm__)
     long ret = my_syscall6(291 /*__NR_sendto*/, sock, (long)data, (long)len, 0, 0, 0);
@@ -5075,7 +5368,7 @@ inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
 {
 #if defined(__x86_64__)
     long ret = my_syscall6(45 /*__NR_recvfrom*/, sock, (long)buf, (long)len, 0, 0, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall6(207 /*__NR_recvfrom*/, sock, (long)buf, (long)len, 0, 0, 0);
 #elif defined(__arm__)
     long ret = my_syscall6(293 /*__NR_recvfrom*/, sock, (long)buf, (long)len, 0, 0, 0);
@@ -5093,7 +5386,7 @@ inline L_SOCKET l_socket_udp(void)
 {
 #if defined(__x86_64__)
     long ret = my_syscall3(41 /*__NR_socket*/, 2 /*AF_INET*/, 2 /*SOCK_DGRAM*/, 0);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall3(198 /*__NR_socket*/, 2, 2, 0);
 #elif defined(__arm__)
     long ret = my_syscall3(281 /*__NR_socket*/, 2, 2, 0);
@@ -5113,7 +5406,7 @@ inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const
     sa.sin_addr = ip;
 #if defined(__x86_64__)
     long ret = my_syscall6(44 /*__NR_sendto*/, s, (long)data, (long)len, 0, (long)&sa, (long)sizeof(sa));
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall6(206 /*__NR_sendto*/, s, (long)data, (long)len, 0, (long)&sa, (long)sizeof(sa));
 #elif defined(__arm__)
     long ret = my_syscall6(291 /*__NR_sendto*/, s, (long)data, (long)len, 0, (long)&sa, (long)sizeof(sa));
@@ -5129,7 +5422,7 @@ inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr
     l_memset(&sa, 0, sizeof(sa));
 #if defined(__x86_64__)
     long ret = my_syscall6(45 /*__NR_recvfrom*/, s, (long)buf, (long)len, 0, (long)&sa, (long)&salen);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall6(207 /*__NR_recvfrom*/, s, (long)buf, (long)len, 0, (long)&sa, (long)&salen);
 #elif defined(__arm__)
     long ret = my_syscall6(293 /*__NR_recvfrom*/, s, (long)buf, (long)len, 0, (long)&sa, (long)&salen);
@@ -5169,8 +5462,8 @@ inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
     long ret = my_syscall3(7 /*__NR_poll*/, (long)kfds, nfds, timeout_ms);
 #elif defined(__arm__)
     long ret = my_syscall3(168 /*__NR_poll*/, (long)kfds, nfds, timeout_ms);
-#elif defined(__aarch64__)
-    // AArch64 has no poll syscall — use ppoll with NULL sigmask
+#elif defined(__aarch64__) || defined(__riscv)
+    // AArch64/RISC-V have no poll syscall — use ppoll with NULL sigmask
     struct l_timespec ts;
     struct l_timespec *tsp = (void *)0;
     if (timeout_ms >= 0) {
@@ -5201,7 +5494,7 @@ inline L_SigHandler l_signal(int sig, L_SigHandler handler)
     sa.flags = 0; // no SA_RESTORER — kernel handles return
 #if defined(__x86_64__)
     long ret = my_syscall4(13 /*__NR_rt_sigaction*/, sig, (long)&sa, (long)&old_sa, 8);
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__riscv)
     long ret = my_syscall4(134 /*__NR_rt_sigaction*/, sig, (long)&sa, (long)&old_sa, 8);
 #elif defined(__arm__)
     long ret = my_syscall4(174 /*__NR_rt_sigaction*/, sig, (long)&sa, (long)&old_sa, 8);
@@ -5233,6 +5526,455 @@ inline int l_isatty(L_FD fd)
     char buf[64]; // termios structure (we don't need the contents)
     long ret = my_syscall3(__NR_ioctl, fd, L_TCGETS, (long)buf);
     return ret == 0 ? 1 : 0;
+}
+
+#elif defined(__wasi__)
+// ============================================================
+// WASI (WebAssembly System Interface) — experimental support
+// ============================================================
+// WASI uses imported host functions instead of inline asm syscalls.
+// Types and imports are defined at file scope (near top of file).
+// Preopened directory fd 3 is used for filesystem access.
+// Run with: wasmtime --dir . program.wasm
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+#define O_RDONLY    0x0
+#define O_WRONLY    0x1
+#define O_RDWR      0x2
+#define O_CREAT     0x40
+#define O_EXCL      0x80
+#define O_NOCTTY    0x100
+#define O_TRUNC     0x200
+#define O_APPEND    0x400
+#define O_NONBLOCK  0x800
+#define O_CLOEXEC   0x80000
+#define O_DIRECTORY 0x4000
+
+// L_MAP constants for l_mmap
+#define L_PROT_READ     0x1
+#define L_PROT_WRITE    0x2
+#define L_MAP_PRIVATE   0x02
+#define L_MAP_ANONYMOUS 0x20
+#define L_MAP_FAILED    ((void *)-1)
+
+#define AT_FDCWD (-100)
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+
+#ifndef L_WITHSTART
+static char **l_envp;
+#endif
+
+// --- Core I/O functions ---
+
+noreturn inline void l_exit(int status)
+{
+    __wasi_proc_exit((unsigned)(status & 255));
+    __builtin_unreachable();
+}
+
+inline int l_chdir(const char *path)
+{
+    (void)path;
+    return -1; // WASI has no chdir
+}
+
+inline char *l_getcwd(char *buf, size_t size)
+{
+    (void)size;
+    if (buf && size > 1) { buf[0] = '.'; buf[1] = '\0'; }
+    return buf;
+}
+
+inline int l_close(L_FD fd)
+{
+    __wasi_errno_t err = __wasi_fd_close((__wasi_fd_t)fd);
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return 0;
+}
+
+inline int l_dup(L_FD fd)
+{
+    (void)fd;
+    return -1; // WASI preview 1 has no dup
+}
+
+inline int l_pipe(L_FD fds[2])
+{
+    (void)fds;
+    return -1; // WASI has no pipes
+}
+
+inline int l_dup2(L_FD oldfd, L_FD newfd)
+{
+    (void)oldfd; (void)newfd;
+    return -1; // WASI preview 1 has no dup2
+}
+
+inline L_PID l_fork(void)
+{
+    return -1; // WASI has no process creation
+}
+
+inline int l_execve(const char *path, char *const argv[], char *const envp[])
+{
+    (void)path; (void)argv; (void)envp;
+    return -1; // WASI has no exec
+}
+
+inline L_PID l_waitpid(L_PID pid, int *status, int options)
+{
+    (void)pid; (void)status; (void)options;
+    return -1; // WASI has no process management
+}
+
+static inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
+                           L_FD stdin_fd, L_FD stdout_fd, L_FD stderr_fd)
+{
+    (void)path; (void)argv; (void)envp;
+    (void)stdin_fd; (void)stdout_fd; (void)stderr_fd;
+    return -1; // WASI has no process creation
+}
+
+inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+{
+    (void)path; (void)argv; (void)envp;
+    return -1;
+}
+
+inline int l_wait(L_PID pid, int *exitcode)
+{
+    (void)pid; (void)exitcode;
+    return -1;
+}
+
+inline off_t l_lseek(L_FD fd, off_t offset, int whence)
+{
+    __wasi_whence_t w;
+    switch (whence) {
+        case SEEK_SET: w = __WASI_WHENCE_SET; break;
+        case SEEK_CUR: w = __WASI_WHENCE_CUR; break;
+        case SEEK_END: w = __WASI_WHENCE_END; break;
+        default: return -1;
+    }
+    __wasi_filesize_t newoffset = 0;
+    __wasi_errno_t err = __wasi_fd_seek((__wasi_fd_t)fd, (__wasi_filedelta_t)offset, w, &newoffset);
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return (off_t)newoffset;
+}
+
+inline int l_truncate(const char *path, long long size)
+{
+    (void)path; (void)size;
+    return -1; // WASI preview 1: limited truncate support
+}
+
+inline int l_ftruncate(L_FD fd, long long size)
+{
+    (void)fd; (void)size;
+    return -1; // WASI preview 1: limited ftruncate support
+}
+
+inline int l_mkdir(const char *path, mode_t mode)
+{
+    (void)mode;
+    __wasi_errno_t err = __wasi_path_create_directory(3, path, l_strlen(path));
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return 0;
+}
+
+inline int l_unlink(const char *path)
+{
+    __wasi_errno_t err = __wasi_path_unlink_file(3, path, l_strlen(path));
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return 0;
+}
+
+inline int l_rmdir(const char *path)
+{
+    __wasi_errno_t err = __wasi_path_remove_directory(3, path, l_strlen(path));
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return 0;
+}
+
+inline int l_rename(const char *oldpath, const char *newpath)
+{
+    (void)oldpath; (void)newpath;
+    return -1; // WASI preview 1: would need __wasi_path_rename
+}
+
+inline int l_access(const char *path, int mode)
+{
+    (void)path; (void)mode;
+    return -1; // WASI has no access() equivalent
+}
+
+inline int l_chmod(const char *path, mode_t mode)
+{
+    (void)path; (void)mode;
+    return -1; // WASI has no chmod
+}
+
+inline int l_symlink(const char *target, const char *linkpath)
+{
+    (void)target; (void)linkpath;
+    return -1; // WASI preview 1: limited symlink support
+}
+
+inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
+{
+    (void)path; (void)buf; (void)bufsiz;
+    return -1;
+}
+
+inline char *l_realpath(const char *path, char *resolved)
+{
+    if (!path || !resolved) return (char *)0;
+    // Minimal: just copy path as-is
+    size_t len = l_strlen(path);
+    l_memcpy(resolved, path, len + 1);
+    return resolved;
+}
+
+inline int l_stat(const char *path, L_Stat *st)
+{
+    (void)path; (void)st;
+    return -1; // WASI preview 1: would need __wasi_path_filestat_get
+}
+
+inline int l_fstat(L_FD fd, L_Stat *st)
+{
+    (void)fd; (void)st;
+    return -1; // WASI preview 1: would need __wasi_fd_filestat_get
+}
+
+inline int l_opendir(const char *path, L_Dir *dir)
+{
+    (void)path; (void)dir;
+    return -1; // WASI preview 1: would need __wasi_fd_readdir
+}
+
+static inline L_DirEntry *l_readdir(L_Dir *dir)
+{
+    (void)dir;
+    return (L_DirEntry *)0;
+}
+
+inline void l_closedir(L_Dir *dir)
+{
+    (void)dir;
+}
+
+// l_mmap — WASI: use WebAssembly memory.grow for anonymous mappings
+inline void *l_mmap(void *addr, size_t length, int prot, int flags,
+                    L_FD fd, long long offset)
+{
+    (void)addr; (void)prot; (void)offset;
+    if (!(flags & L_MAP_ANONYMOUS) || fd >= 0) return L_MAP_FAILED;
+    // WebAssembly pages are 64KB
+    size_t pages = (length + 65535) / 65536;
+    size_t old_pages = __builtin_wasm_memory_grow(0, pages);
+    if (old_pages == (size_t)-1) return L_MAP_FAILED;
+    return (void *)(old_pages * 65536);
+}
+
+inline int l_munmap(void *addr, size_t length)
+{
+    (void)addr; (void)length;
+    return 0; // WebAssembly memory cannot be freed
+}
+
+inline L_FD l_open(const char *path, int flags, mode_t mode)
+{
+    (void)mode;
+    __wasi_oflags_t oflags = 0;
+    __wasi_fdflags_t fdflags = 0;
+    __wasi_rights_t rights_base = 0;
+
+    if (flags & O_CREAT)     oflags |= __WASI_OFLAGS_CREAT;
+    if (flags & O_EXCL)      oflags |= __WASI_OFLAGS_EXCL;
+    if (flags & O_TRUNC)     oflags |= __WASI_OFLAGS_TRUNC;
+    if (flags & O_DIRECTORY)  oflags |= __WASI_OFLAGS_DIRECTORY;
+    if (flags & O_APPEND)    fdflags |= __WASI_FDFLAGS_APPEND;
+    if (flags & O_NONBLOCK)  fdflags |= __WASI_FDFLAGS_NONBLOCK;
+
+    int access_mode = flags & 3;
+    if (access_mode == O_RDONLY || access_mode == O_RDWR)
+        rights_base |= __WASI_RIGHTS_FD_READ | __WASI_RIGHTS_FD_SEEK |
+                        __WASI_RIGHTS_FD_TELL | __WASI_RIGHTS_FD_READDIR |
+                        __WASI_RIGHTS_FD_FILESTAT_GET;
+    if (access_mode == O_WRONLY || access_mode == O_RDWR)
+        rights_base |= __WASI_RIGHTS_FD_WRITE | __WASI_RIGHTS_FD_SEEK |
+                        __WASI_RIGHTS_FD_TELL | __WASI_RIGHTS_FD_ALLOCATE |
+                        __WASI_RIGHTS_FD_FILESTAT_SET_SIZE | __WASI_RIGHTS_FD_FILESTAT_GET;
+    rights_base |= __WASI_RIGHTS_FD_DATASYNC | __WASI_RIGHTS_FD_SYNC |
+                   __WASI_RIGHTS_FD_FDSTAT_SET_FLAGS;
+
+    __wasi_fd_t opened_fd;
+    __wasi_errno_t err = __wasi_path_open(
+        3, // preopened directory fd (convention: fd 3 = cwd with --dir .)
+        __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW,
+        path, l_strlen(path),
+        oflags, rights_base, rights_base,
+        fdflags, &opened_fd);
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return (L_FD)opened_fd;
+}
+
+inline ssize_t l_read(L_FD fd, void *buf, size_t count)
+{
+    __wasi_iovec_t iov;
+    iov.buf = (uint8_t *)buf;
+    iov.buf_len = (uint32_t)count;
+    __wasi_size_t_w nread = 0;
+    __wasi_errno_t err = __wasi_fd_read((__wasi_fd_t)fd, &iov, 1, &nread);
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return (ssize_t)nread;
+}
+
+inline int l_sched_yield(void)
+{
+    return 0; // WASI has no yield, just return success
+}
+
+inline L_PID l_getpid(void)
+{
+    return 0; // WASI has no process IDs
+}
+
+inline L_PID l_getppid(void)
+{
+    return 0;
+}
+
+inline int l_kill(L_PID pid, int sig)
+{
+    (void)pid; (void)sig;
+    return -1; // WASI has no signals
+}
+
+inline void l_sleep_ms(unsigned int ms)
+{
+    // WASI preview 1 has no sleep; busy-wait using clock_time_get
+    __wasi_timestamp_t start, now;
+    __wasi_clock_time_get(__WASI_CLOCKID_MONOTONIC, 1000, &start);
+    __wasi_timestamp_t target = start + ((__wasi_timestamp_t)ms * 1000000ULL);
+    do {
+        __wasi_clock_time_get(__WASI_CLOCKID_MONOTONIC, 1000, &now);
+    } while (now < target);
+}
+
+static inline long long l_time(long long *t) {
+    __wasi_timestamp_t ts = 0;
+    __wasi_errno_t err = __wasi_clock_time_get(__WASI_CLOCKID_REALTIME, 1000000000ULL, &ts);
+    long long val = (err == 0) ? (long long)(ts / 1000000000ULL) : 0;
+    if (t) *t = val;
+    return val;
+}
+
+static inline unsigned long l_term_raw(void)
+{
+    return 0; // WASI has no terminal control
+}
+
+static inline void l_term_restore(unsigned long old_mode)
+{
+    (void)old_mode;
+}
+
+inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
+{
+    // WASI has no non-blocking I/O; fall back to regular read
+    return l_read(fd, buf, count);
+}
+
+inline void l_term_size(int *rows, int *cols)
+{
+    *rows = 24;
+    *cols = 80; // WASI has no terminal; return defaults
+}
+
+inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
+{
+    __wasi_ciovec_t iov;
+    iov.buf = (const uint8_t *)buf;
+    iov.buf_len = (uint32_t)count;
+    __wasi_size_t_w nwritten = 0;
+    __wasi_errno_t err = __wasi_fd_write((__wasi_fd_t)fd, &iov, 1, &nwritten);
+    if (err != 0) { l_set_errno((int)err); return -1; }
+    return (ssize_t)nwritten;
+}
+
+#pragma GCC diagnostic pop
+
+inline L_FD l_open_read(const char* file) {
+    return l_open(file, O_RDONLY, 0);
+}
+
+inline L_FD l_open_write(const char* file) {
+    return l_open(file, O_WRONLY | O_CREAT, 0644);
+}
+
+inline L_FD l_open_readwrite(const char* file) {
+    return l_open(file, O_RDWR | O_CREAT, 0644);
+}
+
+inline L_FD l_open_append(const char* file) {
+    return l_open(file, O_WRONLY | O_APPEND | O_CREAT, 0600);
+}
+
+inline L_FD l_open_trunc(const char* file) {
+    return l_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+}
+
+// l_signal — WASI has no signal support
+typedef void (*L_SigHandler)(int);
+#define L_SIG_DFL ((L_SigHandler)0)
+
+inline L_SigHandler l_signal(int sig, L_SigHandler handler)
+{
+    (void)sig; (void)handler;
+    return L_SIG_DFL;
+}
+
+// l_writev — scatter write using multiple __wasi_fd_write iovecs
+inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
+{
+    ptrdiff_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+        if (iov[i].len == 0) continue;
+        ssize_t n = l_write(fd, iov[i].base, iov[i].len);
+        if (n < 0) return total > 0 ? total : -1;
+        total += n;
+        if ((size_t)n < iov[i].len) break;
+    }
+    return total;
+}
+
+// l_readv — scatter read
+inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
+{
+    ptrdiff_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+        if (iov[i].len == 0) continue;
+        ssize_t n = l_read(fd, iov[i].base, iov[i].len);
+        if (n < 0) return total > 0 ? total : -1;
+        if (n == 0) break;
+        total += n;
+        if ((size_t)n < iov[i].len) break;
+    }
+    return total;
+}
+
+// l_isatty — WASI has no terminal
+inline int l_isatty(L_FD fd)
+{
+    (void)fd;
+    return 0;
 }
 
 #else // Windows starts here
@@ -6596,6 +7338,7 @@ static inline int l_fprintf(L_FD fd, const char *fmt, ...) {
 }
 #endif // L_WITHSNPRINTF
 // On Unix: walks envp derived from argv (call l_getenv_init from main first).
+// On WASI: envp is set up in _start, l_getenv_init is a no-op.
 // On Windows: uses GetEnvironmentVariableW API directly.
 
 #ifdef _WIN32
@@ -6615,6 +7358,22 @@ static inline char *l_getenv(const char *name) {
     if (len == 0) return (char*)0;
     WideCharToMultiByte(CP_UTF8, 0, wresult, -1, result, 4096, NULL, NULL);
     return result;
+}
+
+#elif defined(__wasi__)
+
+static inline void l_getenv_init(int argc, char *argv[]) {
+    (void)argc; (void)argv; // envp already populated in _start
+}
+
+static inline char *l_getenv(const char *name) {
+    if (!l_envp || !name || !*name) return (char*)0;
+    size_t len = l_strlen(name);
+    for (char **ep = l_envp; *ep; ep++) {
+        if (l_strncmp(*ep, name, len) == 0 && (*ep)[len] == '=')
+            return *ep + len + 1;
+    }
+    return (char*)0;
 }
 
 #else

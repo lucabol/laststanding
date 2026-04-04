@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Unified CI script for laststanding. Builds, tests, and verifies across Windows, Linux, ARM32, and AArch64.
+    Unified CI script for laststanding. Builds, tests, and verifies across Windows, Linux, ARM32, AArch64, and RISC-V.
 .PARAMETER Target
-    Build target: windows, linux, arm, all (default: all)
+    Build target: windows, linux, arm, riscv, all (default: all)
 .PARAMETER Action
     Action to perform: build, test, verify, all (default: all)
 .PARAMETER Compiler
@@ -22,7 +22,7 @@
 #>
 
 param(
-    [ValidateSet('windows', 'linux', 'arm', 'all')]
+    [ValidateSet('windows', 'linux', 'arm', 'riscv', 'all')]
     [string]$Target = 'all',
 
     [ValidateSet('build', 'test', 'verify', 'all')]
@@ -401,6 +401,24 @@ function Test-Aarch64Compiler {
     return $script:Aarch64Available
 }
 
+$script:RiscvAvailable = $null
+function Test-RiscvCompiler {
+    if ($null -ne $script:RiscvAvailable) { return $script:RiscvAvailable }
+    if ($RunningOnLinux) {
+        try {
+            bash -c "command -v riscv64-linux-gnu-gcc" 2>&1 | Out-Null
+            $script:RiscvAvailable = ($LASTEXITCODE -eq 0)
+        } catch { $script:RiscvAvailable = $false }
+    } else {
+        if (-not (Test-WslAvailable)) { $script:RiscvAvailable = $false; return $false }
+        try {
+            $out = wsl bash -c "command -v riscv64-linux-gnu-gcc" 2>&1
+            $script:RiscvAvailable = ($LASTEXITCODE -eq 0)
+        } catch { $script:RiscvAvailable = $false }
+    }
+    return $script:RiscvAvailable
+}
+
 # --- QEMU emulator checks (cached) ---
 $script:QemuArmAvailable = $null
 function Test-QemuArm {
@@ -436,6 +454,24 @@ function Test-QemuAarch64 {
         } catch { $script:QemuAarch64Available = $false }
     }
     return $script:QemuAarch64Available
+}
+
+$script:QemuRiscvAvailable = $null
+function Test-QemuRiscv {
+    if ($null -ne $script:QemuRiscvAvailable) { return $script:QemuRiscvAvailable }
+    if ($RunningOnLinux) {
+        try {
+            bash -c "which qemu-riscv64" 2>&1 | Out-Null
+            $script:QemuRiscvAvailable = ($LASTEXITCODE -eq 0)
+        } catch { $script:QemuRiscvAvailable = $false }
+    } else {
+        if (-not (Test-WslAvailable)) { $script:QemuRiscvAvailable = $false; return $false }
+        try {
+            $out = wsl bash -c "which qemu-riscv64" 2>&1
+            $script:QemuRiscvAvailable = ($LASTEXITCODE -eq 0)
+        } catch { $script:QemuRiscvAvailable = $false }
+    }
+    return $script:QemuRiscvAvailable
 }
 
 # --- Run a step, report result ---
@@ -670,6 +706,51 @@ function Invoke-Aarch64VerifyWith {
     }
 }
 
+# ============================================================
+#  RISC-V actions — native on Linux, via WSL + QEMU on Windows
+# ============================================================
+function Invoke-RiscvBuildWith {
+    param([string]$CC, [string]$Label)
+    Invoke-Step $Label "Build" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile build_riscv $CC $OptLevel 2>&1"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_riscv $CC $OptLevel 2>&1"
+        }
+    }
+}
+
+function Invoke-RiscvTestWith {
+    param([string]$CC, [string]$Label)
+    if (-not (Test-QemuRiscv)) {
+        $hint = if ($RunningOnLinux) { "sudo apt-get install qemu-user" } else { "sudo apt-get install qemu-user (in WSL)" }
+        Write-Host "SKIP [install qemu-user: $hint]" -ForegroundColor Yellow
+        Add-Result $Label "Test" "SKIP"
+        return
+    }
+    Invoke-Step $Label "Test" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile test_riscv $CC $OptLevel 2>&1"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test_riscv $CC $OptLevel 2>&1"
+        }
+    }
+}
+
+function Invoke-RiscvVerifyWith {
+    param([string]$CC, [string]$Label)
+    Invoke-Step $Label "Verify" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile verify_riscv $CC $OptLevel 2>&1"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_riscv $CC $OptLevel 2>&1"
+        }
+    }
+}
+
 function Invoke-ArmTestWith {
     param([string]$CC, [string]$Label)
     if (-not (Test-QemuArm)) {
@@ -809,6 +890,39 @@ function Invoke-Target {
                             'build'  { Invoke-Aarch64BuildWith  $aarch64CC $label }
                             'test'   { Invoke-Aarch64TestWith   $aarch64CC $label }
                             'verify' { Invoke-Aarch64VerifyWith $aarch64CC $label }
+                        }
+                    }
+                }
+            }
+        }
+        'riscv' {
+            if ($RunningOnWindows -and -not (Test-WslAvailable)) {
+                Write-Host "SKIP: WSL not available -- skipping RISC-V target." -ForegroundColor Yellow
+                foreach ($cc in (Get-ArmCompilers)) {
+                    $label = "RISC-V ($cc)"
+                    $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                    foreach ($act in $actions) { Add-Result $label $act "SKIP" }
+                }
+                return
+            }
+            if (-not (Test-RiscvCompiler)) {
+                $hint = if ($RunningOnLinux) { "sudo apt-get install gcc-riscv64-linux-gnu" } else { "install in WSL" }
+                Write-Host "SKIP: riscv64-linux-gnu-gcc not found -- skipping RISC-V target. ($hint)" -ForegroundColor Yellow
+                foreach ($cc in (Get-ArmCompilers)) {
+                    $label = "RISC-V ($cc)"
+                    $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                    foreach ($act in $actions) { Add-Result $label $act "SKIP" }
+                }
+            } else {
+                foreach ($cc in (Get-ArmCompilers)) {
+                    $riscvCC = if ($cc -eq 'gcc') { 'riscv64-linux-gnu-gcc' } else { 'clang' }
+                    $label = "RISC-V ($cc)"
+                    $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                    foreach ($act in $actions) {
+                        switch ($act) {
+                            'build'  { Invoke-RiscvBuildWith  $riscvCC $label }
+                            'test'   { Invoke-RiscvTestWith   $riscvCC $label }
+                            'verify' { Invoke-RiscvVerifyWith $riscvCC $label }
                         }
                     }
                 }
