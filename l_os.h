@@ -4832,7 +4832,9 @@ static inline int l_rename(const char *oldpath, const char *newpath)
 {
 #if defined(__x86_64__)
     return (int)my_syscall4(264 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
-#elif defined(__aarch64__) || defined(__riscv)
+#elif defined(__riscv)
+    return (int)my_syscall5(276 /*__NR_renameat2*/, AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
+#elif defined(__aarch64__)
     return (int)my_syscall4(38 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
 #elif defined(__arm__)
     return (int)my_syscall4(329 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
