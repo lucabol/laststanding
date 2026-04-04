@@ -1,11 +1,12 @@
 {
-  "last_run": "2026-04-04T01:25:00Z",
-  "last_run_id": "23968307188",
-  "monthly_activity_issue": "2026-04 (open, created this run as aw_monthlyact)",
+  "last_run": "2026-04-04T13:19:37Z",
+  "last_run_id": "23979685536",
+  "monthly_activity_issue": "2026-04 (open, #101)",
   "open_prs": [
-    {"branch": "repo-assist/fix-map-put-highload-2026-04-04", "title": "[Repo Assist] fix: l_map_put update rejected at >=75% load + edge-case tests", "created": "2026-04-04", "status": "open"}
+    {"branch": "repo-assist/perf-strcmp-word-at-a-time-2026-04-04", "title": "[Repo Assist] perf: word-at-a-time l_strcmp and l_strncmp", "created": "2026-04-04", "status": "open"},
+    {"branch": "repo-assist/eng-wasi-ci-2026-04-04", "title": "[Repo Assist] eng: fix WASI macro redefinitions and add WASI compile-only CI", "created": "2026-04-04", "status": "open"}
   ],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed_no_open_human_prs"},
   "checked_off_items": [],
-  "notes": "No human-authored issues. PRs #98 and #99 merged by maintainer. This run: fixed l_map_put bug (load-factor check blocked updates to existing keys at >=75% capacity; also fixed tombstone-full-map insertion gap), added test_map_high_load and test_str_split_edge_cases. Next: word-at-a-time l_strcmp, buffered I/O helpers."
+  "notes": "No human-authored issues. l_map_put PR merged. This run: word-at-a-time l_strcmp/l_strncmp (Task 8), WASI macro fix + compile-only CI job (Task 4). Next: buffered I/O helpers (l_fopen-style wrappers)."
 }
