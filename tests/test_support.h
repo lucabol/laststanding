@@ -67,6 +67,8 @@ static inline void l_test_build_bin_path(const char *name, char *buf, size_t siz
     l_snprintf(buf, size, "bin/%s.armhf", name);
 #elif defined(__aarch64__)
     l_snprintf(buf, size, "bin/%s.aarch64", name);
+#elif defined(__riscv)
+    l_snprintf(buf, size, "bin/%s.riscv64", name);
 #else
     l_snprintf(buf, size, "bin/%s", name);
 #endif
