@@ -688,3 +688,25 @@ Finalized the 10-feature sprint: README, CI, commit, push.
 - The "Scope — Not Included" section in README was stale — still said "no sockets" despite TCP/UDP being implemented. Always check scope claims when adding features that invalidate them.
 - Hostname resolution is exposed as `l_resolve(const char *hostname, char *ip_out)`, with IPv4 passthrough so callers can hand it either a dotted quad or a hostname; `l_inet_addr` remains parser-only and still returns 0 for `"localhost"`.
 - Unix hostname lookup should stay allocation-free and local-first: check `/etc/hosts` before doing a single UDP A-record query to the first `/etc/resolv.conf` nameserver; Windows can use Winsock name lookup already available from `ws2_32`.
+
+## Work Session — 2026-07-28
+
+Fixed RISC-V clang CI failure: `-Wstatic-in-inline` warnings treated as errors via `-Werror`.
+
+**Root cause:** Forward declarations and function definitions in `l_os.h` were missing `static` — declared as plain types or `inline` instead of `static inline`. When a `static` helper (e.g., `l__buf_append`) was called from a non-`static` `inline` function (e.g., `l_ansi_move`), clang emitted "static function used in inline function with external linkage".
+
+**Changes to l_os.h (337 lines changed):**
+1. **116 forward declarations** (lines ~383-944): Added `static inline` prefix to all bare-type declarations (`int l_strcmp(...)` → `static inline int l_strcmp(...)`).
+2. **220 function definitions**: Changed `inline` → `static inline` across all platform-specific definition blocks (x86_64, AArch64, ARM, Windows).
+3. **1 `puts()` override** (line 7271): Changed `inline void puts(...)` → `static inline void puts(...)`.
+
+**Validated:**
+- Windows: build.bat + test_all.bat — ALL PASS
+- clang x86_64 (WSL): all 7 test files compile with `-Wall -Wextra -Wpedantic -Werror` — 6/7 PASS, 1 pre-existing `-Wstring-compare` in test_utils.c (unrelated)
+- gcc x86_64 (WSL): same 6/7 PASS result
+- RISC-V cross-compile: toolchain not available in WSL (no sudo), but the warning is architecture-independent — same clang semantics fire on x86_64
+
+## Learnings
+
+- ALL forward declarations AND definitions in `l_os.h` must use `static inline` (or `static` for non-inline). Bare `inline` without `static` gives the function external linkage in C, which triggers `-Wstatic-in-inline` when it calls `static` helpers.
+- The `-Wstatic-in-inline` warning is a C semantics issue, not architecture-specific. It fires identically on x86_64 and RISC-V — testing on any target with clang is sufficient to validate the fix.
