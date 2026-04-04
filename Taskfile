@@ -95,6 +95,7 @@ function build_riscv {    # Build for RISC-V (rv64gc) {compiler:riscv64-linux-gn
   case $CC in
     gcc)
       CC=riscv64-linux-gnu-gcc
+      OPT=s  # riscv64 gcc does not support -Oz; use -Os
       ;;
     clang)
       LDFLAGS="--target=riscv64-linux-gnu --sysroot=/usr/riscv64-linux-gnu -flto"
