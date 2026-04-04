@@ -256,9 +256,10 @@ void test_str_arena(void) {
     TEST_ASSERT(cs[4] == '\0', "str_cstr explicit NUL");
 
     // l_str_from_cstr
-    L_Str fc = l_str_from_cstr(&a, "arena copy");
+    const char *orig_cstr = "arena copy";
+    L_Str fc = l_str_from_cstr(&a, orig_cstr);
     TEST_ASSERT(l_str_eq(fc, l_str("arena copy")), "str_from_cstr content");
-    TEST_ASSERT(fc.data != "arena copy", "str_from_cstr is a copy");
+    TEST_ASSERT(fc.data != orig_cstr, "str_from_cstr is a copy");
 
     l_arena_free(&a);
     TEST_SECTION_PASS("L_Str arena ops");

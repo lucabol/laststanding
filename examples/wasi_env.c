@@ -1,7 +1,7 @@
 // WASI Environment — prints command-line args and environment variables.
 // Demonstrates WASI argument and environment access.
 //
-// Build: clang --target=wasm32-wasi --sysroot=/path/to/wasi-sdk/share/wasi-sysroot \
+// Build: clang --target=wasm32-wasi --sysroot=/path/to/wasi-sdk/share/wasi-sysroot
 //        -I.. -O2 -ffreestanding -nostdlib -o wasi_env.wasm wasi_env.c
 // Run:   wasmtime --env FOO=bar --env BAZ=qux wasi_env.wasm arg1 arg2
 

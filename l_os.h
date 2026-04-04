@@ -1011,6 +1011,10 @@ asm(".section .text\n"
 asm(".section .text\n"
     ".weak _start\n"
     "_start:\n"
+    ".option push\n"
+    ".option norelax\n"
+    "lla gp, __global_pointer$\n" // init global pointer (must precede any gp-relative access)
+    ".option pop\n"
     "ld a0, 0(sp)\n"              // argc
     "addi a1, sp, 8\n"            // argv
     "slli a2, a0, 3\n"            // envp = 8*argc ...

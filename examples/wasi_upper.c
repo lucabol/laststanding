@@ -1,7 +1,7 @@
 // WASI Uppercase — reads a file and outputs uppercase text.
 // Demonstrates file I/O under WASI (requires --dir . for file access).
 //
-// Build: clang --target=wasm32-wasi --sysroot=/path/to/wasi-sdk/share/wasi-sysroot \
+// Build: clang --target=wasm32-wasi --sysroot=/path/to/wasi-sdk/share/wasi-sysroot
 //        -I.. -O2 -ffreestanding -nostdlib -o wasi_upper.wasm wasi_upper.c
 // Run:   wasmtime --dir . wasi_upper.wasm input.txt
 

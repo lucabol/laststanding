@@ -1,6 +1,6 @@
 // WASI Hello World — demonstrates basic output under WebAssembly/WASI.
 //
-// Build: clang --target=wasm32-wasi --sysroot=/path/to/wasi-sdk/share/wasi-sysroot \
+// Build: clang --target=wasm32-wasi --sysroot=/path/to/wasi-sdk/share/wasi-sysroot
 //        -I.. -O2 -ffreestanding -nostdlib -o wasi_hello.wasm wasi_hello.c
 // Run:   wasmtime wasi_hello.wasm
 
