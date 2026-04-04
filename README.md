@@ -1,6 +1,6 @@
 # laststanding
 
-A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Three header files give you everything from `strlen` to pixel graphics to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V) and **Windows**, with no libc at all.
+A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Three header files give you everything from `strlen` to pixel graphics to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V), **Windows**, and **WASI (WebAssembly)** (experimental), with no libc at all.
 
 | Header | What it provides |
 |--------|-----------------|
@@ -476,6 +476,9 @@ Binaries must be compiled freestanding:
 | ARM32 cross | `arm-linux-gnueabihf-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
 | AArch64 cross | `aarch64-linux-gnu-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
 | RISC-V cross | `riscv64-linux-gnu-gcc -I. -Oz -ffreestanding -nostdlib -static -o app app.c` |
+| WASI (wasm32) | `clang --target=wasm32-wasi --sysroot=/path/to/wasi-sdk/share/wasi-sysroot -I. -O2 -ffreestanding -nostdlib -o app.wasm app.c` |
+
+> **WASI support is experimental.** Core I/O (`l_read`, `l_write`, `l_open`, `l_close`, `l_lseek`) and environment access work. Process creation (`l_fork`, `l_spawn`), pipes, sockets, signals, and terminal control are stubbed (return -1). Memory mapping for anonymous allocations (`L_Arena`) works via `memory.grow`. Run with: `wasmtime --dir . app.wasm`
 
 ## Function Reference — `l_os.h`
 
