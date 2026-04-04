@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Unified CI script for laststanding. Builds, tests, and verifies across Windows, Linux, ARM32, AArch64, and RISC-V.
+    Unified CI script for laststanding. Builds, tests, and verifies across Windows, Linux, ARM32, AArch64, RISC-V, and WASI.
 .PARAMETER Target
-    Build target: windows, linux, arm, riscv, all (default: all)
+    Build target: windows, linux, arm, riscv, wasi, all (default: all)
 .PARAMETER Action
     Action to perform: build, test, verify, all (default: all)
 .PARAMETER Compiler
@@ -22,7 +22,7 @@
 #>
 
 param(
-    [ValidateSet('windows', 'linux', 'arm', 'riscv', 'all')]
+    [ValidateSet('windows', 'linux', 'arm', 'riscv', 'wasi', 'all')]
     [string]$Target = 'all',
 
     [ValidateSet('build', 'test', 'verify', 'all')]
@@ -419,6 +419,25 @@ function Test-RiscvCompiler {
     return $script:RiscvAvailable
 }
 
+$script:WasiAvailable = $null
+function Test-WasiToolchain {
+    if ($null -ne $script:WasiAvailable) { return $script:WasiAvailable }
+    $check = 'command -v clang >/dev/null 2>&1 && command -v wasm-ld >/dev/null 2>&1 && command -v wasmedge >/dev/null 2>&1 && command -v wasm-validate >/dev/null 2>&1 && command -v wasm-objdump >/dev/null 2>&1 && test -d /usr/include/wasm32-wasi && test -f "$(clang -print-resource-dir)/lib/wasi/libclang_rt.builtins-wasm32.a"'
+    if ($RunningOnLinux) {
+        try {
+            bash -c $check 2>&1 | Out-Null
+            $script:WasiAvailable = ($LASTEXITCODE -eq 0)
+        } catch { $script:WasiAvailable = $false }
+    } else {
+        if (-not (Test-WslAvailable)) { $script:WasiAvailable = $false; return $false }
+        try {
+            $out = wsl bash -c $check 2>&1
+            $script:WasiAvailable = ($LASTEXITCODE -eq 0)
+        } catch { $script:WasiAvailable = $false }
+    }
+    return $script:WasiAvailable
+}
+
 # --- QEMU emulator checks (cached) ---
 $script:QemuArmAvailable = $null
 function Test-QemuArm {
@@ -484,7 +503,7 @@ function Invoke-Step {
 
     # Safety-net patterns: if any of these appear in test output, treat as FAIL
     # regardless of exit code (catches cases where shell loops swallow failures)
-    $FailurePatterns = @('Segmentation fault', 'core dumped', 'FAILED', 'SOME TESTS FAILED', 'SOME ARM TESTS FAILED', 'SOME AARCH64 TESTS FAILED')
+    $FailurePatterns = @('Segmentation fault', 'core dumped', 'FAILED', 'SOME TESTS FAILED', 'SOME ARM TESTS FAILED', 'SOME AARCH64 TESTS FAILED', 'SOME RISC-V TESTS FAILED', 'SOME WASI TESTS FAILED')
 
     if ($ShowAll) {
         # Verbose: capture + stream, then check for failure indicators
@@ -751,6 +770,42 @@ function Invoke-RiscvVerifyWith {
     }
 }
 
+# ============================================================
+#  WASI actions — native on Linux, via WSL on Windows
+# ============================================================
+function Invoke-WasiBuild {
+    Invoke-Step "WASI" "Build" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile build_wasi clang $OptLevel 2>&1"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_wasi clang $OptLevel 2>&1"
+        }
+    }
+}
+
+function Invoke-WasiTest {
+    Invoke-Step "WASI" "Test" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile test_wasi clang $OptLevel 2>&1"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile test_wasi clang $OptLevel 2>&1"
+        }
+    }
+}
+
+function Invoke-WasiVerify {
+    Invoke-Step "WASI" "Verify" {
+        if ($RunningOnLinux) {
+            bash -c "cd '$RepoRoot' && ./Taskfile verify_wasi clang $OptLevel 2>&1"
+        } else {
+            Invoke-CrlfFix
+            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile verify_wasi clang $OptLevel 2>&1"
+        }
+    }
+}
+
 function Invoke-ArmTestWith {
     param([string]$CC, [string]$Label)
     if (-not (Test-QemuArm)) {
@@ -928,11 +983,34 @@ function Invoke-Target {
                 }
             }
         }
+        'wasi' {
+            if ($RunningOnWindows -and -not (Test-WslAvailable)) {
+                Write-Host "SKIP: WSL not available -- skipping WASI target." -ForegroundColor Yellow
+                $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                foreach ($act in $actions) { Add-Result 'WASI' $act 'SKIP' }
+                return
+            }
+            if (-not (Test-WasiToolchain)) {
+                $hint = if ($RunningOnLinux) { "sudo apt-get install clang lld libclang-rt-dev-wasm32 wasi-libc wabt wasmedge" } else { "install clang, lld, libclang-rt-dev-wasm32, wasi-libc, wabt, and wasmedge in WSL" }
+                Write-Host "SKIP: WASI toolchain/runtime not found -- skipping WASI target. ($hint)" -ForegroundColor Yellow
+                $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                foreach ($act in $actions) { Add-Result 'WASI' $act 'SKIP' }
+            } else {
+                $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
+                foreach ($act in $actions) {
+                    switch ($act) {
+                        'build'  { Invoke-WasiBuild  }
+                        'test'   { Invoke-WasiTest   }
+                        'verify' { Invoke-WasiVerify }
+                    }
+                }
+            }
+        }
     }
 }
 
 # --- Main execution ---
-$targets = if ($Target -eq 'all') { @('windows', 'linux', 'arm') } else { @($Target) }
+$targets = if ($Target -eq 'all') { @('windows', 'linux', 'arm', 'riscv', 'wasi') } else { @($Target) }
 
 $windowsTargets = @($targets | Where-Object { $_ -eq 'windows' })
 $wslTargets = @($targets | Where-Object { $_ -ne 'windows' })

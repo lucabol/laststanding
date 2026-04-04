@@ -5562,13 +5562,6 @@ static inline int l_isatty(L_FD fd)
 #define O_CLOEXEC   0x80000
 #define O_DIRECTORY 0x4000
 
-// L_MAP constants for l_mmap
-#define L_PROT_READ     0x1
-#define L_PROT_WRITE    0x2
-#define L_MAP_PRIVATE   0x02
-#define L_MAP_ANONYMOUS 0x20
-#define L_MAP_FAILED    ((void *)-1)
-
 #define AT_FDCWD (-100)
 
 #pragma GCC diagnostic push

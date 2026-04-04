@@ -110,6 +110,32 @@ function build_riscv {    # Build for RISC-V (rv64gc) {compiler:riscv64-linux-gn
   done
 }
 
+function build_wasi {    # Build WASI/WebAssembly examples {compiler:clang} {optimizationchar:z}
+  mkdir -p bin
+  CC=${1:-clang}
+  OPT=${2:-z}
+  SYSROOT=${WASI_SYSROOT:-/usr}
+  RESOURCE_DIR=$($CC -print-resource-dir 2>/dev/null)
+  BUILTINS=${WASI_BUILTINS:-$RESOURCE_DIR/lib/wasi/libclang_rt.builtins-wasm32.a}
+
+  if [ ! -d "$SYSROOT/include/wasm32-wasi" ]; then
+    echo "Missing WASI sysroot headers at $SYSROOT/include/wasm32-wasi"
+    return 1
+  fi
+  if [ ! -f "$BUILTINS" ]; then
+    echo "Missing WASI builtins archive at $BUILTINS"
+    return 1
+  fi
+
+  for f in examples/wasi_*.c; do
+    [ -f "$f" ] || continue
+    x="${f##*/}"
+    x="${x%.*}";
+    echo "$x.wasm"
+    $CC --target=wasm32-wasi --sysroot="$SYSROOT" -I. -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--strip-all -Wall -Wextra -Wpedantic -O$OPT $f -ffreestanding -nostdlib "$BUILTINS" -Wl,--entry=_start -o bin/$x.wasm
+  done
+}
+
 function test_riscv {    # Build and run default RISC-V regression tests using QEMU
   build_riscv "$@"
   echo "=== Running default RISC-V regression tests in bin/ with QEMU ==="
@@ -134,6 +160,100 @@ function test_riscv {    # Build and run default RISC-V regression tests using Q
 function test_runtime_riscv {    # Build and run RISC-V socket/runtime checks on demand {compiler:riscv64-linux-gnu-gcc} {optimizationchar:z}
   build_riscv "$@"
   runtime_checks ".riscv64" qemu-riscv64 -L /usr/riscv64-linux-gnu
+}
+
+function test_wasi {    # Build and run default WASI examples {compiler:clang} {optimizationchar:z}
+  build_wasi "$@"
+  echo "=== Running default WASI examples ==="
+  local fail=0
+  local runner="${WASI_RUNTIME:-wasmedge}"
+  local out expected input
+
+  echo "--- Running bin/wasi_hello.wasm ---"
+  out=$("$runner" "bin/wasi_hello.wasm" 2>&1)
+  if [ $? -ne 0 ] || ! printf '%s' "$out" | grep -q "Hello from WebAssembly!"; then
+    echo "$out"
+    echo "FAIL: bin/wasi_hello.wasm output mismatch"
+    fail=1
+  fi
+  echo
+
+  echo "--- Running bin/wasi_env.wasm ---"
+  out=$("$runner" --env FOO=bar --env BAZ=qux "bin/wasi_env.wasm" arg1 arg2 2>&1)
+  if [ $? -ne 0 ] || ! printf '%s' "$out" | grep -q "argv\\[1\\] = arg1" || ! printf '%s' "$out" | grep -q "argv\\[2\\] = arg2" || ! printf '%s' "$out" | grep -q "FOO=bar" || ! printf '%s' "$out" | grep -q "BAZ=qux"; then
+    echo "$out"
+    echo "FAIL: bin/wasi_env.wasm output mismatch"
+    fail=1
+  fi
+  echo
+
+  echo "--- Running bin/wasi_upper.wasm ---"
+  input="bin/wasi_upper_input.txt"
+  printf 'aBc\nz9!\n' > "$input"
+  out=$("$runner" --dir .:. "bin/wasi_upper.wasm" "$input" 2>&1)
+  rm -f "$input"
+  expected=$(printf 'ABC\nZ9!\n')
+  if [ $? -ne 0 ] || [ "$out" != "$expected" ]; then
+    echo "$out"
+    echo "FAIL: bin/wasi_upper.wasm output mismatch"
+    fail=1
+  fi
+  echo
+
+  if [ $fail -ne 0 ]; then
+    echo "=== SOME WASI TESTS FAILED ==="
+    exit 1
+  fi
+}
+
+function verify_wasi {    # Verify WASI/WebAssembly examples are valid modules {compiler:clang} {optimizationchar:z}
+  if ! ls bin/*.wasm 1>/dev/null 2>&1; then
+    build_wasi "$@"
+  fi
+
+  local validator="${WASI_VALIDATE:-wasm-validate}"
+  local inspector="${WASI_OBJDUMP:-wasm-objdump}"
+
+  echo "=== Verifying WASI/WebAssembly examples ==="
+
+  for exe in bin/*.wasm; do
+    if [ -f "$exe" ]; then
+      echo
+      echo "Analyzing: $exe"
+      echo "----------------------------------------"
+
+      echo -n "  File type: "
+      file_output=$(file "$exe")
+      if echo "$file_output" | grep -q "WebAssembly"; then
+        echo "PASS (WebAssembly module)"
+      else
+        echo "FAIL"
+        echo "    $file_output"
+      fi
+
+      echo -n "  Module validation: "
+      if "$validator" "$exe" >/dev/null 2>&1; then
+        echo "PASS"
+      else
+        echo "FAIL"
+      fi
+
+      echo -n "  WASI imports: "
+      if "$inspector" -x "$exe" 2>/dev/null | grep -q "wasi_snapshot_preview1"; then
+        echo "PASS"
+      else
+        echo "FAIL"
+      fi
+
+      echo -n "  Binary size: "
+      total_size=$(stat -c%s "$exe" 2>/dev/null || stat -f%z "$exe" 2>/dev/null || wc -c < "$exe")
+      echo "${total_size} bytes"
+      echo
+    fi
+  done
+
+  echo
+  echo "=== WASI Verification complete ==="
 }
 
 function verify_riscv {    # Verify RISC-V executables are stdlib-independent and bloat-free {compiler:riscv64-linux-gnu-gcc} {optimizationchar:z}
