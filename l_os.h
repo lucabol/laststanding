@@ -1837,30 +1837,74 @@ static inline char *l_strrchr(const char *s, int c)
 }
 
 static inline int l_strncmp(const char *s1, const char *s2, size_t n) {
-    unsigned char u1, u2;
-
-    while (n-- > 0)
-    {
-        u1 = (unsigned char) *s1++;
-        u2 = (unsigned char) *s2++;
-        if (u1 != u2)
-            return u1 - u2;
-        if (u1 == '\0')
-            return 0;
+    /* Byte-at-a-time until s1 is word-aligned (or n exhausted). */
+    while (n && ((uintptr_t)s1 & (sizeof(uintptr_t) - 1U))) {
+        unsigned char u1 = (unsigned char)*s1++;
+        unsigned char u2 = (unsigned char)*s2++;
+        if (u1 != u2) return (int)u1 - (int)u2;
+        if (u1 == '\0') return 0;
+        n--;
+    }
+    /* Word-at-a-time when s2 is also word-aligned and >= one word remains.
+     * Uses the has-zero-byte trick: (w - 0x0101..01) & ~w & 0x8080..80.
+     * Break when s1's word contains a NUL or the two words differ. */
+    if (n >= sizeof(uintptr_t) && !((uintptr_t)s2 & (sizeof(uintptr_t) - 1U))) {
+        typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+        const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;  /* 0x0101...01 */
+        const uintptr_t highs = lones << 7;                 /* 0x8080...80 */
+        const uptr_alias *w1 = (const uptr_alias *)(const void *)s1;
+        const uptr_alias *w2 = (const uptr_alias *)(const void *)s2;
+        while (n >= sizeof(uintptr_t)) {
+            uintptr_t a = *w1, b = *w2;
+            if (((a - lones) & ~a & highs) | (a ^ b))
+                break;
+            w1++; w2++;
+            n -= sizeof(uintptr_t);
+        }
+        s1 = (const char *)w1;
+        s2 = (const char *)w2;
+    }
+    /* Tail: byte-at-a-time for remaining n bytes. */
+    while (n-- > 0) {
+        unsigned char u1 = (unsigned char)*s1++;
+        unsigned char u2 = (unsigned char)*s2++;
+        if (u1 != u2) return (int)u1 - (int)u2;
+        if (u1 == '\0') return 0;
     }
     return 0;
 }
 
 static inline int l_strcmp(const char *s1, const char *s2) {
-    unsigned char u1, u2;
-
+    /* Byte-at-a-time until s1 is word-aligned. */
+    while ((uintptr_t)s1 & (sizeof(uintptr_t) - 1U)) {
+        unsigned char u1 = (unsigned char)*s1++;
+        unsigned char u2 = (unsigned char)*s2++;
+        if (u1 != u2) return (int)u1 - (int)u2;
+        if (u1 == '\0') return 0;
+    }
+    /* Word-at-a-time when s2 is also word-aligned.
+     * Break when s1's word contains a NUL or the words differ. */
+    if (!((uintptr_t)s2 & (sizeof(uintptr_t) - 1U))) {
+        typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+        const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;  /* 0x0101...01 */
+        const uintptr_t highs = lones << 7;                 /* 0x8080...80 */
+        const uptr_alias *w1 = (const uptr_alias *)(const void *)s1;
+        const uptr_alias *w2 = (const uptr_alias *)(const void *)s2;
+        for (;;) {
+            uintptr_t a = *w1, b = *w2;
+            if (((a - lones) & ~a & highs) | (a ^ b))
+                break;
+            w1++; w2++;
+        }
+        s1 = (const char *)w1;
+        s2 = (const char *)w2;
+    }
+    /* Byte scan to locate the exact mismatch or NUL. */
     for (;;) {
-        u1 = (unsigned char) *s1++;
-        u2 = (unsigned char) *s2++;
-        if (u1 != u2)
-            return u1 - u2;
-        if (u1 == '\0')
-            return 0;
+        unsigned char u1 = (unsigned char)*s1++;
+        unsigned char u2 = (unsigned char)*s2++;
+        if (u1 != u2) return (int)u1 - (int)u2;
+        if (u1 == '\0') return 0;
     }
 }
 

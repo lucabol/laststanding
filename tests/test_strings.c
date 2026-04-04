@@ -274,6 +274,34 @@ void test_strcmp(void) {
 
     TEST_ASSERT(l_strcmp("\x80", "\x01") > 0, "unsigned: 0x80 > 0x01");
 
+    /* Alignment-boundary tests: exercise all phases of word-at-a-time path.
+     * Build two 48-byte buffers filled with 'A'; place an 'X' difference at
+     * each offset 0-15 to hit every alignment phase (prologue, word loop,
+     * epilogue) and every byte lane within a machine word. */
+    {
+        char a[48], b[48];
+        int ok = 1;
+        int i;
+        l_memset(a, 'A', 47); a[47] = '\0';
+        l_memset(b, 'A', 47); b[47] = '\0';
+        for (i = 0; i < 16; i++) {
+            b[i] = 'X';
+            if (!(l_strcmp(a, b) < 0)) { ok = 0; break; }
+            if (!(l_strcmp(b, a) > 0)) { ok = 0; break; }
+            b[i] = 'A';
+        }
+        TEST_ASSERT(ok, "word-at-a-time: strcmp correct at alignment offsets 0-15");
+    }
+    /* Long equal strings — stress the word loop. */
+    {
+        char a[128], b[128];
+        l_memset(a, 'Z', 127); a[127] = '\0';
+        l_memset(b, 'Z', 127); b[127] = '\0';
+        TEST_ASSERT(l_strcmp(a, b) == 0, "word-at-a-time: long equal strings");
+        b[126] = 'Y';
+        TEST_ASSERT(l_strcmp(a, b) > 0, "word-at-a-time: difference at last byte");
+    }
+
     TEST_SECTION_PASS("l_strcmp");
 }
 
@@ -293,6 +321,35 @@ void test_strncmp(void) {
     TEST_ASSERT(l_strncmp("a", "", 1) > 0, "non-empty vs empty");
     TEST_ASSERT(l_strncmp("a", "b", 1) < 0, "'a' < 'b'");
     TEST_ASSERT(l_strncmp("b", "a", 1) > 0, "'b' > 'a'");
+
+    /* Alignment-boundary tests: offset s2 by i bytes from an aligned buffer
+     * to exercise unaligned s2 fallback, and place the difference at various
+     * byte positions to cover all word-loop lanes. */
+    {
+        char a[64], b[64];
+        int ok = 1;
+        int i;
+        l_memset(a, 'B', 63); a[63] = '\0';
+        l_memset(b, 'B', 63); b[63] = '\0';
+        for (i = 0; i < 16; i++) {
+            b[i] = 'C';
+            if (!(l_strncmp(a, b, 63) < 0)) { ok = 0; break; }
+            if (!(l_strncmp(b, a, 63) > 0)) { ok = 0; break; }
+            b[i] = 'B';
+        }
+        TEST_ASSERT(ok, "word-at-a-time: strncmp correct at alignment offsets 0-15");
+    }
+    /* n cuts off before any difference — must return 0. */
+    TEST_ASSERT(l_strncmp("abcXYZ", "abcABC", 3) == 0, "n stops before difference");
+    /* Long equal — stress word loop. */
+    {
+        char a[128], b[128];
+        l_memset(a, 'Q', 127); a[127] = '\0';
+        l_memset(b, 'Q', 127); b[127] = '\0';
+        TEST_ASSERT(l_strncmp(a, b, 127) == 0, "word-at-a-time: long equal strings");
+        b[120] = 'P';
+        TEST_ASSERT(l_strncmp(a, b, 127) > 0, "word-at-a-time: difference deep in string");
+    }
 
     TEST_SECTION_PASS("l_strncmp");
 }
