@@ -380,77 +380,77 @@ typedef struct {
 
 // String functions
 /// Returns the length of a wide character string
-size_t l_wcslen(const wchar_t *s);
+static inline size_t l_wcslen(const wchar_t *s);
 /// Returns the length of a null-terminated string
-size_t l_strlen(const char *str);
+static inline size_t l_strlen(const char *str);
 /// Copies src string to dst, returns dst
-char *l_strcpy(char *dst, const char *src);
+static inline char *l_strcpy(char *dst, const char *src);
 /// Copies up to n characters from src to dst, padding with nulls
-char *l_strncpy(char *dst, const char *src, size_t n);
+static inline char *l_strncpy(char *dst, const char *src, size_t n);
 /// Appends src string to dst, returns dst
-char *l_strcat(char *dst, const char *src);
+static inline char *l_strcat(char *dst, const char *src);
 /// Appends at most n characters of src to dst, always null-terminates, returns dst
-char *l_strncat(char *dst, const char *src, size_t n);
+static inline char *l_strncat(char *dst, const char *src, size_t n);
 /// Returns pointer to first occurrence of c in s, or NULL
-char *l_strchr(const char *s, int c);
+static inline char *l_strchr(const char *s, int c);
 /// Returns pointer to last occurrence of c in s, or NULL
-char *l_strrchr(const char *s, int c);
+static inline char *l_strrchr(const char *s, int c);
 /// Returns pointer to first occurrence of s2 in s1, or NULL
-char *l_strstr(const char *s1, const char *s2);
+static inline char *l_strstr(const char *s1, const char *s2);
 /// Compares two strings, returns <0, 0, or >0
-int l_strcmp(const char *s1, const char *s2);
+static inline int l_strcmp(const char *s1, const char *s2);
 /// Compares up to n characters of two strings
-int l_strncmp(const char *s1, const char *s2, size_t n);
+static inline int l_strncmp(const char *s1, const char *s2, size_t n);
 /// Case-insensitive string comparison
-int l_strcasecmp(const char *s1, const char *s2);
+static inline int l_strcasecmp(const char *s1, const char *s2);
 /// Case-insensitive comparison of up to n characters
-int l_strncasecmp(const char *s1, const char *s2, size_t n);
+static inline int l_strncasecmp(const char *s1, const char *s2, size_t n);
 /// Returns length of initial segment of s consisting entirely of bytes in accept
-size_t l_strspn(const char *s, const char *accept);
+static inline size_t l_strspn(const char *s, const char *accept);
 /// Returns length of initial segment of s consisting entirely of bytes NOT in reject
-size_t l_strcspn(const char *s, const char *reject);
+static inline size_t l_strcspn(const char *s, const char *reject);
 /// Returns pointer to first occurrence in s of any character in accept, or NULL
-char *l_strpbrk(const char *s, const char *accept);
+static inline char *l_strpbrk(const char *s, const char *accept);
 /// Splits str into tokens delimited by any char in delim; saves state in *saveptr (reentrant)
-char *l_strtok_r(char *str, const char *delim, char **saveptr);
+static inline char *l_strtok_r(char *str, const char *delim, char **saveptr);
 /// Extracts token from *stringp delimited by any char in delim (BSD strsep); advances *stringp past delimiter
-char *l_strsep(char **stringp, const char *delim);
+static inline char *l_strsep(char **stringp, const char *delim);
 /// Converts binary data to lowercase hex string. NUL-terminates dst. Returns 2*len.
 static inline int l_bin2hex(char *dst, const void *src, size_t len);
 /// Converts hex string to binary data. Returns bytes written, or -1 on invalid input.
 static inline int l_hex2bin(void *dst, const char *src, size_t len);
 /// Returns pointer to the filename component of path (after last '/' or '\')
-const char *l_basename(const char *path);
+static inline const char *l_basename(const char *path);
 /// Writes the directory component of path into buf (up to bufsize), returns buf
-char *l_dirname(const char *path, char *buf, size_t bufsize);
+static inline char *l_dirname(const char *path, char *buf, size_t bufsize);
 /// Joins directory and filename with separator, returns buf
-char *l_path_join(char *buf, size_t bufsz, const char *dir, const char *file);
+static inline char *l_path_join(char *buf, size_t bufsz, const char *dir, const char *file);
 /// Returns pointer to extension including dot (".txt"), or "" if none
-const char *l_path_ext(const char *path);
+static inline const char *l_path_ext(const char *path);
 /// Returns 1 if path exists, 0 if not
-int l_path_exists(const char *path);
+static inline int l_path_exists(const char *path);
 /// Returns 1 if path is a directory, 0 if not
-int l_path_isdir(const char *path);
+static inline int l_path_isdir(const char *path);
 /// Reverses a string in place
-void l_reverse(char str[], int length);
+static inline void l_reverse(char str[], int length);
 
 // Conversion functions
 /// Returns non-zero if c is a whitespace character (space, tab, newline, etc.)
-int l_isspace(int c);
+static inline int l_isspace(int c);
 /// Returns non-zero if c is a digit ('0'-'9')
-int l_isdigit(int c);
+static inline int l_isdigit(int c);
 /// Returns non-zero if c is an alphabetic character ('A'-'Z' or 'a'-'z')
-int l_isalpha(int c);
+static inline int l_isalpha(int c);
 /// Returns non-zero if c is alphanumeric (l_isalpha or l_isdigit)
-int l_isalnum(int c);
+static inline int l_isalnum(int c);
 /// Returns non-zero if c is an uppercase letter ('A'-'Z')
-int l_isupper(int c);
+static inline int l_isupper(int c);
 /// Returns non-zero if c is a lowercase letter ('a'-'z')
-int l_islower(int c);
+static inline int l_islower(int c);
 /// Converts c to uppercase; returns c unchanged if not a lowercase letter
-int l_toupper(int c);
+static inline int l_toupper(int c);
 /// Converts c to lowercase; returns c unchanged if not an uppercase letter
-int l_tolower(int c);
+static inline int l_tolower(int c);
 /// Returns non-zero if c is a printable ASCII character (0x20-0x7e)
 static inline int l_isprint(int c);
 /// Returns non-zero if c is a hexadecimal digit (0-9, a-f, A-F)
@@ -462,23 +462,23 @@ static inline long l_labs(long x);
 /// Returns the absolute value of a long long
 static inline long long l_llabs(long long x);
 /// Converts a string to a long integer, skipping leading whitespace
-long l_atol(const char *s);
+static inline long l_atol(const char *s);
 /// Converts a string to an integer
-int l_atoi(const char *s);
+static inline int l_atoi(const char *s);
 /// Converts a string to an unsigned long, auto-detecting base when base==0 (0x=hex, 0=octal, else decimal); sets *endptr past last digit
-unsigned long l_strtoul(const char *nptr, char **endptr, int base);
+static inline unsigned long l_strtoul(const char *nptr, char **endptr, int base);
 /// Converts a string to a long, auto-detecting base when base==0; handles leading sign; sets *endptr past last digit
-long l_strtol(const char *nptr, char **endptr, int base);
+static inline long l_strtol(const char *nptr, char **endptr, int base);
 /// Converts a string to an unsigned long long (64-bit); auto-detects base when base==0; sets *endptr past last digit
-unsigned long long l_strtoull(const char *nptr, char **endptr, int base);
+static inline unsigned long long l_strtoull(const char *nptr, char **endptr, int base);
 /// Converts a string to a long long (64-bit); auto-detects base when base==0; handles leading sign; sets *endptr past last digit
-long long l_strtoll(const char *nptr, char **endptr, int base);
+static inline long long l_strtoll(const char *nptr, char **endptr, int base);
 /// Converts a string to a double; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit
-double l_strtod(const char *nptr, char **endptr);
+static inline double l_strtod(const char *nptr, char **endptr);
 /// Converts a string to a double (convenience wrapper around l_strtod)
 static inline double l_atof(const char *s);
 /// Converts a string to a float; skips leading whitespace; handles sign, decimal point, and e/E exponent; sets *endptr past last digit
-float l_strtof(const char *nptr, char **endptr);
+static inline float l_strtof(const char *nptr, char **endptr);
 
 // Math functions
 /// Returns the absolute value of a double
@@ -523,25 +523,25 @@ static inline double l_trunc(double x);
 static inline double l_hypot(double x, double y);
 
 /// Converts an integer to a string in the given radix (2-36)
-char *l_itoa(int in, char* buffer, int radix);
+static inline char *l_itoa(int in, char* buffer, int radix);
 
 // Memory functions
 /// Copies len bytes from src to dst, handling overlapping regions
-void *l_memmove(void *dst, const void *src, size_t len);
+static inline void *l_memmove(void *dst, const void *src, size_t len);
 /// Fills len bytes of dst with byte value b
-void *l_memset(void *dst, int b, size_t len);
+static inline void *l_memset(void *dst, int b, size_t len);
 /// Compares n bytes of s1 and s2, returns <0, 0, or >0
-int l_memcmp(const void *s1, const void *s2, size_t n);
+static inline int l_memcmp(const void *s1, const void *s2, size_t n);
 /// Copies len bytes from src to dst
-void *l_memcpy(void *dst, const void *src, size_t len);
+static inline void *l_memcpy(void *dst, const void *src, size_t len);
 /// Finds first occurrence of byte c in the first n bytes of s, or NULL
-void *l_memchr(const void *s, int c, size_t n);
+static inline void *l_memchr(const void *s, int c, size_t n);
 /// Finds last occurrence of byte c in the first n bytes of s, or NULL
-void *l_memrchr(const void *s, int c, size_t n);
+static inline void *l_memrchr(const void *s, int c, size_t n);
 /// Returns the length of s, but at most maxlen (does not scan past maxlen bytes)
-size_t l_strnlen(const char *s, size_t maxlen);
+static inline size_t l_strnlen(const char *s, size_t maxlen);
 /// Finds first occurrence of needle (needlelen bytes) in haystack (haystacklen bytes), or NULL
-void *l_memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen);
+static inline void *l_memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen);
 
 // Random number generation (xorshift32, single-threaded)
 /// Seeds the pseudo-random number generator
@@ -575,24 +575,24 @@ static inline int l_fprintf(L_FD fd, const char *fmt, ...);
 
 // System functions
 /// Terminates the process with the given status code
-noreturn void l_exit(int status);
+static inline noreturn void l_exit(int status);
 /// Opens a file with the given flags and mode, returns file descriptor
-L_FD l_open(const char *path, int flags, mode_t mode);
+static inline L_FD l_open(const char *path, int flags, mode_t mode);
 /// Closes a file descriptor
-int l_close(L_FD fd);
+static inline int l_close(L_FD fd);
 /// Reads up to count bytes from fd into buf
-ssize_t l_read(L_FD fd, void *buf, size_t count);
+static inline ssize_t l_read(L_FD fd, void *buf, size_t count);
 /// Writes up to count bytes from buf to fd
-ssize_t l_write(L_FD fd, const void *buf, size_t count);
+static inline ssize_t l_write(L_FD fd, const void *buf, size_t count);
 /// Reads one line from fd into buf (up to bufsz-1 bytes). Strips the newline.
 /// Returns number of bytes read (excluding newline), or -1 on error/EOF with no data.
 static inline ptrdiff_t l_read_line(L_FD fd, char *buf, size_t bufsz);
 /// Returns current Unix timestamp (seconds since 1970-01-01). Also writes to *t if non-NULL.
 static inline long long l_time(long long *t);
 /// Writes a string to stdout
-void l_puts(const char* s);
+static inline void l_puts(const char* s);
 /// Exits with code and message if condition is true
-void l_exitif(bool condition, int code, char *message);
+static inline void l_exitif(bool condition, int code, char *message);
 /// Returns value of environment variable, or NULL if not found
 static char *l_getenv(const char *name);
 /// Initializes environment variable access (call from main)
@@ -619,15 +619,15 @@ static inline int l_getopt(int argc, char *const argv[], const char *optstring);
 
 // Convenience file openers
 /// Opens a file for reading
-L_FD l_open_read(const char* file);
+static inline L_FD l_open_read(const char* file);
 /// Opens or creates a file for writing
-L_FD l_open_write(const char* file);
+static inline L_FD l_open_write(const char* file);
 /// Opens or creates a file for reading and writing
-L_FD l_open_readwrite(const char* file);
+static inline L_FD l_open_readwrite(const char* file);
 /// Opens or creates a file for appending
-L_FD l_open_append(const char* file);
+static inline L_FD l_open_append(const char* file);
 /// Opens or creates a file, truncating to zero length
-L_FD l_open_trunc(const char* file);
+static inline L_FD l_open_trunc(const char* file);
 
 // Error reporting
 /// Returns the error code from the most recent failed syscall (0 if last call succeeded)
@@ -637,15 +637,15 @@ static inline const char *l_strerror(int errnum);
 
 // Terminal and timing functions (cross-platform)
 /// Sleeps for the given number of milliseconds
-void l_sleep_ms(unsigned int ms);
+static inline void l_sleep_ms(unsigned int ms);
 /// Sets stdin to raw mode (no echo, no line buffering), returns old mode
 static unsigned long l_term_raw(void);
 /// Restores terminal mode from value returned by l_term_raw
 static void l_term_restore(unsigned long old_mode);
 /// Reads from fd without blocking, returns 0 if no data available
-ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
+static inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count);
 /// Gets terminal size in rows and columns
-void l_term_size(int *rows, int *cols);
+static inline void l_term_size(int *rows, int *cols);
 
 // ANSI terminal helpers
 #define L_ANSI_CLEAR    "\033[2J"
@@ -654,35 +654,35 @@ void l_term_size(int *rows, int *cols);
 #define L_ANSI_HIDE_CUR "\033[?25l"
 #define L_ANSI_RESET    "\033[0m"
 /// Writes cursor-move sequence into buf, returns bytes written
-int l_ansi_move(char *buf, size_t bufsz, int row, int col);
+static inline int l_ansi_move(char *buf, size_t bufsz, int row, int col);
 /// Writes color sequence into buf; fg/bg are 0-7 ANSI colors, -1 for default
-int l_ansi_color(char *buf, size_t bufsz, int fg, int bg);
+static inline int l_ansi_color(char *buf, size_t bufsz, int fg, int bg);
 
 // File system functions (cross-platform)
 /// Deletes a file, returns 0 on success, -1 on error
-int l_unlink(const char *path);
+static inline int l_unlink(const char *path);
 /// Removes an empty directory, returns 0 on success, -1 on error
-int l_rmdir(const char *path);
+static inline int l_rmdir(const char *path);
 /// Renames (or moves) a file or directory. Returns 0 on success, -1 on error.
-int l_rename(const char *oldpath, const char *newpath);
+static inline int l_rename(const char *oldpath, const char *newpath);
 /// Checks access to a file. mode: L_F_OK (exists), L_R_OK, L_W_OK, L_X_OK. Returns 0 if ok, -1 on error.
-int l_access(const char *path, int mode);
+static inline int l_access(const char *path, int mode);
 /// Changes permission bits of a file. Returns 0 on success, -1 on error.
-int l_chmod(const char *path, mode_t mode);
+static inline int l_chmod(const char *path, mode_t mode);
 /// Creates a symbolic link at linkpath pointing to target. Returns 0 on success, -1 on error.
-int l_symlink(const char *target, const char *linkpath);
+static inline int l_symlink(const char *target, const char *linkpath);
 /// Reads the target of a symbolic link into buf (up to bufsiz bytes). Returns number of bytes read, or -1 on error.
-ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz);
+static inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz);
 /// Resolves path to its canonical absolute form into resolved (at least L_PATH_MAX bytes). Returns resolved on success, NULL on error.
-char *l_realpath(const char *path, char *resolved);
+static inline char *l_realpath(const char *path, char *resolved);
 /// Gets file metadata by path. Returns 0 on success, -1 on error.
-int l_stat(const char *path, L_Stat *st);
+static inline int l_stat(const char *path, L_Stat *st);
 /// Gets file metadata by open file descriptor. Returns 0 on success, -1 on error.
-int l_fstat(L_FD fd, L_Stat *st);
+static inline int l_fstat(L_FD fd, L_Stat *st);
 /// Truncates a file at the given path to the specified size. Returns 0 on success, -1 on error.
-int l_truncate(const char *path, long long size);
+static inline int l_truncate(const char *path, long long size);
 /// Truncates an open file descriptor to the specified size. Returns 0 on success, -1 on error.
-int l_ftruncate(L_FD fd, long long size);
+static inline int l_ftruncate(L_FD fd, long long size);
 /// Returns the size of a file in bytes, or -1 on error.
 static inline long long l_file_size(const char *path);
 /// Reads exactly count bytes, retrying on short reads. Returns total bytes read, 0 on EOF, or negative on error.
@@ -690,16 +690,16 @@ static inline ptrdiff_t l_read_all(L_FD fd, void *buf, size_t count);
 /// Writes exactly count bytes, retrying on short writes. Returns total bytes written, or negative on error.
 static inline ptrdiff_t l_write_all(L_FD fd, const void *buf, size_t count);
 /// Opens a directory for reading. Returns 0 on success, -1 on error.
-int l_opendir(const char *path, L_Dir *dir);
+static inline int l_opendir(const char *path, L_Dir *dir);
 /// Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done.
 static L_DirEntry *l_readdir(L_Dir *dir);
 /// Closes a directory handle.
-void l_closedir(L_Dir *dir);
+static inline void l_closedir(L_Dir *dir);
 
 /// Maps a file or anonymous memory into the process address space
-void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset);
+static inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset);
 /// Unmaps a previously mapped region
-int l_munmap(void *addr, size_t length);
+static inline int l_munmap(void *addr, size_t length);
 
 // Arena function declarations
 /// Allocate an arena of `size` bytes via mmap. On failure, base=NULL.
@@ -792,11 +792,11 @@ static inline L_Str l_buf_as_str(const L_Buf *b);
 
 // I/O multiplexing
 /// Poll file descriptors for events. Returns number ready, 0 on timeout, -1 on error.
-int l_poll(L_PollFd *fds, int nfds, int timeout_ms);
+static inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms);
 
 // Signal handling
 /// Set signal handler. Returns previous handler or L_SIG_DFL on error.
-L_SigHandler l_signal(int sig, L_SigHandler handler);
+static inline L_SigHandler l_signal(int sig, L_SigHandler handler);
 
 // Environment manipulation
 /// Set environment variable. Returns 0 on success, -1 on error.
@@ -806,13 +806,13 @@ static int l_unsetenv(const char *name);
 
 // Scatter-gather I/O
 /// Write from multiple buffers. Returns bytes written or -1 on error.
-ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt);
+static inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt);
 /// Read into multiple buffers. Returns bytes read or -1 on error.
-ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt);
+static inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt);
 
 // Terminal detection
 /// Returns 1 if fd is a terminal, 0 otherwise.
-int l_isatty(L_FD fd);
+static inline int l_isatty(L_FD fd);
 
 // Hash map (arena-backed, fixed capacity)
 /// Initialize a map with given capacity (rounded to power of 2).
@@ -852,21 +852,21 @@ static inline void l_sha256_final(L_Sha256 *ctx, unsigned char hash[32]);
 static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]);
 
 /// Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error.
-char *l_getcwd(char *buf, size_t size);
+static inline char *l_getcwd(char *buf, size_t size);
 /// Changes the current working directory
-int l_chdir(const char *path);
+static inline int l_chdir(const char *path);
 
 /// Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error.
-int l_pipe(L_FD fds[2]);
+static inline int l_pipe(L_FD fds[2]);
 
 /// Duplicates fd, returning a new descriptor on success or -1 on error.
-int l_dup(L_FD fd);
+static inline int l_dup(L_FD fd);
 
 /// Duplicates oldfd onto newfd. Returns newfd on success, -1 on error.
-int l_dup2(L_FD oldfd, L_FD newfd);
+static inline int l_dup2(L_FD oldfd, L_FD newfd);
 
 /// Returns the current process ID.
-L_PID l_getpid(void);
+static inline L_PID l_getpid(void);
 
 /// Spawns a new process with explicit stdio. Use L_SPAWN_INHERIT to keep the parent's stream.
 static L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
@@ -875,11 +875,11 @@ static L_PID l_spawn_stdio(const char *path, char *const argv[], char *const env
 /// Spawns a new process, inheriting the current stdio descriptors.
 /// Returns process ID/handle on success, -1 on error.
 /// path: executable path. argv: NULL-terminated argument array. envp: NULL-terminated environment (NULL = inherit).
-L_PID l_spawn(const char *path, char *const argv[], char *const envp[]);
+static inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[]);
 
 /// Waits for a spawned process to finish. Returns 0 on success, -1 on error.
 /// exitcode receives the process exit code.
-int l_wait(L_PID pid, int *exitcode);
+static inline int l_wait(L_PID pid, int *exitcode);
 
 /// Executes a shell command string. Returns the exit code, or -1 on spawn failure.
 /// Uses /bin/sh -c on Unix, cmd.exe /c on Windows.
@@ -888,21 +888,21 @@ static inline int l_system(const char *cmd);
 #if defined(__unix__) || defined(__wasi__)
 // Unix and WASI functions
 /// Repositions the file offset of fd
-off_t l_lseek(L_FD fd, off_t offset, int whence);
+static inline off_t l_lseek(L_FD fd, off_t offset, int whence);
 /// Creates a directory with the given permissions
-int l_mkdir(const char *path, mode_t mode);
+static inline int l_mkdir(const char *path, mode_t mode);
 /// Yields the processor to other threads
-int l_sched_yield(void);
+static inline int l_sched_yield(void);
 /// Fork the current process. Returns child pid to parent, 0 to child, -1 on error.
-L_PID l_fork(void);
+static inline L_PID l_fork(void);
 /// Replace the current process image. Does not return on success.
-int l_execve(const char *path, char *const argv[], char *const envp[]);
+static inline int l_execve(const char *path, char *const argv[], char *const envp[]);
 /// Wait for a child process. Returns child pid on success, -1 on error.
-L_PID l_waitpid(L_PID pid, int *status, int options);
+static inline L_PID l_waitpid(L_PID pid, int *status, int options);
 /// Returns the parent process ID.
-L_PID l_getppid(void);
+static inline L_PID l_getppid(void);
 /// Sends signal sig to process pid. Returns 0 on success, -1 on error.
-int l_kill(L_PID pid, int sig);
+static inline int l_kill(L_PID pid, int sig);
 #endif
 
 #ifdef L_WITHSOCKETS
@@ -914,33 +914,33 @@ static inline unsigned int l_htonl(unsigned int h);
 /// Parse dotted-quad IP string to network-order u32. Returns 0 on error.
 static inline unsigned int l_inet_addr(const char *ip);
 /// Resolve hostname to IPv4 dotted-quad string. ip_out must be at least 16 bytes. If hostname is already IPv4 text, copies it unchanged. Returns 0 on success, -1 on error.
-int l_resolve(const char *hostname, char *ip_out);
+static inline int l_resolve(const char *hostname, char *ip_out);
 
 // TCP socket functions
 /// Create a TCP socket. Returns socket fd or -1 on error.
-L_SOCKET l_socket_tcp(void);
+static inline L_SOCKET l_socket_tcp(void);
 /// Connect to addr:port. Returns 0 on success, -1 on error.
-int l_socket_connect(L_SOCKET sock, const char *addr, int port);
+static inline int l_socket_connect(L_SOCKET sock, const char *addr, int port);
 /// Bind socket to port on all interfaces. Returns 0/-1.
-int l_socket_bind(L_SOCKET sock, int port);
+static inline int l_socket_bind(L_SOCKET sock, int port);
 /// Listen for connections. Returns 0/-1.
-int l_socket_listen(L_SOCKET sock, int backlog);
+static inline int l_socket_listen(L_SOCKET sock, int backlog);
 /// Accept connection. Returns new socket or -1.
-L_SOCKET l_socket_accept(L_SOCKET sock);
+static inline L_SOCKET l_socket_accept(L_SOCKET sock);
 /// Send data. Returns bytes sent or -1.
-ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len);
+static inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len);
 /// Receive data. Returns bytes received, 0 on close, -1 on error.
-ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len);
+static inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len);
 /// Close socket.
-void l_socket_close(L_SOCKET sock);
+static inline void l_socket_close(L_SOCKET sock);
 
 // UDP socket functions
 /// Create a UDP socket. Returns socket fd or -1 on error.
-L_SOCKET l_socket_udp(void);
+static inline L_SOCKET l_socket_udp(void);
 /// Send data to addr:port via UDP. Returns bytes sent or -1.
-ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port);
+static inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port);
 /// Receive data via UDP. addr_out (>=16 bytes) and port_out receive sender info. Returns bytes received or -1.
-ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out);
+static inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out);
 #endif // L_WITHSOCKETS
 
 #endif // L_WITHDEFS
@@ -1561,13 +1561,13 @@ static inline const char *l_strerror(int errnum) {
     }
 }
 
-inline size_t l_wcslen(const wchar_t *s) {
+static inline size_t l_wcslen(const wchar_t *s) {
     size_t len = 0;
     while(s[len] != L'\0') ++len;
     return len;
 }
 
-inline size_t l_strlen(const char *str)
+static inline size_t l_strlen(const char *str)
 {
     const char *p = str;
 
@@ -1600,7 +1600,7 @@ inline size_t l_strlen(const char *str)
     return (size_t)(p - str);
 }
 
-inline void *l_memmove(void *dst, const void *src, size_t len)
+static inline void *l_memmove(void *dst, const void *src, size_t len)
 {
     char *d = (char *)dst;
     const char *s = (const char *)src;
@@ -1634,7 +1634,7 @@ inline void *l_memmove(void *dst, const void *src, size_t len)
     return dst;
 }
 
-inline void *l_memset(void *dst, int b, size_t len)
+static inline void *l_memset(void *dst, int b, size_t len)
 {
     unsigned char *p = (unsigned char *)dst;
     unsigned char  c = (unsigned char)b;
@@ -1673,7 +1673,7 @@ inline void *l_memset(void *dst, int b, size_t len)
     return dst;
 }
 
-inline int l_memcmp(const void *s1, const void *s2, size_t n)
+static inline int l_memcmp(const void *s1, const void *s2, size_t n)
 {
     const unsigned char *a = (const unsigned char *)s1;
     const unsigned char *b = (const unsigned char *)s2;
@@ -1710,7 +1710,7 @@ inline int l_memcmp(const void *s1, const void *s2, size_t n)
     return 0;
 }
 
-inline char *l_strcpy(char *dst, const char *src)
+static inline char *l_strcpy(char *dst, const char *src)
 {
     char *ret = dst;
 
@@ -1744,7 +1744,7 @@ inline char *l_strcpy(char *dst, const char *src)
     return ret;
 }
 
-inline char *l_strcat(char *dst, const char *src)
+static inline char *l_strcat(char *dst, const char *src)
 {
     char *ret = dst;
 
@@ -1753,7 +1753,7 @@ inline char *l_strcat(char *dst, const char *src)
     return ret;
 }
 
-inline char *l_strncpy(char *dst, const char *src, size_t n)
+static inline char *l_strncpy(char *dst, const char *src, size_t n)
 {
     char *ret = dst;
     size_t i;
@@ -1765,7 +1765,7 @@ inline char *l_strncpy(char *dst, const char *src, size_t n)
     return ret;
 }
 
-inline char *l_strncat(char *dst, const char *src, size_t n)
+static inline char *l_strncat(char *dst, const char *src, size_t n)
 {
     char *ret = dst;
 
@@ -1777,7 +1777,7 @@ inline char *l_strncat(char *dst, const char *src, size_t n)
     return ret;
 }
 
-inline char *l_strchr(const char *s, int c)
+static inline char *l_strchr(const char *s, int c)
 {
     unsigned char uc = (unsigned char)c;
 
@@ -1824,7 +1824,7 @@ inline char *l_strchr(const char *s, int c)
     return (unsigned char)*s == uc ? (char *)s : NULL;
 }
 
-inline char *l_strrchr(const char *s, int c)
+static inline char *l_strrchr(const char *s, int c)
 {
     const char *ret = NULL;
 
@@ -1836,7 +1836,7 @@ inline char *l_strrchr(const char *s, int c)
     return (char)c == '\0' ? (char *)s : (char *)ret;
 }
 
-inline int l_strncmp(const char *s1, const char *s2, size_t n) {
+static inline int l_strncmp(const char *s1, const char *s2, size_t n) {
     unsigned char u1, u2;
 
     while (n-- > 0)
@@ -1851,7 +1851,7 @@ inline int l_strncmp(const char *s1, const char *s2, size_t n) {
     return 0;
 }
 
-inline int l_strcmp(const char *s1, const char *s2) {
+static inline int l_strcmp(const char *s1, const char *s2) {
     unsigned char u1, u2;
 
     for (;;) {
@@ -1864,7 +1864,7 @@ inline int l_strcmp(const char *s1, const char *s2) {
     }
 }
 
-inline char *l_strstr(const char *s1, const char *s2) {
+static inline char *l_strstr(const char *s1, const char *s2) {
     const size_t len = l_strlen(s2);
     if (len == 0) return (char *)s1;
     const size_t slen = l_strlen(s1);
@@ -1880,47 +1880,47 @@ inline char *l_strstr(const char *s1, const char *s2) {
     return NULL;
 }
 
-inline int l_isspace(int c)
+static inline int l_isspace(int c)
 {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
 }
 
-inline int l_isdigit(int c)
+static inline int l_isdigit(int c)
 {
     return (unsigned int)(c - '0') <= 9;
 }
 
-inline int l_isalpha(int c)
+static inline int l_isalpha(int c)
 {
     return (unsigned int)((c | 0x20) - 'a') <= ('z' - 'a');
 }
 
-inline int l_isalnum(int c)
+static inline int l_isalnum(int c)
 {
     return l_isalpha(c) || l_isdigit(c);
 }
 
-inline int l_isupper(int c)
+static inline int l_isupper(int c)
 {
     return (unsigned int)(c - 'A') <= ('Z' - 'A');
 }
 
-inline int l_islower(int c)
+static inline int l_islower(int c)
 {
     return (unsigned int)(c - 'a') <= ('z' - 'a');
 }
 
-inline int l_toupper(int c)
+static inline int l_toupper(int c)
 {
     return l_islower(c) ? c - ('a' - 'A') : c;
 }
 
-inline int l_tolower(int c)
+static inline int l_tolower(int c)
 {
     return l_isupper(c) ? c + ('a' - 'A') : c;
 }
 
-inline long l_atol(const char *s)
+static inline long l_atol(const char *s)
 {
     unsigned long ret = 0;
     unsigned long d;
@@ -1947,12 +1947,12 @@ inline long l_atol(const char *s)
     return neg ? -(long)ret : (long)ret;
 }
 
-inline int l_atoi(const char *s)
+static inline int l_atoi(const char *s)
 {
     return (int)l_atol(s);
 }
 
-inline unsigned long l_strtoul(const char *nptr, char **endptr, int base)
+static inline unsigned long l_strtoul(const char *nptr, char **endptr, int base)
 {
     const char *s = nptr;
     unsigned long acc = 0;
@@ -2009,7 +2009,7 @@ inline unsigned long l_strtoul(const char *nptr, char **endptr, int base)
     return acc;
 }
 
-inline long l_strtol(const char *nptr, char **endptr, int base)
+static inline long l_strtol(const char *nptr, char **endptr, int base)
 {
     const char *s = nptr;
     int neg = 0;
@@ -2044,7 +2044,7 @@ inline long l_strtol(const char *nptr, char **endptr, int base)
     return (long)uval;
 }
 
-inline unsigned long long l_strtoull(const char *nptr, char **endptr, int base)
+static inline unsigned long long l_strtoull(const char *nptr, char **endptr, int base)
 {
     const char *s = nptr;
     unsigned long long acc = 0;
@@ -2100,7 +2100,7 @@ inline unsigned long long l_strtoull(const char *nptr, char **endptr, int base)
     return acc;
 }
 
-inline long long l_strtoll(const char *nptr, char **endptr, int base)
+static inline long long l_strtoll(const char *nptr, char **endptr, int base)
 {
     const char *s = nptr;
     int neg = 0;
@@ -2134,7 +2134,7 @@ inline long long l_strtoll(const char *nptr, char **endptr, int base)
     return (long long)uval;
 }
 
-inline double l_strtod(const char *nptr, char **endptr)
+static inline double l_strtod(const char *nptr, char **endptr)
 {
     const char *s = nptr;
     while (l_isspace((unsigned char)*s)) s++;
@@ -2201,7 +2201,7 @@ inline double l_strtod(const char *nptr, char **endptr)
 
 static inline double l_atof(const char *s) { return l_strtod(s, (char **)0); }
 
-inline float l_strtof(const char *nptr, char **endptr)
+static inline float l_strtof(const char *nptr, char **endptr)
 {
     const char *s = nptr;
     while (l_isspace((unsigned char)*s)) s++;
@@ -2555,7 +2555,7 @@ static inline double l_hypot(double x, double y) {
 }
 
 //function to reverse a string
-inline void l_reverse(char str[], int length)
+static inline void l_reverse(char str[], int length)
 {
     int start;
     int end = length -1;
@@ -2567,7 +2567,7 @@ inline void l_reverse(char str[], int length)
     }
 }
 
-inline char* l_itoa(int num, char* str, int base)
+static inline char* l_itoa(int num, char* str, int base)
 {
     int i = 0;
     char isNegNum = 0;
@@ -2606,7 +2606,7 @@ inline char* l_itoa(int num, char* str, int base)
     return str;
 }
 
-inline void *l_memcpy(void *dst, const void *src, size_t len)
+static inline void *l_memcpy(void *dst, const void *src, size_t len)
 {
     char *d = (char *)dst;
     const char *s = (const char *)src;
@@ -2693,7 +2693,7 @@ static inline void *l_bsearch(const void *key, const void *base, size_t nmemb, s
     return (void *)0;
 }
 
-inline void *l_memchr(const void *s, int c, size_t n)
+static inline void *l_memchr(const void *s, int c, size_t n)
 {
     const unsigned char *p = (const unsigned char *)s;
     const unsigned char uc = (unsigned char)c;
@@ -2739,7 +2739,7 @@ inline void *l_memchr(const void *s, int c, size_t n)
     return NULL;
 }
 
-inline void *l_memrchr(const void *s, int c, size_t n)
+static inline void *l_memrchr(const void *s, int c, size_t n)
 {
     const unsigned char *p = (const unsigned char *)s + n;
     const unsigned char uc = (unsigned char)c;
@@ -2751,7 +2751,7 @@ inline void *l_memrchr(const void *s, int c, size_t n)
     return NULL;
 }
 
-inline size_t l_strnlen(const char *s, size_t maxlen)
+static inline size_t l_strnlen(const char *s, size_t maxlen)
 {
     size_t len = 0;
     while (len < maxlen && s[len] != '\0')
@@ -2759,7 +2759,7 @@ inline size_t l_strnlen(const char *s, size_t maxlen)
     return len;
 }
 
-inline void *l_memmem(const void *haystack, size_t haystacklen,
+static inline void *l_memmem(const void *haystack, size_t haystacklen,
                       const void *needle,   size_t needlelen)
 {
     const unsigned char *h = (const unsigned char *)haystack;
@@ -3137,7 +3137,7 @@ static inline int l_snprintf(char *buf, size_t n, const char *fmt, ...)
 }
 #endif // L_WITHSNPRINTF
 
-inline int l_strcasecmp(const char *s1, const char *s2) {
+static inline int l_strcasecmp(const char *s1, const char *s2) {
     for (;;) {
         unsigned char c1 = (unsigned char)l_tolower((unsigned char)*s1);
         unsigned char c2 = (unsigned char)l_tolower((unsigned char)*s2);
@@ -3150,7 +3150,7 @@ inline int l_strcasecmp(const char *s1, const char *s2) {
     }
 }
 
-inline int l_strncasecmp(const char *s1, const char *s2, size_t n) {
+static inline int l_strncasecmp(const char *s1, const char *s2, size_t n) {
     while (n-- > 0) {
         unsigned char c1 = (unsigned char)l_tolower((unsigned char)*s1);
         unsigned char c2 = (unsigned char)l_tolower((unsigned char)*s2);
@@ -3164,7 +3164,7 @@ inline int l_strncasecmp(const char *s1, const char *s2, size_t n) {
     return 0;
 }
 
-inline size_t l_strspn(const char *s, const char *accept) {
+static inline size_t l_strspn(const char *s, const char *accept) {
     size_t count = 0;
     for (; *s; s++) {
         const char *a = accept;
@@ -3178,7 +3178,7 @@ inline size_t l_strspn(const char *s, const char *accept) {
     return count;
 }
 
-inline size_t l_strcspn(const char *s, const char *reject) {
+static inline size_t l_strcspn(const char *s, const char *reject) {
     size_t count = 0;
     for (; *s; s++) {
         const char *r = reject;
@@ -3190,7 +3190,7 @@ inline size_t l_strcspn(const char *s, const char *reject) {
     return count;
 }
 
-inline char *l_strpbrk(const char *s, const char *accept) {
+static inline char *l_strpbrk(const char *s, const char *accept) {
     for (; *s; s++) {
         const char *a = accept;
         for (; *a; a++) {
@@ -3200,7 +3200,7 @@ inline char *l_strpbrk(const char *s, const char *accept) {
     return (char *)0;
 }
 
-inline char *l_strtok_r(char *str, const char *delim, char **saveptr) {
+static inline char *l_strtok_r(char *str, const char *delim, char **saveptr) {
     char *p;
     if (str == (char *)0) str = *saveptr;
     str += l_strspn(str, delim);
@@ -3215,7 +3215,7 @@ inline char *l_strtok_r(char *str, const char *delim, char **saveptr) {
     return str;
 }
 
-inline char *l_strsep(char **stringp, const char *delim) {
+static inline char *l_strsep(char **stringp, const char *delim) {
     char *s = *stringp;
     if (s == (char *)0) return (char *)0;
     char *tok = s;
@@ -3258,7 +3258,7 @@ static inline int l_hex2bin(void *dst, const char *src, size_t len) {
     return (int)(len / 2);
 }
 
-inline const char *l_basename(const char *path) {
+static inline const char *l_basename(const char *path) {
     if (!path || !*path) return path;
     const char *last = path;
     const char *p = path;
@@ -3270,7 +3270,7 @@ inline const char *l_basename(const char *path) {
     return last;
 }
 
-inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
+static inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
     if (!buf || bufsize == 0) return buf;
     if (!path || !*path) {
         buf[0] = '.';
@@ -3300,7 +3300,7 @@ inline char *l_dirname(const char *path, char *buf, size_t bufsize) {
     return buf;
 }
 
-inline char *l_path_join(char *buf, size_t bufsz, const char *dir, const char *file) {
+static inline char *l_path_join(char *buf, size_t bufsz, const char *dir, const char *file) {
     if (!buf || bufsz == 0) return buf;
     if (!dir || !*dir) {
         size_t flen = l_strlen(file);
@@ -3322,7 +3322,7 @@ inline char *l_path_join(char *buf, size_t bufsz, const char *dir, const char *f
     return buf;
 }
 
-inline const char *l_path_ext(const char *path) {
+static inline const char *l_path_ext(const char *path) {
     if (!path) return "";
     const char *base = l_basename(path);
     const char *dot = (const char *)0;
@@ -3342,7 +3342,7 @@ static inline size_t l__buf_append(char *buf, size_t bufsz, size_t pos, const ch
     return pos;
 }
 
-inline int l_ansi_move(char *buf, size_t bufsz, int row, int col) {
+static inline int l_ansi_move(char *buf, size_t bufsz, int row, int col) {
     if (!buf || bufsz < 2) return 0;
     char tmp[12];
     size_t pos = 0;
@@ -3357,7 +3357,7 @@ inline int l_ansi_move(char *buf, size_t bufsz, int row, int col) {
     return (int)pos;
 }
 
-inline int l_ansi_color(char *buf, size_t bufsz, int fg, int bg) {
+static inline int l_ansi_color(char *buf, size_t bufsz, int fg, int bg) {
     if (!buf || bufsz < 2) return 0;
     char tmp[12];
     size_t pos = 0;
@@ -3696,7 +3696,7 @@ static inline int l_dns_lookup_ipv4(const char *name, unsigned int *out_addr) {
 }
 #endif
 
-inline int l_resolve(const char *hostname, char *ip_out) {
+static inline int l_resolve(const char *hostname, char *ip_out) {
     unsigned int addr;
     if (!hostname || !*hostname || !ip_out) return -1;
     if (l_parse_ipv4(hostname, &addr)) {
@@ -4588,18 +4588,18 @@ double __aeabi_l2d(long long v)
 static char **l_envp;
 #endif
 
-noreturn inline void l_exit(int status)
+static noreturn inline void l_exit(int status)
 {
     my_syscall1(__NR_exit, status & 255);
     while(1);
 }
 
-inline int l_chdir(const char *path)
+static inline int l_chdir(const char *path)
 {
     return my_syscall1(__NR_chdir, path);
 }
 
-inline char *l_getcwd(char *buf, size_t size)
+static inline char *l_getcwd(char *buf, size_t size)
 {
 #if defined(__x86_64__)
     long ret = my_syscall2(79 /*__NR_getcwd*/, buf, size);
@@ -4612,19 +4612,19 @@ inline char *l_getcwd(char *buf, size_t size)
     return buf;
 }
 
-inline int l_close(L_FD fd)
+static inline int l_close(L_FD fd)
 {
     int ret = my_syscall1(__NR_close, fd);
     l_set_errno_from_ret(ret);
     return ret;
 }
 
-inline int l_dup(L_FD fd)
+static inline int l_dup(L_FD fd)
 {
     return my_syscall1(__NR_dup, fd);
 }
 
-inline int l_pipe(L_FD fds[2])
+static inline int l_pipe(L_FD fds[2])
 {
     int tmp[2];
 #if defined(__x86_64__)
@@ -4641,9 +4641,9 @@ inline int l_pipe(L_FD fds[2])
 }
 
 // Forward declaration: l_fstat is defined below but needed here by l_dup2
-inline int l_fstat(L_FD fd, L_Stat *st);
+static inline int l_fstat(L_FD fd, L_Stat *st);
 
-inline int l_dup2(L_FD oldfd, L_FD newfd)
+static inline int l_dup2(L_FD oldfd, L_FD newfd)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(33 /*__NR_dup2*/, oldfd, newfd);
@@ -4658,7 +4658,7 @@ inline int l_dup2(L_FD oldfd, L_FD newfd)
 #endif
 }
 
-inline L_PID l_fork(void)
+static inline L_PID l_fork(void)
 {
 #if defined(__x86_64__)
     return (L_PID)my_syscall5(56 /*__NR_clone*/, 17 /*SIGCHLD*/, 0, 0, 0, 0);
@@ -4669,7 +4669,7 @@ inline L_PID l_fork(void)
 #endif
 }
 
-inline int l_execve(const char *path, char *const argv[], char *const envp[])
+static inline int l_execve(const char *path, char *const argv[], char *const envp[])
 {
 #if defined(__x86_64__)
     return (int)my_syscall3(59 /*__NR_execve*/, path, argv, envp);
@@ -4680,7 +4680,7 @@ inline int l_execve(const char *path, char *const argv[], char *const envp[])
 #endif
 }
 
-inline L_PID l_waitpid(L_PID pid, int *status, int options)
+static inline L_PID l_waitpid(L_PID pid, int *status, int options)
 {
 #if defined(__x86_64__)
     return (L_PID)my_syscall4(61 /*__NR_wait4*/, pid, status, options, 0);
@@ -4739,12 +4739,12 @@ static inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *co
     return pid;
 }
 
-inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+static inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
 {
     return l_spawn_stdio(path, argv, envp, L_SPAWN_INHERIT, L_SPAWN_INHERIT, L_SPAWN_INHERIT);
 }
 
-inline int l_wait(L_PID pid, int *exitcode)
+static inline int l_wait(L_PID pid, int *exitcode)
 {
     int status = 0;
     L_PID ret = l_waitpid(pid, &status, 0);
@@ -4756,12 +4756,12 @@ inline int l_wait(L_PID pid, int *exitcode)
     return 0;
 }
 
-inline off_t l_lseek(L_FD fd, off_t offset, int whence)
+static inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
     return my_syscall3(__NR_lseek, fd, offset, whence);
 }
 
-inline int l_truncate(const char *path, long long size)
+static inline int l_truncate(const char *path, long long size)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(76 /*__NR_truncate*/, path, size);
@@ -4774,7 +4774,7 @@ inline int l_truncate(const char *path, long long size)
 #endif
 }
 
-inline int l_ftruncate(L_FD fd, long long size)
+static inline int l_ftruncate(L_FD fd, long long size)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(77 /*__NR_ftruncate*/, fd, size);
@@ -4787,7 +4787,7 @@ inline int l_ftruncate(L_FD fd, long long size)
 #endif
 }
 
-inline int l_mkdir(const char *path, mode_t mode)
+static inline int l_mkdir(const char *path, mode_t mode)
 {
 #ifdef __NR_mkdirat
     return my_syscall3(__NR_mkdirat, AT_FDCWD, path, mode);
@@ -4802,7 +4802,7 @@ inline int l_mkdir(const char *path, mode_t mode)
 #define AT_REMOVEDIR 0x200
 #endif
 
-inline int l_unlink(const char *path)
+static inline int l_unlink(const char *path)
 {
 #ifdef __NR_unlinkat
     return my_syscall3(__NR_unlinkat, AT_FDCWD, path, 0);
@@ -4813,7 +4813,7 @@ inline int l_unlink(const char *path)
 #endif
 }
 
-inline int l_rmdir(const char *path)
+static inline int l_rmdir(const char *path)
 {
 #ifdef __NR_unlinkat
     return my_syscall3(__NR_unlinkat, AT_FDCWD, path, AT_REMOVEDIR);
@@ -4824,7 +4824,7 @@ inline int l_rmdir(const char *path)
 #endif
 }
 
-inline int l_rename(const char *oldpath, const char *newpath)
+static inline int l_rename(const char *oldpath, const char *newpath)
 {
 #if defined(__x86_64__)
     return (int)my_syscall4(264 /*__NR_renameat*/, AT_FDCWD, oldpath, AT_FDCWD, newpath);
@@ -4837,7 +4837,7 @@ inline int l_rename(const char *oldpath, const char *newpath)
 #endif
 }
 
-inline int l_access(const char *path, int mode)
+static inline int l_access(const char *path, int mode)
 {
 #if defined(__x86_64__)
     return (int)my_syscall4(269 /*__NR_faccessat*/, AT_FDCWD, path, mode, 0);
@@ -4850,7 +4850,7 @@ inline int l_access(const char *path, int mode)
 #endif
 }
 
-inline int l_chmod(const char *path, mode_t mode)
+static inline int l_chmod(const char *path, mode_t mode)
 {
 #if defined(__x86_64__)
     return (int)my_syscall3(268 /*__NR_fchmodat*/, AT_FDCWD, path, mode);
@@ -4863,7 +4863,7 @@ inline int l_chmod(const char *path, mode_t mode)
 #endif
 }
 
-inline int l_symlink(const char *target, const char *linkpath)
+static inline int l_symlink(const char *target, const char *linkpath)
 {
 #ifdef __NR_symlinkat
     long ret = my_syscall3(__NR_symlinkat, target, AT_FDCWD, linkpath);
@@ -4885,7 +4885,7 @@ inline int l_symlink(const char *target, const char *linkpath)
     return (int)ret;
 }
 
-inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
+static inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
 {
 #ifdef __NR_readlinkat
     long ret = my_syscall4(__NR_readlinkat, AT_FDCWD, path, buf, bufsiz);
@@ -4906,7 +4906,7 @@ inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
     return (ptrdiff_t)ret;
 }
 
-inline char *l_realpath(const char *path, char *resolved)
+static inline char *l_realpath(const char *path, char *resolved)
 {
     /* Open the path with O_PATH (no actual I/O, just resolve) */
     long fd;
@@ -4959,7 +4959,7 @@ inline char *l_realpath(const char *path, char *resolved)
     return resolved;
 }
 
-inline int l_stat(const char *path, L_Stat *st)
+static inline int l_stat(const char *path, L_Stat *st)
 {
 #if defined(__x86_64__)
     char buf[144];
@@ -4993,7 +4993,7 @@ inline int l_stat(const char *path, L_Stat *st)
 #endif
 }
 
-inline int l_fstat(L_FD fd, L_Stat *st)
+static inline int l_fstat(L_FD fd, L_Stat *st)
 {
 #if defined(__x86_64__)
     char buf[144];
@@ -5027,7 +5027,7 @@ inline int l_fstat(L_FD fd, L_Stat *st)
 #endif
 }
 
-inline int l_opendir(const char *path, L_Dir *dir)
+static inline int l_opendir(const char *path, L_Dir *dir)
 {
     // Use openat syscall directly to avoid forward-declaration issues
 #define L_O_RDONLY    0
@@ -5088,12 +5088,12 @@ static inline L_DirEntry *l_readdir(L_Dir *dir)
     }
 }
 
-inline void l_closedir(L_Dir *dir)
+static inline void l_closedir(L_Dir *dir)
 {
     l_close(dir->fd);
 }
 
-inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset)
+static inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset)
 {
 #if defined(__x86_64__)
     long ret = my_syscall6(9 /*__NR_mmap*/, addr, length, prot, flags, fd, offset);
@@ -5108,7 +5108,7 @@ inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, lon
     return (void *)ret;
 }
 
-inline int l_munmap(void *addr, size_t length)
+static inline int l_munmap(void *addr, size_t length)
 {
 #if defined(__x86_64__)
     return (int)my_syscall2(11 /*__NR_munmap*/, addr, length);
@@ -5121,7 +5121,7 @@ inline int l_munmap(void *addr, size_t length)
 #endif
 }
 
-inline L_FD l_open(const char *path, int flags, mode_t mode)
+static inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
     long ret;
 #ifdef __NR_openat
@@ -5135,29 +5135,29 @@ inline L_FD l_open(const char *path, int flags, mode_t mode)
     return ret;
 }
 
-inline ssize_t l_read(L_FD fd, void *buf, size_t count)
+static inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
     long ret = my_syscall3(__NR_read, fd, buf, count);
     l_set_errno_from_ret(ret);
     return ret;
 }
 
-inline int l_sched_yield(void)
+static inline int l_sched_yield(void)
 {
     return my_syscall0(__NR_sched_yield);
 }
 
-inline L_PID l_getpid(void)
+static inline L_PID l_getpid(void)
 {
     return (L_PID)my_syscall0(__NR_getpid);
 }
 
-inline L_PID l_getppid(void)
+static inline L_PID l_getppid(void)
 {
     return (L_PID)my_syscall0(__NR_getppid);
 }
 
-inline int l_kill(L_PID pid, int sig)
+static inline int l_kill(L_PID pid, int sig)
 {
     long ret = my_syscall2(__NR_kill, (long)pid, sig);
     l_set_errno_from_ret(ret);
@@ -5170,7 +5170,7 @@ struct l_timespec {
     long tv_nsec;
 };
 
-inline void l_sleep_ms(unsigned int ms)
+static inline void l_sleep_ms(unsigned int ms)
 {
     struct l_timespec ts;
     ts.tv_sec = ms / 1000;
@@ -5232,7 +5232,7 @@ static inline void l_term_restore(unsigned long old_mode)
     my_syscall3(__NR_ioctl, L_STDIN, L_TCSETS, &l_saved_termios);
 }
 
-inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
+static inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
 {
     // With VMIN=0, VTIME=0 set by l_term_raw, read returns immediately
     return my_syscall3(__NR_read, fd, buf, count);
@@ -5241,7 +5241,7 @@ inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
 #define L_TIOCGWINSZ 0x5413
 struct l_winsize { unsigned short ws_row, ws_col, ws_xpixel, ws_ypixel; };
 
-inline void l_term_size(int *rows, int *cols)
+static inline void l_term_size(int *rows, int *cols)
 {
     struct l_winsize ws;
     long ret = my_syscall3(__NR_ioctl, L_STDIN, L_TIOCGWINSZ, &ws);
@@ -5249,36 +5249,36 @@ inline void l_term_size(int *rows, int *cols)
     else { *rows = ws.ws_row; *cols = ws.ws_col; }
 }
 
-inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
+static inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     long ret = my_syscall3(__NR_write, fd, buf, count);
     l_set_errno_from_ret(ret);
     return ret;
 }
 
-inline L_FD l_open_read(const char* file) {
+static inline L_FD l_open_read(const char* file) {
     return l_open(file, O_RDONLY, 0);
 }
 
-inline L_FD l_open_write(const char* file) {
+static inline L_FD l_open_write(const char* file) {
     return l_open(file, O_WRONLY | O_CREAT, 0644);
 }
 
-inline L_FD l_open_readwrite(const char* file) {
+static inline L_FD l_open_readwrite(const char* file) {
     return l_open(file, O_RDWR | O_CREAT, 0644);
 }
 
-inline L_FD l_open_append(const char* file) {
+static inline L_FD l_open_append(const char* file) {
     return l_open(file, O_WRONLY | O_APPEND | O_CREAT, 0600);
 }
 
-inline L_FD l_open_trunc(const char* file) {
+static inline L_FD l_open_trunc(const char* file) {
     return l_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
 }
 
 #ifdef L_WITHSOCKETS
 
-inline L_SOCKET l_socket_tcp(void)
+static inline L_SOCKET l_socket_tcp(void)
 {
 #if defined(__x86_64__)
     long ret = my_syscall3(41 /*__NR_socket*/, 2 /*AF_INET*/, 1 /*SOCK_STREAM*/, 0);
@@ -5291,7 +5291,7 @@ inline L_SOCKET l_socket_tcp(void)
     return (L_SOCKET)ret;
 }
 
-inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
+static inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
 {
     L_SockAddrIn sa;
     unsigned int ip;
@@ -5310,7 +5310,7 @@ inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
     return (int)(ret < 0 ? -1 : 0);
 }
 
-inline int l_socket_bind(L_SOCKET sock, int port)
+static inline int l_socket_bind(L_SOCKET sock, int port)
 {
     L_SockAddrIn sa;
     l_memset(&sa, 0, sizeof(sa));
@@ -5327,7 +5327,7 @@ inline int l_socket_bind(L_SOCKET sock, int port)
     return (int)(ret < 0 ? -1 : 0);
 }
 
-inline int l_socket_listen(L_SOCKET sock, int backlog)
+static inline int l_socket_listen(L_SOCKET sock, int backlog)
 {
 #if defined(__x86_64__)
     long ret = my_syscall2(50 /*__NR_listen*/, sock, backlog);
@@ -5339,7 +5339,7 @@ inline int l_socket_listen(L_SOCKET sock, int backlog)
     return (int)(ret < 0 ? -1 : 0);
 }
 
-inline L_SOCKET l_socket_accept(L_SOCKET sock)
+static inline L_SOCKET l_socket_accept(L_SOCKET sock)
 {
 #if defined(__x86_64__)
     long ret = my_syscall3(43 /*__NR_accept*/, sock, 0, 0);
@@ -5352,7 +5352,7 @@ inline L_SOCKET l_socket_accept(L_SOCKET sock)
     return (L_SOCKET)ret;
 }
 
-inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
+static inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
 {
 #if defined(__x86_64__)
     long ret = my_syscall6(44 /*__NR_sendto*/, sock, (long)data, (long)len, 0, 0, 0);
@@ -5365,7 +5365,7 @@ inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
     return (ptrdiff_t)ret;
 }
 
-inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
+static inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
 {
 #if defined(__x86_64__)
     long ret = my_syscall6(45 /*__NR_recvfrom*/, sock, (long)buf, (long)len, 0, 0, 0);
@@ -5378,12 +5378,12 @@ inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
     return (ptrdiff_t)ret;
 }
 
-inline void l_socket_close(L_SOCKET sock)
+static inline void l_socket_close(L_SOCKET sock)
 {
     my_syscall1(__NR_close, sock);
 }
 
-inline L_SOCKET l_socket_udp(void)
+static inline L_SOCKET l_socket_udp(void)
 {
 #if defined(__x86_64__)
     long ret = my_syscall3(41 /*__NR_socket*/, 2 /*AF_INET*/, 2 /*SOCK_DGRAM*/, 0);
@@ -5396,7 +5396,7 @@ inline L_SOCKET l_socket_udp(void)
     return (L_SOCKET)ret;
 }
 
-inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
+static inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
 {
     L_SockAddrIn sa;
     unsigned int ip;
@@ -5416,7 +5416,7 @@ inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const
     return (ptrdiff_t)ret;
 }
 
-inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out)
+static inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out)
 {
     L_SockAddrIn sa;
     long salen = sizeof(sa);
@@ -5448,7 +5448,7 @@ inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr
 #endif // L_WITHSOCKETS
 
 // l_poll — I/O multiplexing
-inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
+static inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
 {
     // Kernel pollfd layout: int fd, short events, short revents
     // But L_FD is ptrdiff_t (8 bytes on 64-bit), so we need to convert
@@ -5481,7 +5481,7 @@ inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
 }
 
 // l_signal — signal handling via rt_sigaction
-inline L_SigHandler l_signal(int sig, L_SigHandler handler)
+static inline L_SigHandler l_signal(int sig, L_SigHandler handler)
 {
     struct {
         void (*handler)(int);
@@ -5505,7 +5505,7 @@ inline L_SigHandler l_signal(int sig, L_SigHandler handler)
 }
 
 // l_writev — scatter write
-inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
+static inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
 {
     // Kernel iovec: { void *base; size_t len } — same layout as L_IoVec
     long ret = my_syscall3(__NR_writev, fd, (long)iov, iovcnt);
@@ -5514,7 +5514,7 @@ inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
 }
 
 // l_readv — scatter read
-inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
+static inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
 {
     long ret = my_syscall3(__NR_readv, fd, (long)iov, iovcnt);
     l_set_errno_from_ret(ret);
@@ -5522,7 +5522,7 @@ inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
 }
 
 // l_isatty — check if fd is a terminal
-inline int l_isatty(L_FD fd)
+static inline int l_isatty(L_FD fd)
 {
     char buf[64]; // termios structure (we don't need the contents)
     long ret = my_syscall3(__NR_ioctl, fd, L_TCGETS, (long)buf);
@@ -5574,62 +5574,62 @@ static char **l_envp;
 
 // --- Core I/O functions ---
 
-noreturn inline void l_exit(int status)
+static noreturn inline void l_exit(int status)
 {
     __wasi_proc_exit((unsigned)(status & 255));
     __builtin_unreachable();
 }
 
-inline int l_chdir(const char *path)
+static inline int l_chdir(const char *path)
 {
     (void)path;
     return -1; // WASI has no chdir
 }
 
-inline char *l_getcwd(char *buf, size_t size)
+static inline char *l_getcwd(char *buf, size_t size)
 {
     (void)size;
     if (buf && size > 1) { buf[0] = '.'; buf[1] = '\0'; }
     return buf;
 }
 
-inline int l_close(L_FD fd)
+static inline int l_close(L_FD fd)
 {
     __wasi_errno_t err = __wasi_fd_close((__wasi_fd_t)fd);
     if (err != 0) { l_set_errno((int)err); return -1; }
     return 0;
 }
 
-inline int l_dup(L_FD fd)
+static inline int l_dup(L_FD fd)
 {
     (void)fd;
     return -1; // WASI preview 1 has no dup
 }
 
-inline int l_pipe(L_FD fds[2])
+static inline int l_pipe(L_FD fds[2])
 {
     (void)fds;
     return -1; // WASI has no pipes
 }
 
-inline int l_dup2(L_FD oldfd, L_FD newfd)
+static inline int l_dup2(L_FD oldfd, L_FD newfd)
 {
     (void)oldfd; (void)newfd;
     return -1; // WASI preview 1 has no dup2
 }
 
-inline L_PID l_fork(void)
+static inline L_PID l_fork(void)
 {
     return -1; // WASI has no process creation
 }
 
-inline int l_execve(const char *path, char *const argv[], char *const envp[])
+static inline int l_execve(const char *path, char *const argv[], char *const envp[])
 {
     (void)path; (void)argv; (void)envp;
     return -1; // WASI has no exec
 }
 
-inline L_PID l_waitpid(L_PID pid, int *status, int options)
+static inline L_PID l_waitpid(L_PID pid, int *status, int options)
 {
     (void)pid; (void)status; (void)options;
     return -1; // WASI has no process management
@@ -5643,19 +5643,19 @@ static inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *co
     return -1; // WASI has no process creation
 }
 
-inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+static inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
 {
     (void)path; (void)argv; (void)envp;
     return -1;
 }
 
-inline int l_wait(L_PID pid, int *exitcode)
+static inline int l_wait(L_PID pid, int *exitcode)
 {
     (void)pid; (void)exitcode;
     return -1;
 }
 
-inline off_t l_lseek(L_FD fd, off_t offset, int whence)
+static inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
     __wasi_whence_t w;
     switch (whence) {
@@ -5670,19 +5670,19 @@ inline off_t l_lseek(L_FD fd, off_t offset, int whence)
     return (off_t)newoffset;
 }
 
-inline int l_truncate(const char *path, long long size)
+static inline int l_truncate(const char *path, long long size)
 {
     (void)path; (void)size;
     return -1; // WASI preview 1: limited truncate support
 }
 
-inline int l_ftruncate(L_FD fd, long long size)
+static inline int l_ftruncate(L_FD fd, long long size)
 {
     (void)fd; (void)size;
     return -1; // WASI preview 1: limited ftruncate support
 }
 
-inline int l_mkdir(const char *path, mode_t mode)
+static inline int l_mkdir(const char *path, mode_t mode)
 {
     (void)mode;
     __wasi_errno_t err = __wasi_path_create_directory(3, path, l_strlen(path));
@@ -5690,51 +5690,51 @@ inline int l_mkdir(const char *path, mode_t mode)
     return 0;
 }
 
-inline int l_unlink(const char *path)
+static inline int l_unlink(const char *path)
 {
     __wasi_errno_t err = __wasi_path_unlink_file(3, path, l_strlen(path));
     if (err != 0) { l_set_errno((int)err); return -1; }
     return 0;
 }
 
-inline int l_rmdir(const char *path)
+static inline int l_rmdir(const char *path)
 {
     __wasi_errno_t err = __wasi_path_remove_directory(3, path, l_strlen(path));
     if (err != 0) { l_set_errno((int)err); return -1; }
     return 0;
 }
 
-inline int l_rename(const char *oldpath, const char *newpath)
+static inline int l_rename(const char *oldpath, const char *newpath)
 {
     (void)oldpath; (void)newpath;
     return -1; // WASI preview 1: would need __wasi_path_rename
 }
 
-inline int l_access(const char *path, int mode)
+static inline int l_access(const char *path, int mode)
 {
     (void)path; (void)mode;
     return -1; // WASI has no access() equivalent
 }
 
-inline int l_chmod(const char *path, mode_t mode)
+static inline int l_chmod(const char *path, mode_t mode)
 {
     (void)path; (void)mode;
     return -1; // WASI has no chmod
 }
 
-inline int l_symlink(const char *target, const char *linkpath)
+static inline int l_symlink(const char *target, const char *linkpath)
 {
     (void)target; (void)linkpath;
     return -1; // WASI preview 1: limited symlink support
 }
 
-inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
+static inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
 {
     (void)path; (void)buf; (void)bufsiz;
     return -1;
 }
 
-inline char *l_realpath(const char *path, char *resolved)
+static inline char *l_realpath(const char *path, char *resolved)
 {
     if (!path || !resolved) return (char *)0;
     // Minimal: just copy path as-is
@@ -5743,19 +5743,19 @@ inline char *l_realpath(const char *path, char *resolved)
     return resolved;
 }
 
-inline int l_stat(const char *path, L_Stat *st)
+static inline int l_stat(const char *path, L_Stat *st)
 {
     (void)path; (void)st;
     return -1; // WASI preview 1: would need __wasi_path_filestat_get
 }
 
-inline int l_fstat(L_FD fd, L_Stat *st)
+static inline int l_fstat(L_FD fd, L_Stat *st)
 {
     (void)fd; (void)st;
     return -1; // WASI preview 1: would need __wasi_fd_filestat_get
 }
 
-inline int l_opendir(const char *path, L_Dir *dir)
+static inline int l_opendir(const char *path, L_Dir *dir)
 {
     (void)path; (void)dir;
     return -1; // WASI preview 1: would need __wasi_fd_readdir
@@ -5767,13 +5767,13 @@ static inline L_DirEntry *l_readdir(L_Dir *dir)
     return (L_DirEntry *)0;
 }
 
-inline void l_closedir(L_Dir *dir)
+static inline void l_closedir(L_Dir *dir)
 {
     (void)dir;
 }
 
 // l_mmap — WASI: use WebAssembly memory.grow for anonymous mappings
-inline void *l_mmap(void *addr, size_t length, int prot, int flags,
+static inline void *l_mmap(void *addr, size_t length, int prot, int flags,
                     L_FD fd, long long offset)
 {
     (void)addr; (void)prot; (void)offset;
@@ -5785,13 +5785,13 @@ inline void *l_mmap(void *addr, size_t length, int prot, int flags,
     return (void *)(old_pages * 65536);
 }
 
-inline int l_munmap(void *addr, size_t length)
+static inline int l_munmap(void *addr, size_t length)
 {
     (void)addr; (void)length;
     return 0; // WebAssembly memory cannot be freed
 }
 
-inline L_FD l_open(const char *path, int flags, mode_t mode)
+static inline L_FD l_open(const char *path, int flags, mode_t mode)
 {
     (void)mode;
     __wasi_oflags_t oflags = 0;
@@ -5828,7 +5828,7 @@ inline L_FD l_open(const char *path, int flags, mode_t mode)
     return (L_FD)opened_fd;
 }
 
-inline ssize_t l_read(L_FD fd, void *buf, size_t count)
+static inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
     __wasi_iovec_t iov;
     iov.buf = (uint8_t *)buf;
@@ -5839,28 +5839,28 @@ inline ssize_t l_read(L_FD fd, void *buf, size_t count)
     return (ssize_t)nread;
 }
 
-inline int l_sched_yield(void)
+static inline int l_sched_yield(void)
 {
     return 0; // WASI has no yield, just return success
 }
 
-inline L_PID l_getpid(void)
+static inline L_PID l_getpid(void)
 {
     return 0; // WASI has no process IDs
 }
 
-inline L_PID l_getppid(void)
+static inline L_PID l_getppid(void)
 {
     return 0;
 }
 
-inline int l_kill(L_PID pid, int sig)
+static inline int l_kill(L_PID pid, int sig)
 {
     (void)pid; (void)sig;
     return -1; // WASI has no signals
 }
 
-inline void l_sleep_ms(unsigned int ms)
+static inline void l_sleep_ms(unsigned int ms)
 {
     // WASI preview 1 has no sleep; busy-wait using clock_time_get
     __wasi_timestamp_t start, now;
@@ -5889,19 +5889,19 @@ static inline void l_term_restore(unsigned long old_mode)
     (void)old_mode;
 }
 
-inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
+static inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
 {
     // WASI has no non-blocking I/O; fall back to regular read
     return l_read(fd, buf, count);
 }
 
-inline void l_term_size(int *rows, int *cols)
+static inline void l_term_size(int *rows, int *cols)
 {
     *rows = 24;
     *cols = 80; // WASI has no terminal; return defaults
 }
 
-inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
+static inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     __wasi_ciovec_t iov;
     iov.buf = (const uint8_t *)buf;
@@ -5914,23 +5914,23 @@ inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 
 #pragma GCC diagnostic pop
 
-inline L_FD l_open_read(const char* file) {
+static inline L_FD l_open_read(const char* file) {
     return l_open(file, O_RDONLY, 0);
 }
 
-inline L_FD l_open_write(const char* file) {
+static inline L_FD l_open_write(const char* file) {
     return l_open(file, O_WRONLY | O_CREAT, 0644);
 }
 
-inline L_FD l_open_readwrite(const char* file) {
+static inline L_FD l_open_readwrite(const char* file) {
     return l_open(file, O_RDWR | O_CREAT, 0644);
 }
 
-inline L_FD l_open_append(const char* file) {
+static inline L_FD l_open_append(const char* file) {
     return l_open(file, O_WRONLY | O_APPEND | O_CREAT, 0600);
 }
 
-inline L_FD l_open_trunc(const char* file) {
+static inline L_FD l_open_trunc(const char* file) {
     return l_open(file, O_WRONLY | O_TRUNC | O_CREAT, 0644);
 }
 
@@ -5938,14 +5938,14 @@ inline L_FD l_open_trunc(const char* file) {
 typedef void (*L_SigHandler)(int);
 #define L_SIG_DFL ((L_SigHandler)0)
 
-inline L_SigHandler l_signal(int sig, L_SigHandler handler)
+static inline L_SigHandler l_signal(int sig, L_SigHandler handler)
 {
     (void)sig; (void)handler;
     return L_SIG_DFL;
 }
 
 // l_writev — scatter write using multiple __wasi_fd_write iovecs
-inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
+static inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
 {
     ptrdiff_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
@@ -5959,7 +5959,7 @@ inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
 }
 
 // l_readv — scatter read
-inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
+static inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
 {
     ptrdiff_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
@@ -5974,7 +5974,7 @@ inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
 }
 
 // l_isatty — WASI has no terminal
-inline int l_isatty(L_FD fd)
+static inline int l_isatty(L_FD fd)
 {
     (void)fd;
     return 0;
@@ -5982,7 +5982,7 @@ inline int l_isatty(L_FD fd)
 
 #else // Windows starts here
 
-noreturn inline void l_exit(int status)
+static noreturn inline void l_exit(int status)
 {
      ExitProcess(status);
     while(1);
@@ -6225,7 +6225,7 @@ static inline wchar_t *l_win_build_env_block(char *const envp[], wchar_t *buf, s
     return buf;
 }
 
-inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
+static inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
 {
     DWORD written;
     HANDLE out = l_win_fd_handle(fd);
@@ -6235,7 +6235,7 @@ inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
     return -1;
 }
 
-inline ssize_t l_read(L_FD fd, void *buf, size_t count)
+static inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 {
     DWORD readden;
     HANDLE in = l_win_fd_handle(fd);
@@ -6246,7 +6246,7 @@ inline ssize_t l_read(L_FD fd, void *buf, size_t count)
 }
 
 
-inline int l_close(L_FD fd) {
+static inline int l_close(L_FD fd) {
     HANDLE handle = l_win_fd_handle(fd);
     BOOL result;
     if (handle == INVALID_HANDLE_VALUE) { l_set_errno(L_EBADF); return -1; }
@@ -6258,7 +6258,7 @@ inline int l_close(L_FD fd) {
 }
 
 // Terminal and timing support for Windows
-inline void l_sleep_ms(unsigned int ms)
+static inline void l_sleep_ms(unsigned int ms)
 {
     Sleep(ms);
 }
@@ -6296,7 +6296,7 @@ static inline void l_term_restore(unsigned long old_mode)
         SetConsoleMode(in, (DWORD)old_mode);
 }
 
-inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
+static inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
 {
     HANDLE in = l_win_fd_handle(fd);
     INPUT_RECORD ir;
@@ -6325,7 +6325,7 @@ inline ssize_t l_read_nonblock(L_FD fd, void *buf, size_t count)
     return 0;
 }
 
-inline void l_term_size(int *rows, int *cols)
+static inline void l_term_size(int *rows, int *cols)
 {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     HANDLE out = l_win_fd_handle(L_STDOUT);
@@ -6348,14 +6348,14 @@ static inline int l_wide_to_utf8(const wchar_t *wbuf, char *buf, int buf_len) {
     return WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, buf_len, NULL, NULL);
 }
 
-inline int l_chdir(const char *path)
+static inline int l_chdir(const char *path)
 {
     wchar_t wpath[512];
     if (!l_utf8_to_wide(path, wpath, 512)) return -1;
     return SetCurrentDirectoryW(wpath) ? 0 : -1;
 }
 
-inline char *l_getcwd(char *buf, size_t size)
+static inline char *l_getcwd(char *buf, size_t size)
 {
     wchar_t wbuf[512];
     DWORD len = GetCurrentDirectoryW(512, wbuf);
@@ -6364,7 +6364,7 @@ inline char *l_getcwd(char *buf, size_t size)
     return buf;
 }
 
-inline int l_pipe(L_FD fds[2])
+static inline int l_pipe(L_FD fds[2])
 {
     L_FD read_fd;
     L_FD write_fd;
@@ -6390,7 +6390,7 @@ inline int l_pipe(L_FD fds[2])
     return 0;
 }
 
-inline int l_dup(L_FD fd)
+static inline int l_dup(L_FD fd)
 {
     HANDLE src = l_win_fd_handle(fd);
     HANDLE dup;
@@ -6409,7 +6409,7 @@ inline int l_dup(L_FD fd)
     return (int)newfd;
 }
 
-inline int l_dup2(L_FD oldfd, L_FD newfd)
+static inline int l_dup2(L_FD oldfd, L_FD newfd)
 {
     HANDLE src = l_win_fd_handle(oldfd);
     HANDLE dup;
@@ -6429,7 +6429,7 @@ inline int l_dup2(L_FD oldfd, L_FD newfd)
     return (int)newfd;
 }
 
-inline off_t l_lseek(L_FD fd, off_t offset, int whence)
+static inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 {
     HANDLE handle = l_win_fd_handle(fd);
     LARGE_INTEGER distance;
@@ -6451,7 +6451,7 @@ inline off_t l_lseek(L_FD fd, off_t offset, int whence)
     return (off_t)newpos.QuadPart;
 }
 
-inline int l_truncate(const char *path, long long size)
+static inline int l_truncate(const char *path, long long size)
 {
     wchar_t wpath[1024];
     HANDLE h;
@@ -6467,7 +6467,7 @@ inline int l_truncate(const char *path, long long size)
     return ret;
 }
 
-inline int l_ftruncate(L_FD fd, long long size)
+static inline int l_ftruncate(L_FD fd, long long size)
 {
     HANDLE h = l_win_fd_handle(fd);
     LARGE_INTEGER li;
@@ -6477,7 +6477,7 @@ inline int l_ftruncate(L_FD fd, long long size)
     return SetEndOfFile(h) ? 0 : -1;
 }
 
-inline int l_mkdir(const char *path, mode_t mode)
+static inline int l_mkdir(const char *path, mode_t mode)
 {
     wchar_t wpath[1024];
     (void)mode;
@@ -6485,7 +6485,7 @@ inline int l_mkdir(const char *path, mode_t mode)
     return CreateDirectoryW(wpath, NULL) ? 0 : -1;
 }
 
-inline int l_sched_yield(void)
+static inline int l_sched_yield(void)
 {
     Sleep(0);
     return 0;
@@ -6553,12 +6553,12 @@ fail:
     return -1;
 }
 
-inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
+static inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
 {
     return l_spawn_stdio(path, argv, envp, L_SPAWN_INHERIT, L_SPAWN_INHERIT, L_SPAWN_INHERIT);
 }
 
-inline int l_wait(L_PID pid, int *exitcode)
+static inline int l_wait(L_PID pid, int *exitcode)
 {
     HANDLE proc = (HANDLE)pid;
     if (WaitForSingleObject(proc, INFINITE) != WAIT_OBJECT_0) {
@@ -6575,31 +6575,31 @@ inline int l_wait(L_PID pid, int *exitcode)
     return 0;
 }
 
-inline L_PID l_getpid(void)
+static inline L_PID l_getpid(void)
 {
     return (L_PID)GetCurrentProcessId();
 }
 
-inline int l_unlink(const char *path) {
+static inline int l_unlink(const char *path) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     return DeleteFileW(wpath) ? 0 : -1;
 }
 
-inline int l_rmdir(const char *path) {
+static inline int l_rmdir(const char *path) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     return RemoveDirectoryW(wpath) ? 0 : -1;
 }
 
-inline int l_rename(const char *oldpath, const char *newpath) {
+static inline int l_rename(const char *oldpath, const char *newpath) {
     wchar_t wold[1024], wnew[1024];
     if (!l_utf8_to_wide(oldpath, wold, 1024)) return -1;
     if (!l_utf8_to_wide(newpath, wnew, 1024)) return -1;
     return MoveFileExW(wold, wnew, 1 /*MOVEFILE_REPLACE_EXISTING*/) ? 0 : -1;
 }
 
-inline int l_access(const char *path, int mode) {
+static inline int l_access(const char *path, int mode) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     DWORD attr = GetFileAttributesW(wpath);
@@ -6608,7 +6608,7 @@ inline int l_access(const char *path, int mode) {
     return 0;
 }
 
-inline int l_chmod(const char *path, mode_t mode) {
+static inline int l_chmod(const char *path, mode_t mode) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     DWORD attr = GetFileAttributesW(wpath);
@@ -6620,7 +6620,7 @@ inline int l_chmod(const char *path, mode_t mode) {
     return SetFileAttributesW(wpath, attr) ? 0 : -1;
 }
 
-inline int l_symlink(const char *target, const char *linkpath) {
+static inline int l_symlink(const char *target, const char *linkpath) {
     wchar_t wtarget[1024], wlink[1024];
     if (!l_utf8_to_wide(target, wtarget, 1024)) return -1;
     if (!l_utf8_to_wide(linkpath, wlink, 1024)) return -1;
@@ -6635,7 +6635,7 @@ inline int l_symlink(const char *target, const char *linkpath) {
     return -1;
 }
 
-inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz) {
+static inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     HANDLE h = CreateFileW(wpath,
@@ -6690,7 +6690,7 @@ inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz) {
     return (ptrdiff_t)(written - 1);
 }
 
-inline char *l_realpath(const char *path, char *resolved) {
+static inline char *l_realpath(const char *path, char *resolved) {
     wchar_t wpath[1024], wresolved[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return (char *)0;
     HANDLE h = CreateFileW(wpath, 0 /*no access*/,
@@ -6711,7 +6711,7 @@ inline char *l_realpath(const char *path, char *resolved) {
     return resolved;
 }
 
-inline int l_stat(const char *path, L_Stat *st) {
+static inline int l_stat(const char *path, L_Stat *st) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -6727,7 +6727,7 @@ inline int l_stat(const char *path, L_Stat *st) {
     return 0;
 }
 
-inline int l_fstat(L_FD fd, L_Stat *st) {
+static inline int l_fstat(L_FD fd, L_Stat *st) {
     BY_HANDLE_FILE_INFORMATION info;
     if (!GetFileInformationByHandle(l_win_fd_handle(fd), &info)) return -1;
     st->st_size = ((long long)info.nFileSizeHigh << 32) | info.nFileSizeLow;
@@ -6740,7 +6740,7 @@ inline int l_fstat(L_FD fd, L_Stat *st) {
     return 0;
 }
 
-inline int l_opendir(const char *path, L_Dir *dir) {
+static inline int l_opendir(const char *path, L_Dir *dir) {
     wchar_t wpath[1024];
     if (!l_utf8_to_wide(path, wpath, 1024)) return -1;
     // Append \* for FindFirstFileW
@@ -6786,11 +6786,11 @@ static inline L_DirEntry *l_readdir(L_Dir *dir) {
     return &dir->current;
 }
 
-inline void l_closedir(L_Dir *dir) {
+static inline void l_closedir(L_Dir *dir) {
     FindClose((HANDLE)dir->handle);
 }
 
-inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset)
+static inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, long long offset)
 {
     (void)addr;
     // Anonymous mapping: use VirtualAlloc
@@ -6831,7 +6831,7 @@ inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD fd, lon
     return p ? p : L_MAP_FAILED;
 }
 
-inline int l_munmap(void *addr, size_t length)
+static inline int l_munmap(void *addr, size_t length)
 {
     (void)length;
     // Try UnmapViewOfFile first (for file mappings), then VirtualFree (for anonymous)
@@ -6879,27 +6879,27 @@ static inline L_FD l_win_open_gen(const char* file, DWORD desired, DWORD shared,
         return fd;
     }
 }
-inline L_FD l_open_read(const char* file) {
+static inline L_FD l_open_read(const char* file) {
     return l_win_open_gen(file, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING);
 }
 
-inline L_FD l_open_write(const char* file) {
+static inline L_FD l_open_write(const char* file) {
     return l_win_open_gen(file, GENERIC_WRITE, 0, CREATE_ALWAYS);
 }
 
-inline L_FD l_open_readwrite(const char* file) {
+static inline L_FD l_open_readwrite(const char* file) {
     return l_win_open_gen(file, GENERIC_READ | GENERIC_WRITE, 0, CREATE_ALWAYS);
 }
 
-inline L_FD l_open_append(const char* file) {
+static inline L_FD l_open_append(const char* file) {
     return l_win_open_gen(file, FILE_APPEND_DATA, FILE_SHARE_READ, OPEN_ALWAYS);
 }
 
-inline L_FD l_open_trunc(const char* file) {
+static inline L_FD l_open_trunc(const char* file) {
     return l_win_open_gen(file, GENERIC_WRITE, 0, CREATE_ALWAYS);
 }
 
-inline L_FD l_open(const char *path, int flags, mode_t mode) {
+static inline L_FD l_open(const char *path, int flags, mode_t mode) {
     (void)mode; // unused on Windows; Unix permissions don't apply
     DWORD desired = 0;
     DWORD shared = 0;
@@ -6952,7 +6952,7 @@ static inline int l_wsa_init(void) {
     return 0;
 }
 
-inline L_SOCKET l_socket_tcp(void)
+static inline L_SOCKET l_socket_tcp(void)
 {
     if (l_wsa_init() < 0) return -1;
     SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -6960,7 +6960,7 @@ inline L_SOCKET l_socket_tcp(void)
     return (L_SOCKET)s;
 }
 
-inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
+static inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
 {
     struct sockaddr_in sa;
     unsigned int ip;
@@ -6974,7 +6974,7 @@ inline int l_socket_connect(L_SOCKET sock, const char *addr, int port)
     return 0;
 }
 
-inline int l_socket_bind(L_SOCKET sock, int port)
+static inline int l_socket_bind(L_SOCKET sock, int port)
 {
     struct sockaddr_in sa;
     l_memset(&sa, 0, sizeof(sa));
@@ -6986,40 +6986,40 @@ inline int l_socket_bind(L_SOCKET sock, int port)
     return 0;
 }
 
-inline int l_socket_listen(L_SOCKET sock, int backlog)
+static inline int l_socket_listen(L_SOCKET sock, int backlog)
 {
     if (listen((SOCKET)sock, backlog) == SOCKET_ERROR)
         return -1;
     return 0;
 }
 
-inline L_SOCKET l_socket_accept(L_SOCKET sock)
+static inline L_SOCKET l_socket_accept(L_SOCKET sock)
 {
     SOCKET s = accept((SOCKET)sock, NULL, NULL);
     if (s == INVALID_SOCKET) return -1;
     return (L_SOCKET)s;
 }
 
-inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
+static inline ptrdiff_t l_socket_send(L_SOCKET sock, const void *data, size_t len)
 {
     int ret = send((SOCKET)sock, (const char *)data, (int)len, 0);
     if (ret == SOCKET_ERROR) return -1;
     return (ptrdiff_t)ret;
 }
 
-inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
+static inline ptrdiff_t l_socket_recv(L_SOCKET sock, void *buf, size_t len)
 {
     int ret = recv((SOCKET)sock, (char *)buf, (int)len, 0);
     if (ret == SOCKET_ERROR) return -1;
     return (ptrdiff_t)ret;
 }
 
-inline void l_socket_close(L_SOCKET sock)
+static inline void l_socket_close(L_SOCKET sock)
 {
     closesocket((SOCKET)sock);
 }
 
-inline L_SOCKET l_socket_udp(void)
+static inline L_SOCKET l_socket_udp(void)
 {
     if (l_wsa_init() < 0) return -1;
     SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -7027,7 +7027,7 @@ inline L_SOCKET l_socket_udp(void)
     return (L_SOCKET)s;
 }
 
-inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
+static inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port)
 {
     struct sockaddr_in sa;
     unsigned int ip;
@@ -7041,7 +7041,7 @@ inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const
     return (ptrdiff_t)ret;
 }
 
-inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out)
+static inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out)
 {
     struct sockaddr_in sa;
     int salen = (int)sizeof(sa);
@@ -7067,7 +7067,7 @@ inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr
 #endif // L_WITHSOCKETS
 
 // l_poll — Windows: WaitForMultipleObjects pattern
-inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
+static inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
 {
     if (nfds <= 0) return 0;
     int count = nfds < 64 ? nfds : 64;
@@ -7219,7 +7219,7 @@ static inline L_SigHandler l_signal(int sig, L_SigHandler handler)
 #endif
 
 // l_writev — Windows: loop over iovecs
-inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
+static inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
 {
     ptrdiff_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
@@ -7233,7 +7233,7 @@ inline ptrdiff_t l_writev(L_FD fd, const L_IoVec *iov, int iovcnt)
 }
 
 // l_readv — Windows: loop over iovecs
-inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
+static inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
 {
     ptrdiff_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
@@ -7248,7 +7248,7 @@ inline ptrdiff_t l_readv(L_FD fd, L_IoVec *iov, int iovcnt)
 }
 
 // l_isatty — Windows: GetConsoleMode
-inline int l_isatty(L_FD fd)
+static inline int l_isatty(L_FD fd)
 {
     HANDLE h = l_win_fd_handle(fd);
     DWORD mode;
@@ -7261,14 +7261,14 @@ inline int l_isatty(L_FD fd)
 }
 #endif
 
-inline void l_exitif(bool condition, int code, char *message) {
+static inline void l_exitif(bool condition, int code, char *message) {
     if(condition) {
         if(message) l_write(L_STDERR, message, l_strlen(message));
         l_exit(code);
     }
 }
 
-inline void puts(const char* s) {
+static inline void puts(const char* s) {
   l_write(L_STDOUT, s, strlen(s));
 }
 
@@ -8437,11 +8437,11 @@ static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]
     l_sha256_final(&ctx, hash);
 }
 
-inline int l_path_exists(const char *path) {
+static inline int l_path_exists(const char *path) {
     return l_access(path, L_F_OK) == 0 ? 1 : 0;
 }
 
-inline int l_path_isdir(const char *path) {
+static inline int l_path_isdir(const char *path) {
     L_Stat st;
     if (l_stat(path, &st) != 0) return 0;
     return L_S_ISDIR(st.st_mode) ? 1 : 0;
