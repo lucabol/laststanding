@@ -4640,6 +4640,9 @@ inline int l_pipe(L_FD fds[2])
     return 0;
 }
 
+// Forward declaration: l_fstat is defined below but needed here by l_dup2
+inline int l_fstat(L_FD fd, L_Stat *st);
+
 inline int l_dup2(L_FD oldfd, L_FD newfd)
 {
 #if defined(__x86_64__)
@@ -5253,8 +5256,6 @@ inline ssize_t l_write(L_FD fd, const void *buf, size_t count)
     return ret;
 }
 
-#pragma GCC diagnostic pop
-
 inline L_FD l_open_read(const char* file) {
     return l_open(file, O_RDONLY, 0);
 }
@@ -5527,6 +5528,8 @@ inline int l_isatty(L_FD fd)
     long ret = my_syscall3(__NR_ioctl, fd, L_TCGETS, (long)buf);
     return ret == 0 ? 1 : 0;
 }
+
+#pragma GCC diagnostic pop
 
 #elif defined(__wasi__)
 // ============================================================
