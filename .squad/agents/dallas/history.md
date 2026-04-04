@@ -710,3 +710,19 @@ Fixed RISC-V clang CI failure: `-Wstatic-in-inline` warnings treated as errors v
 
 - ALL forward declarations AND definitions in `l_os.h` must use `static inline` (or `static` for non-inline). Bare `inline` without `static` gives the function external linkage in C, which triggers `-Wstatic-in-inline` when it calls `static` helpers.
 - The `-Wstatic-in-inline` warning is a C semantics issue, not architecture-specific. It fires identically on x86_64 and RISC-V — testing on any target with clang is sufficient to validate the fix.
+
+## Work Session — RISC-V spawn/wait test fix
+
+**Bug:** `test.riscv64` failed at `l_spawn / l_wait` — "exit code is 0 FAILED: exitcode == 0".
+
+**Root cause:** `l_test_build_bin_path()` in `tests/test_support.h` lacked a `__riscv` case. RISC-V fell to the default `#else` branch, producing `bin/test` instead of `bin/test.riscv64`. The child `l_execve("bin/test")` failed (wrong or missing binary), triggering `l_exit(127)` in the spawn fallback path. Parent saw exitcode=127 instead of 0.
+
+**Not the cause:** The clone/waitpid syscall numbers and argument orders are correct for RISC-V — they share the AArch64 syscall numbers (clone=220, wait4=260), and since `l_fork` passes all zeros after SIGCHLD, argument order is irrelevant.
+
+**Fix:** Added `#elif defined(__riscv)` → `bin/%s.riscv64` to `l_test_build_bin_path()`.
+
+**QEMU test results:** All spawn/wait tests pass on RISC-V. Remaining `test_fs.riscv64` rename failure is a pre-existing issue.
+
+## Learnings
+
+- When adding a new cross-compile target, `l_test_build_bin_path()` in `tests/test_support.h` must be updated with the new binary extension — otherwise self-spawn tests will silently exec the wrong binary and fail with exit code 127.
