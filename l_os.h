@@ -2745,12 +2745,50 @@ static inline void *l_memchr(const void *s, int c, size_t n)
 
 static inline void *l_memrchr(const void *s, int c, size_t n)
 {
-    const unsigned char *p = (const unsigned char *)s + n;
-    const unsigned char uc = (unsigned char)c;
+    const unsigned char *p   = (const unsigned char *)s + n;
+    const unsigned char  uc  = (unsigned char)c;
 
+    /* Invariant: n == p - s at all times (both decrease together). */
+
+    /* Align p backward to a word boundary one byte at a time. */
+    while (n && ((uintptr_t)p & (sizeof(uintptr_t) - 1U))) {
+        p--; n--;
+        if (*p == uc) return (void *)p;
+    }
+
+    /* Word-at-a-time backward scan.  p is word-aligned; the range left
+     * to scan is [s, p) == n bytes.  Each iteration reads the word just
+     * below p using the Hacker's Delight has-zero-byte test on the XOR
+     * with the broadcast byte.  A positive detection (which may be a
+     * false positive) triggers a right-to-left byte scan of that word. */
+    if (n >= sizeof(uintptr_t)) {
+        typedef uintptr_t __attribute__((may_alias)) uptr_alias;
+        const uintptr_t lones = (uintptr_t)(-1) / 0xFFu;
+        const uintptr_t highs = lones << 7;
+        uintptr_t repeated = uc;
+        repeated |= repeated << 8;
+        repeated |= repeated << 16;
+#if UINTPTR_MAX > 0xFFFFFFFFU
+        repeated |= repeated << 32;
+#endif
+        while (n >= sizeof(uintptr_t)) {
+            p -= sizeof(uintptr_t);
+            n -= sizeof(uintptr_t);
+            uintptr_t xw = *(const uptr_alias *)(const void *)p ^ repeated;
+            if ((xw - lones) & ~xw & highs) {
+                /* Scan byte-by-byte from right to find the last match. */
+                size_t i = sizeof(uintptr_t);
+                while (i--)
+                    if (p[i] == uc) return (void *)(p + i);
+                /* False positive — continue to the next word. */
+            }
+        }
+    }
+
+    /* Tail: at most sizeof(uintptr_t) - 1 bytes remain before p. */
     while (n--) {
-        if (*--p == uc)
-            return (void *)p;
+        p--;
+        if (*p == uc) return (void *)p;
     }
     return NULL;
 }
