@@ -166,7 +166,7 @@ function test_wasi {    # Build and run default WASI examples {compiler:clang} {
   build_wasi "$@"
   echo "=== Running default WASI examples ==="
   local fail=0
-  local runner="${WASI_RUNTIME:-wasmedge}"
+  local runner="${WASI_RUNTIME:-wasmtime}"
   local out expected input
 
   echo "--- Running bin/wasi_hello.wasm ---"
@@ -190,7 +190,7 @@ function test_wasi {    # Build and run default WASI examples {compiler:clang} {
   echo "--- Running bin/wasi_upper.wasm ---"
   input="bin/wasi_upper_input.txt"
   printf 'aBc\nz9!\n' > "$input"
-  out=$("$runner" --dir .:. "bin/wasi_upper.wasm" "$input" 2>&1)
+  out=$("$runner" --dir . "bin/wasi_upper.wasm" "$input" 2>&1)
   rm -f "$input"
   expected=$(printf 'ABC\nZ9!\n')
   if [ $? -ne 0 ] || [ "$out" != "$expected" ]; then

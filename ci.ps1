@@ -296,7 +296,7 @@ function Write-BinarySizeTable {
             if ($name -in $showBinaries -and $name -notin $allBinaries) { $allBinaries += $name }
         }
     }
-    $allBinaries = $allBinaries | Sort-Object
+    $allBinaries = @($allBinaries | Sort-Object)
     if ($allBinaries.Count -eq 0) { return }
 
     Write-Host ""
@@ -422,7 +422,7 @@ function Test-RiscvCompiler {
 $script:WasiAvailable = $null
 function Test-WasiToolchain {
     if ($null -ne $script:WasiAvailable) { return $script:WasiAvailable }
-    $check = 'command -v clang >/dev/null 2>&1 && command -v wasm-ld >/dev/null 2>&1 && command -v wasmedge >/dev/null 2>&1 && command -v wasm-validate >/dev/null 2>&1 && command -v wasm-objdump >/dev/null 2>&1 && test -d /usr/include/wasm32-wasi && test -f "$(clang -print-resource-dir)/lib/wasi/libclang_rt.builtins-wasm32.a"'
+    $check = 'command -v clang >/dev/null 2>&1 && command -v wasm-ld >/dev/null 2>&1 && command -v wasmtime >/dev/null 2>&1 && command -v wasm-validate >/dev/null 2>&1 && command -v wasm-objdump >/dev/null 2>&1 && test -d /usr/include/wasm32-wasi && test -f "$(clang -print-resource-dir)/lib/wasi/libclang_rt.builtins-wasm32.a"'
     if ($RunningOnLinux) {
         try {
             bash -c $check 2>&1 | Out-Null
@@ -991,7 +991,7 @@ function Invoke-Target {
                 return
             }
             if (-not (Test-WasiToolchain)) {
-                $hint = if ($RunningOnLinux) { "sudo apt-get install clang lld libclang-rt-dev-wasm32 wasi-libc wabt wasmedge" } else { "install clang, lld, libclang-rt-dev-wasm32, wasi-libc, wabt, and wasmedge in WSL" }
+                $hint = if ($RunningOnLinux) { "install clang, lld, libclang-rt-dev-wasm32, wasi-libc, wabt, and wasmtime" } else { "install clang, lld, libclang-rt-dev-wasm32, wasi-libc, wabt, and wasmtime in WSL" }
                 Write-Host "SKIP: WASI toolchain/runtime not found -- skipping WASI target. ($hint)" -ForegroundColor Yellow
                 $actions = if ($A -eq 'all') { @('build', 'test', 'verify') } else { @($A) }
                 foreach ($act in $actions) { Add-Result 'WASI' $act 'SKIP' }

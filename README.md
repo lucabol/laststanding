@@ -918,12 +918,12 @@ runtime_checks.bat           :: run socket + showcase runtime checks on demand
 .\ci.ps1 -Target linux -Compiler clang -OptLevel 2    # Linux clang -O2
 .\ci.ps1 -Target arm -Action test                     # ARM32 + AArch64 via QEMU
 .\ci.ps1 -Target riscv                                # RISC-V gcc + clang via QEMU
-.\ci.ps1 -Target wasi                                 # WASI examples via wasmedge
+.\ci.ps1 -Target wasi                                 # WASI examples via wasmtime
 ```
 
-`ci.ps1` builds, tests, and verifies across **10 configurations**: Windows, Linux gcc, Linux clang, ARM gcc, ARM clang, AArch64 gcc, AArch64 clang, RISC-V gcc, RISC-V clang, and WASI. Linux-family targets run in WSL from Windows; ARM/AArch64/RISC-V binaries execute via QEMU user-mode emulation, and WASI examples run under `wasmedge`.
+`ci.ps1` builds, tests, and verifies across **10 configurations**: Windows, Linux gcc, Linux clang, ARM gcc, ARM clang, AArch64 gcc, AArch64 clang, RISC-V gcc, RISC-V clang, and WASI. Linux-family targets run in WSL from Windows; ARM/AArch64/RISC-V binaries execute via QEMU user-mode emulation, and WASI examples run under `wasmtime`.
 
-**Requirements:** clang on PATH (Windows), WSL with `gcc`, `clang`, `arm-linux-gnueabihf-gcc`, `aarch64-linux-gnu-gcc`, `riscv64-linux-gnu-gcc`, `qemu-user`, plus `lld`, `libclang-rt-dev-wasm32`, `wasi-libc`, `wabt`, and `wasmedge` for the WASI target.
+**Requirements:** clang on PATH (Windows), WSL with `gcc`, `clang`, `arm-linux-gnueabihf-gcc`, `aarch64-linux-gnu-gcc`, `riscv64-linux-gnu-gcc`, `qemu-user`, plus `lld`, `libclang-rt-dev-wasm32`, `wasi-libc`, `wabt`, and `wasmtime` for the WASI target.
 
 ## Scope — Not Included (by Design)
 - `printf`/`sprintf` — use `l_snprintf` or direct `l_write`
