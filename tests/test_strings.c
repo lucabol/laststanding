@@ -950,6 +950,36 @@ void test_memrchr(void) {
     TEST_ASSERT(l_memrchr(buf, 0, 5) == (void *)(buf + 4), "finds last null byte");
     TEST_ASSERT(l_memrchr(buf, 0, 3) == (void *)(buf + 2), "finds first null in limited range");
 
+    /* Word-at-a-time alignment sweep: target placed at every position in a
+     * 128-byte buffer across 16 alignment offsets.  Verifies the prologue,
+     * word loop, and epilogue handle every byte-lane correctly. */
+    {
+        char abuf[144]; /* 128 data bytes + 16 alignment headroom */
+        int ok = 1;
+        int base;
+        for (base = 0; base < 16 && ok; base++) {
+            char *b = abuf + base;
+            l_memset(b, 'a', 128);
+            int i;
+            for (i = 0; i < 128 && ok; i++) {
+                b[i] = 'X';
+                if (l_memrchr(b, 'X', 128) != (void *)(b + i)) ok = 0;
+                b[i] = 'a';
+            }
+        }
+        TEST_ASSERT(ok, "word-at-a-time: memrchr correct at all positions/alignments");
+    }
+
+    /* Rightmost occurrence: multiple hits, ensure the last one wins. */
+    {
+        char rbuf[64];
+        l_memset(rbuf, 'Z', 64);
+        rbuf[10] = 'X'; rbuf[30] = 'X'; rbuf[50] = 'X';
+        TEST_ASSERT(l_memrchr(rbuf, 'X', 64) == (void *)(rbuf + 50), "rightmost of three");
+        TEST_ASSERT(l_memrchr(rbuf, 'X', 51) == (void *)(rbuf + 50), "rightmost in limited range");
+        TEST_ASSERT(l_memrchr(rbuf, 'X', 31) == (void *)(rbuf + 30), "rightmost excludes later hit");
+    }
+
     TEST_SECTION_PASS("l_memrchr");
 }
 
