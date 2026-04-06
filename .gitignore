@@ -18,11 +18,10 @@ test_file
 test_rw_file
 test_write_file
 
-# Squad (not part of this project)
-.squad/
+# Squad: ignore runtime state (logs, inbox, sessions)
+.squad/orchestration-log/
+.squad/log/
+.squad/decisions/inbox/
+.squad/sessions/
+# Squad: SubSquad activation file (local to this machine)
 .squad-workstream
-.github/agents/
-.github/workflows/squad-*.yml
-.github/workflows/sync-squad-labels.yml
-.github/workflows/daily-repo-status*
-.github/workflows/repo-assist*
