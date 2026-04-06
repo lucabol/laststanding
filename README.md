@@ -573,6 +573,9 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | **Random number generation (xorshift32, single-threaded)** | | |
 | `l_srand` | Seeds the pseudo-random number generator | All |
 | `l_rand` | Returns a pseudo-random unsigned int (xorshift32) | All |
+| `l_rand_ctx_init` | Initialize an independent RNG context | All |
+| `l_srand_ctx` | Seed an independent RNG context | All |
+| `l_rand_ctx` | Returns a pseudo-random unsigned int from an independent context | All |
 | **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | |
 | `l_vsnprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
 | `l_snprintf` | Formats a string into buf (at most n bytes including NUL); returns number of chars that would have been written | All |
@@ -599,6 +602,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_find_executable` | Finds an executable by name, searching PATH if needed. | All |
 | **Option parsing (single-threaded; state in static variables)** | | |
 | `l_getopt` | Parses command-line options. optstring lists valid option chars; trailing ':' means the option | All |
+| `l_getopt_ctx_init` | Initialize an independent option parser context | All |
+| `l_getopt_ctx` | Reentrant getopt using an independent context. Same semantics as l_getopt. | All |
 | **Convenience file openers** | | |
 | `l_open_read` | Opens a file for reading | All |
 | `l_open_write` | Opens or creates a file for writing | All |
@@ -920,6 +925,9 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | **Random number generation (xorshift32, single-threaded)** | | | |
 | ``l_srand`` | ✅ | ✅ | ✅ |
 | ``l_rand`` | ✅ | ✅ | ✅ |
+| ``l_rand_ctx_init`` | ✅ | ✅ | ✅ |
+| ``l_srand_ctx`` | ✅ | ✅ | ✅ |
+| ``l_rand_ctx`` | ✅ | ✅ | ✅ |
 | **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | | |
 | ``l_vsnprintf`` | ✅ | ✅ | ✅ |
 | ``l_snprintf`` | ✅ | ✅ | ✅ |
@@ -946,6 +954,8 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_find_executable`` | ✅ | ✅ | ✅ |
 | **Option parsing (single-threaded; state in static variables)** | | | |
 | ``l_getopt`` | ✅ | ✅ | ✅ |
+| ``l_getopt_ctx_init`` | ✅ | ✅ | ✅ |
+| ``l_getopt_ctx`` | ✅ | ✅ | ✅ |
 | **Convenience file openers** | | | |
 | ``l_open_read`` | ✅ | ✅ | ✅ |
 | ``l_open_write`` | ✅ | ✅ | ✅ |
@@ -1196,8 +1206,11 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_strnlen` | ✅ | test_strings.c |
 | `l_memmem` | ✅ | test_strings.c |
 | **Random number generation (xorshift32, single-threaded)** | | |
-| `l_srand` | ✅ | test_strings.c |
-| `l_rand` | ✅ | test_strings.c |
+| `l_srand` | ✅ | test_strings.c, test_utils.c |
+| `l_rand` | ✅ | test_strings.c, test_utils.c |
+| `l_rand_ctx_init` | ✅ | test_utils.c |
+| `l_srand_ctx` | ✅ | test_utils.c |
+| `l_rand_ctx` | ✅ | test_utils.c |
 | **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | |
 | `l_vsnprintf` | ✅ | test_strings.c |
 | `l_snprintf` | ✅ | test_fs.c, test_strings.c |
@@ -1223,7 +1236,9 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_env_end` | ✅ | test_fs.c |
 | `l_find_executable` | ✅ | test.c |
 | **Option parsing (single-threaded; state in static variables)** | | |
-| `l_getopt` | ✅ | test.c |
+| `l_getopt` | ✅ | test_utils.c, test.c |
+| `l_getopt_ctx_init` | ✅ | test_utils.c |
+| `l_getopt_ctx` | ✅ | test_utils.c |
 | **Convenience file openers** | | |
 | `l_open_read` | ✅ | test_fs.c, test.c |
 | `l_open_write` | ✅ | test_fs.c, test.c |
@@ -1381,7 +1396,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | ``l_socket_sendto_addr`` | — | |
 | ``l_socket_recvfrom_addr`` | — | |
 
-**Coverage: 234 / 237 functions referenced in tests** (99%)
+**Coverage: 239 / 242 functions referenced in tests** (99%)
 
 <!-- END COVERAGE MATRIX -->
 
