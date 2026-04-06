@@ -699,6 +699,17 @@ void test_strtod_atof(void) {
     l_strtod("nope", &ep);
     TEST_ASSERT(ep != (char *)0 && ep[0] == 'n', "strtod no digits -> endptr at start");
 
+    /* Edge: lone "." with no adjacent digits is not a valid number.
+     * endptr must point to the original string, not past the dot. */
+    ep = (char *)0;
+    l_strtod(".", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == '.', "strtod lone dot -> endptr at start");
+
+    /* Edge: sign-only with a lone dot */
+    ep = (char *)0;
+    l_strtod("-.", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == '-', "strtod lone sign+dot -> endptr at start");
+
     /* Special: inf */
     double inf_val = l_atof("inf");
     TEST_ASSERT(inf_val > DBL_MAX, "atof 'inf' is infinity");
