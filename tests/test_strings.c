@@ -716,9 +716,25 @@ void test_strtod_atof(void) {
     double ninf_val = l_atof("-inf");
     TEST_ASSERT(ninf_val < -DBL_MAX, "atof '-inf' is negative infinity");
 
+    /* "infinity" — endptr must advance past all 8 chars */
+    ep = (char *)0;
+    l_strtod("infinity", &ep);
+    TEST_ASSERT(ep != (char *)0 && *ep == '\0', "strtod 'infinity' endptr at end");
+    ep = (char *)0;
+    l_strtod("INFINITY rest", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == ' ', "strtod 'INFINITY' endptr after word");
+    ep = (char *)0;
+    l_strtod("Infsomething", &ep); /* "Inf" is valid, stops there */
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 's', "strtod 'Inf' alone consumes only 3 chars");
+
     /* Special: nan */
     double nan_val = l_atof("nan");
     TEST_ASSERT(nan_val != nan_val, "atof 'nan' is NaN");
+
+    /* case variations */
+    TEST_ASSERT(l_atof("INF") > DBL_MAX, "atof 'INF' is infinity");
+    TEST_ASSERT(l_atof("Infinity") > DBL_MAX, "atof 'Infinity' is infinity");
+    TEST_ASSERT(l_atof("NaN") != l_atof("NaN"), "atof 'NaN' is NaN");
 
     TEST_SECTION_PASS("l_strtod / l_atof");
 }

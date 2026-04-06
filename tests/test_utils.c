@@ -645,14 +645,47 @@ void test_fnmatch(void) {
     // Single character wildcard
     TEST_ASSERT(l_fnmatch("test?", "test1") == 0, "test? matches test1");
     TEST_ASSERT(l_fnmatch("test?", "test12") != 0, "test? does not match test12");
+    TEST_ASSERT(l_fnmatch("test?", "test") != 0, "test? requires exactly one more char");
+    TEST_ASSERT(l_fnmatch("?", "a") == 0, "? matches single char");
+    TEST_ASSERT(l_fnmatch("?", "") != 0, "? does not match empty string");
+    TEST_ASSERT(l_fnmatch("??", "ab") == 0, "?? matches two chars");
+    TEST_ASSERT(l_fnmatch("??", "a") != 0, "?? requires two chars");
 
-    // Character classes
+    // Character classes — basic
     TEST_ASSERT(l_fnmatch("[abc]", "b") == 0, "[abc] matches b");
     TEST_ASSERT(l_fnmatch("[abc]", "d") != 0, "[abc] does not match d");
+    TEST_ASSERT(l_fnmatch("[abc]", "") != 0, "[abc] does not match empty");
+
+    // Character classes — ranges
+    TEST_ASSERT(l_fnmatch("[a-z]", "m") == 0, "[a-z] matches lowercase letter");
+    TEST_ASSERT(l_fnmatch("[a-z]", "M") != 0, "[a-z] does not match uppercase");
+    TEST_ASSERT(l_fnmatch("[0-9]", "5") == 0, "[0-9] matches digit");
+    TEST_ASSERT(l_fnmatch("[0-9]", "a") != 0, "[0-9] does not match letter");
+    TEST_ASSERT(l_fnmatch("[a-zA-Z]", "Z") == 0, "[a-zA-Z] matches uppercase Z");
+    TEST_ASSERT(l_fnmatch("[a-zA-Z]", "3") != 0, "[a-zA-Z] does not match digit");
+
+    // Character classes — negation
+    TEST_ASSERT(l_fnmatch("[!abc]", "d") == 0, "[!abc] matches non-listed char");
+    TEST_ASSERT(l_fnmatch("[!abc]", "a") != 0, "[!abc] does not match listed char");
+    TEST_ASSERT(l_fnmatch("[^0-9]", "x") == 0, "[^0-9] matches non-digit");
+    TEST_ASSERT(l_fnmatch("[^0-9]", "5") != 0, "[^0-9] does not match digit");
+
+    // Escaped wildcards
+    TEST_ASSERT(l_fnmatch("\\*", "*") == 0, "\\* matches literal *");
+    TEST_ASSERT(l_fnmatch("\\*", "abc") != 0, "\\* does not match abc");
+    TEST_ASSERT(l_fnmatch("\\?", "?") == 0, "\\? matches literal ?");
+    TEST_ASSERT(l_fnmatch("\\?", "a") != 0, "\\? does not match a");
 
     // Universal wildcard
     TEST_ASSERT(l_fnmatch("*", "anything") == 0, "* matches anything");
     TEST_ASSERT(l_fnmatch("*", "") == 0, "* matches empty string");
+
+    // Multiple wildcards
+    TEST_ASSERT(l_fnmatch("a*b*c", "abc") == 0, "a*b*c matches abc");
+    TEST_ASSERT(l_fnmatch("a*b*c", "aXbYc") == 0, "a*b*c matches aXbYc");
+    TEST_ASSERT(l_fnmatch("a*b*c", "aXbYd") != 0, "a*b*c does not match aXbYd");
+    TEST_ASSERT(l_fnmatch("*.*", "file.txt") == 0, "*.* matches file.txt");
+    TEST_ASSERT(l_fnmatch("*.*", "nodot") != 0, "*.* does not match nodot");
 
     // Exact match
     TEST_ASSERT(l_fnmatch("hello", "hello") == 0, "exact match hello");
@@ -660,10 +693,15 @@ void test_fnmatch(void) {
 
     // Empty pattern vs empty string
     TEST_ASSERT(l_fnmatch("", "") == 0, "empty pattern matches empty string");
+    TEST_ASSERT(l_fnmatch("", "x") != 0, "empty pattern does not match non-empty");
 
     // Complex pattern
     TEST_ASSERT(l_fnmatch("*.tar.gz", "archive.tar.gz") == 0, "*.tar.gz matches");
     TEST_ASSERT(l_fnmatch("*.tar.gz", "archive.tar.bz2") != 0, "*.tar.gz no match .bz2");
+
+    // Mixed ? and *
+    TEST_ASSERT(l_fnmatch("?*.c", "a.c") == 0, "?*.c matches a.c (1+ chars before .c)");
+    TEST_ASSERT(l_fnmatch("?*.c", ".c") != 0, "?*.c requires at least one char before .*");
 
     TEST_SECTION_PASS("l_fnmatch");
 }
@@ -919,6 +957,14 @@ void test_strtof(void) {
         float ninf_val = l_strtof("-inf", (char **)0);
         TEST_ASSERT(ninf_val < -3.4e38f, "strtof '-inf' is negative infinity");
     }
+
+    /* "infinity" — endptr must advance past all 8 chars */
+    ep = (char *)0;
+    l_strtof("infinity", &ep);
+    TEST_ASSERT(ep != (char *)0 && *ep == '\0', "strtof 'infinity' endptr at end");
+    ep = (char *)0;
+    l_strtof("INFINITY end", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == ' ', "strtof 'INFINITY' endptr after word");
 
     /* Special: nan */
     {
