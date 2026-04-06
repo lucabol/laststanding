@@ -403,6 +403,16 @@ typedef struct {
 // Scatter-gather I/O
 typedef struct { void *base; size_t len; } L_IoVec;
 
+// Buffered line reader — wraps a file descriptor with a 4096-byte read buffer
+#define L_LINEBUF_CAP 4096
+typedef struct {
+    L_FD fd;
+    char buf[L_LINEBUF_CAP];
+    int  pos;  /* next unread byte in buf */
+    int  end;  /* one past last valid byte in buf */
+    int  eof;  /* non-zero once fd returns EOF */
+} L_LineBuf;
+
 // Arena-backed hash map
 typedef struct {
     const char *key;
@@ -705,6 +715,11 @@ static inline ssize_t l_write(L_FD fd, const void *buf, size_t count);
 /// Reads one line from fd into buf (up to bufsz-1 bytes). Strips the newline.
 /// Returns number of bytes read (excluding newline), or -1 on error/EOF with no data.
 static inline ptrdiff_t l_read_line(L_FD fd, char *buf, size_t bufsz);
+/// Initialise a buffered line reader wrapping fd.
+static inline void l_linebuf_init(L_LineBuf *lb, L_FD fd);
+/// Read one line into out (up to outsz-1 bytes). Strips newline. Buffers reads in 4096-byte chunks.
+/// Returns number of bytes written (excluding '\0'), or -1 on EOF/error with no data.
+static inline ptrdiff_t l_linebuf_read(L_LineBuf *lb, char *out, size_t outsz);
 /// Returns current Unix timestamp (seconds since 1970-01-01). Also writes to *t if non-NULL.
 static inline long long l_time(long long *t);
 /// Writes a string to stdout
@@ -2131,18 +2146,24 @@ static inline int l_strcmp(const char *s1, const char *s2) {
     }
 }
 
+/* Forward declaration needed: l_strstr calls l_memchr which is defined later. */
+static inline void *l_memchr(const void *s, int c, size_t n);
+
 static inline char *l_strstr(const char *s1, const char *s2) {
     const size_t len = l_strlen(s2);
     if (len == 0) return (char *)s1;
     const size_t slen = l_strlen(s1);
     if (len > slen) return NULL;
-    const char *end = s1 + slen - len;
+    const char *end = s1 + (slen - len);
     const char first = s2[0];
-    /* Fast first-byte check avoids l_memcmp on non-matching positions. */
+    /* Use word-at-a-time l_memchr to skip ahead to the next candidate byte
+     * instead of advancing one byte at a time. */
     while (s1 <= end) {
-        if (*s1 == first && !l_memcmp(s1, s2, len))
+        s1 = (const char *)l_memchr(s1, first, (size_t)(end - s1 + 1));
+        if (!s1) return NULL;
+        if (!l_memcmp(s1, s2, len))
             return (char *)s1;
-        ++s1;
+        s1++;
     }
     return NULL;
 }
@@ -7974,6 +7995,44 @@ static inline ptrdiff_t l_read_line(L_FD fd, char *buf, size_t bufsz) {
     }
     buf[pos] = '\0';
     return (ptrdiff_t)pos;
+}
+
+// Buffered line reader — reads 4096 bytes at a time instead of one byte per syscall
+static inline void l_linebuf_init(L_LineBuf *lb, L_FD fd)
+{
+    lb->fd  = fd;
+    lb->pos = 0;
+    lb->end = 0;
+    lb->eof = 0;
+}
+
+static inline ptrdiff_t l_linebuf_read(L_LineBuf *lb, char *out, size_t outsz)
+{
+    if (outsz == 0) return -1;
+    size_t written = 0;
+
+    while (written < outsz - 1) {
+        /* Refill the internal buffer when it is exhausted. */
+        if (lb->pos >= lb->end) {
+            if (lb->eof) break;
+            ptrdiff_t n = (ptrdiff_t)l_read(lb->fd, lb->buf, L_LINEBUF_CAP);
+            if (n <= 0) { lb->eof = 1; break; }
+            lb->pos = 0;
+            lb->end = (int)n;
+        }
+
+        char c = lb->buf[lb->pos++];
+        if (c == '\r') continue;   /* skip CR for Windows CRLF */
+        if (c == '\n') {
+            out[written] = '\0';
+            return (ptrdiff_t)written;
+        }
+        out[written++] = c;
+    }
+
+    out[written] = '\0';
+    if (written == 0) return -1;   /* EOF or error with no data */
+    return (ptrdiff_t)written;
 }
 
 #ifdef L_WITHSNPRINTF

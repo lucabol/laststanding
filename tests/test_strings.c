@@ -1659,6 +1659,78 @@ void test_bin2hex_hex2bin(void) {
     TEST_SECTION_PASS("l_bin2hex / l_hex2bin");
 }
 
+void test_strstr_aligned(void) {
+    TEST_FUNCTION("l_strstr alignment");
+    /* Place the needle at each of the first 16 byte offsets inside a long
+     * haystack.  This exercises the word-at-a-time l_memchr skip path across
+     * all alignment phases. */
+    char hay[128];
+    const char *needle = "MATCH";
+    int i;
+    int ok = 1;
+    for (i = 0; i < 16; i++) {
+        l_memset(hay, 'x', (int)(sizeof(hay) - 1));
+        hay[sizeof(hay) - 1] = '\0';
+        l_memcpy(hay + i, needle, 5);
+        char *found = l_strstr(hay, needle);
+        if (found != hay + i) { ok = 0; break; }
+    }
+    TEST_ASSERT(ok, "word-at-a-time: finds needle at alignment offsets 0-15");
+    /* Long haystack: needle near the end to maximise word-loop iterations. */
+    {
+        char lh[200];
+        l_memset(lh, 'a', (int)(sizeof(lh) - 1));
+        lh[sizeof(lh) - 1] = '\0';
+        l_memcpy(lh + 180, "DONE", 4);
+        TEST_ASSERT(l_strstr(lh, "DONE") == lh + 180, "finds needle after many word iterations");
+        TEST_ASSERT(l_strstr(lh, "MISS") == NULL,      "not-found after long scan");
+    }
+    TEST_SECTION_PASS("l_strstr alignment");
+}
+
+void test_linebuf(void) {
+    TEST_FUNCTION("l_linebuf_read");
+    L_FD fds[2];
+    TEST_ASSERT(l_pipe(fds) == 0, "pipe for linebuf test");
+    const char *data = "hello\nworld\nfoo\n";
+    l_write(fds[1], data, l_strlen(data));
+    l_close(fds[1]);
+
+    L_LineBuf lb;
+    l_linebuf_init(&lb, fds[0]);
+
+    char buf[64];
+    ptrdiff_t n;
+
+    n = l_linebuf_read(&lb, buf, sizeof(buf));
+    TEST_ASSERT(n == 5 && l_strcmp(buf, "hello") == 0, "first line");
+
+    n = l_linebuf_read(&lb, buf, sizeof(buf));
+    TEST_ASSERT(n == 5 && l_strcmp(buf, "world") == 0, "second line");
+
+    n = l_linebuf_read(&lb, buf, sizeof(buf));
+    TEST_ASSERT(n == 3 && l_strcmp(buf, "foo") == 0, "third line");
+
+    n = l_linebuf_read(&lb, buf, sizeof(buf));
+    TEST_ASSERT(n == -1, "EOF returns -1");
+
+    /* CRLF: Windows-style line endings are stripped. */
+    L_FD fds2[2];
+    TEST_ASSERT(l_pipe(fds2) == 0, "pipe for CRLF test");
+    l_write(fds2[1], "line1\r\nline2\r\n", 14);
+    l_close(fds2[1]);
+    L_LineBuf lb2;
+    l_linebuf_init(&lb2, fds2[0]);
+    n = l_linebuf_read(&lb2, buf, sizeof(buf));
+    TEST_ASSERT(n == 5 && l_strcmp(buf, "line1") == 0, "CRLF first line");
+    n = l_linebuf_read(&lb2, buf, sizeof(buf));
+    TEST_ASSERT(n == 5 && l_strcmp(buf, "line2") == 0, "CRLF second line");
+    l_close(fds2[0]);
+
+    l_close(fds[0]);
+    TEST_SECTION_PASS("l_linebuf_read");
+}
+
 void test_printf_family(void) {
     TEST_FUNCTION("l_printf / l_fprintf / l_vprintf / l_vfprintf");
     /* Test via l_snprintf and l_vsnprintf since printf is a thin wrapper */
@@ -1731,6 +1803,8 @@ int main(int argc, char *argv[]) {
     test_qsort_bsearch();
     test_bin2hex_hex2bin();
     test_printf_family();
+    test_strstr_aligned();
+    test_linebuf();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");
