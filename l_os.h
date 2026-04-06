@@ -438,6 +438,23 @@ typedef struct {
     unsigned char buf[64];
 } L_Sha256;
 
+// Context types for isolated subsystem state (Option B: explicit context variants)
+// Use these when you need independent RNG streams or nested option parsing.
+// The default global-state functions (l_rand, l_getopt) remain unchanged.
+
+/// Independent random number generator context (xorshift32)
+typedef struct {
+    unsigned int state;
+} L_RandCtx;
+
+/// Independent option parser context (reentrant getopt)
+typedef struct {
+    char *optarg;   // argument of the current option
+    int   optind;   // index of the next argv element (starts at 1)
+    int   optopt;   // unknown option character when '?' is returned
+    int   _optpos;  // position within grouped short-option cluster
+} L_GetoptCtx;
+
 #endif // L_NEWTYPES_DEFINED
 
 #ifdef L_WITHSOCKETS
@@ -643,6 +660,12 @@ static inline void *l_memmem(const void *haystack, size_t haystacklen, const voi
 static inline void l_srand(unsigned int seed);
 /// Returns a pseudo-random unsigned int (xorshift32)
 static inline unsigned int l_rand(void);
+/// Initialize an independent RNG context
+static inline void l_rand_ctx_init(L_RandCtx *ctx, unsigned int seed);
+/// Seed an independent RNG context
+static inline void l_srand_ctx(L_RandCtx *ctx, unsigned int seed);
+/// Returns a pseudo-random unsigned int from an independent context
+static inline unsigned int l_rand_ctx(L_RandCtx *ctx);
 
 // Sorting and searching
 /// Sorts an array in-place using Shell sort (no malloc, no recursion)
@@ -711,6 +734,10 @@ static int l_find_executable(const char *cmd, char *out, size_t outsz);
 /// takes an argument. Returns the option char on match, '?' for unknown options, -1 when done.
 /// Sets l_optarg to the argument string (or NULL), l_optind to the next argv index.
 static inline int l_getopt(int argc, char *const argv[], const char *optstring);
+/// Initialize an independent option parser context
+static inline void l_getopt_ctx_init(L_GetoptCtx *ctx);
+/// Reentrant getopt using an independent context. Same semantics as l_getopt.
+static inline int l_getopt_ctx(L_GetoptCtx *ctx, int argc, char *const argv[], const char *optstring);
 
 // Convenience file openers
 /// Opens a file for reading
@@ -1586,6 +1613,22 @@ static inline unsigned int l_rand(void) {
     return l_rand_state;
 }
 
+// Context-based RNG (independent streams)
+static inline void l_rand_ctx_init(L_RandCtx *ctx, unsigned int seed) {
+    ctx->state = seed ? seed : 1;
+}
+
+static inline void l_srand_ctx(L_RandCtx *ctx, unsigned int seed) {
+    ctx->state = seed ? seed : 1;
+}
+
+static inline unsigned int l_rand_ctx(L_RandCtx *ctx) {
+    ctx->state ^= ctx->state << 13;
+    ctx->state ^= ctx->state >> 17;
+    ctx->state ^= ctx->state << 5;
+    return ctx->state;
+}
+
 // Option parser state (single-threaded; no TLS in freestanding)
 /// Points to the argument of the current option (set by l_getopt)
 static char *l_optarg;
@@ -1655,6 +1698,67 @@ static inline int l_getopt(int argc, char *const argv[], const char *optstring) 
         } else {
             l_optind++;
             l__optpos = 0;
+        }
+    }
+
+    return c;
+}
+
+// Context-based getopt (reentrant, for nested option parsing)
+static inline void l_getopt_ctx_init(L_GetoptCtx *ctx) {
+    ctx->optarg = (char *)0;
+    ctx->optind = 1;
+    ctx->optopt = 0;
+    ctx->_optpos = 0;
+}
+
+static inline int l_getopt_ctx(L_GetoptCtx *ctx, int argc, char *const argv[], const char *optstring) {
+    ctx->optarg = (char *)0;
+
+    if (ctx->optind >= argc)
+        return -1;
+
+    char *arg = argv[ctx->optind];
+
+    if (arg[0] != '-' || arg[1] == '\0') return -1;
+    if (arg[1] == '-' && arg[2] == '\0') { ctx->optind++; return -1; }
+
+    int pos = ctx->_optpos ? ctx->_optpos : 1;
+    char c = arg[pos];
+    ctx->optopt = c;
+
+    const char *p = optstring;
+    while (*p) {
+        if (*p == c) break;
+        p++;
+        if (*p == ':') p++;
+    }
+
+    if (*p == '\0') {
+        if (!arg[pos + 1]) { ctx->optind++; ctx->_optpos = 0; }
+        else               { ctx->_optpos = pos + 1; }
+        return '?';
+    }
+
+    if (*(p + 1) == ':') {
+        if (arg[pos + 1]) {
+            ctx->optarg = &arg[pos + 1];
+        } else if (ctx->optind + 1 < argc) {
+            ctx->optind++;
+            ctx->optarg = argv[ctx->optind];
+        } else {
+            ctx->optind++;
+            ctx->_optpos = 0;
+            return '?';
+        }
+        ctx->optind++;
+        ctx->_optpos = 0;
+    } else {
+        if (arg[pos + 1]) {
+            ctx->_optpos = pos + 1;
+        } else {
+            ctx->optind++;
+            ctx->_optpos = 0;
         }
     }
 

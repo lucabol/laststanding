@@ -997,6 +997,124 @@ void test_qsort_large_element(void) {
     TEST_SECTION_PASS("l_qsort large elements");
 }
 
+void test_rand_ctx(void) {
+    TEST_FUNCTION("l_rand_ctx (independent streams)");
+
+    // Two contexts with same seed produce same sequence
+    L_RandCtx a, b;
+    l_rand_ctx_init(&a, 42);
+    l_rand_ctx_init(&b, 42);
+    TEST_ASSERT(l_rand_ctx(&a) == l_rand_ctx(&b), "same seed same first value");
+    TEST_ASSERT(l_rand_ctx(&a) == l_rand_ctx(&b), "same seed same second value");
+
+    // Different seeds produce different sequences
+    L_RandCtx c;
+    l_rand_ctx_init(&c, 99);
+    l_rand_ctx_init(&a, 42);
+    TEST_ASSERT(l_rand_ctx(&a) != l_rand_ctx(&c), "different seeds differ");
+
+    // Context is independent from global state
+    l_srand(42);
+    unsigned int global_val = l_rand();
+    l_rand_ctx_init(&a, 42);
+    unsigned int ctx_val = l_rand_ctx(&a);
+    TEST_ASSERT(global_val == ctx_val, "ctx matches global with same seed");
+
+    // Advancing one doesn't affect the other
+    l_srand(42);
+    l_rand_ctx_init(&a, 42);
+    l_rand();  // advance global
+    l_rand();  // advance global again
+    unsigned int ctx_first = l_rand_ctx(&a);  // ctx still at position 1
+    l_srand(42);
+    unsigned int global_first = l_rand();
+    TEST_ASSERT(ctx_first == global_first, "ctx unaffected by global advances");
+
+    // l_srand_ctx reseeds
+    l_rand_ctx_init(&a, 1);
+    l_rand_ctx(&a);
+    l_srand_ctx(&a, 42);
+    l_rand_ctx_init(&b, 42);
+    TEST_ASSERT(l_rand_ctx(&a) == l_rand_ctx(&b), "reseed produces same sequence");
+
+    TEST_SECTION_PASS("l_rand_ctx");
+}
+
+void test_getopt_ctx(void) {
+    TEST_FUNCTION("l_getopt_ctx (nested parsing)");
+
+    // Basic option parsing
+    {
+        L_GetoptCtx ctx;
+        l_getopt_ctx_init(&ctx);
+        char *args[] = { "prog", "-v", "-n", "42", NULL };
+        int c1 = l_getopt_ctx(&ctx, 4, args, "vn:");
+        TEST_ASSERT(c1 == 'v', "first option is v");
+        int c2 = l_getopt_ctx(&ctx, 4, args, "vn:");
+        TEST_ASSERT(c2 == 'n', "second option is n");
+        TEST_ASSERT(ctx.optarg != NULL && l_strcmp(ctx.optarg, "42") == 0, "optarg is 42");
+        int c3 = l_getopt_ctx(&ctx, 4, args, "vn:");
+        TEST_ASSERT(c3 == -1, "done after all options");
+    }
+
+    // Unknown option
+    {
+        L_GetoptCtx ctx;
+        l_getopt_ctx_init(&ctx);
+        char *args[] = { "prog", "-x", NULL };
+        int c = l_getopt_ctx(&ctx, 2, args, "vn:");
+        TEST_ASSERT(c == '?', "unknown option returns ?");
+        TEST_ASSERT(ctx.optopt == 'x', "optopt is the unknown char");
+    }
+
+    // Nested parsing — two independent contexts
+    {
+        L_GetoptCtx outer, inner;
+        l_getopt_ctx_init(&outer);
+        l_getopt_ctx_init(&inner);
+
+        char *outer_args[] = { "shell", "-v", "subcmd", "-n", "5", NULL };
+        int c = l_getopt_ctx(&outer, 5, outer_args, "v");
+        TEST_ASSERT(c == 'v', "outer parses -v");
+        c = l_getopt_ctx(&outer, 5, outer_args, "v");
+        TEST_ASSERT(c == -1, "outer done at non-option");
+
+        // Inner parses remaining args
+        int sub_argc = 5 - outer.optind;
+        char **sub_argv = outer_args + outer.optind;
+        c = l_getopt_ctx(&inner, sub_argc, sub_argv, "n:");
+        TEST_ASSERT(c == 'n', "inner parses -n from subcommand");
+        TEST_ASSERT(inner.optarg != NULL && l_strcmp(inner.optarg, "5") == 0,
+                    "inner optarg is 5");
+
+        // Outer state was not clobbered
+        TEST_ASSERT(outer.optind == 2, "outer optind unchanged after inner parse");
+    }
+
+    // Grouped short options
+    {
+        L_GetoptCtx ctx;
+        l_getopt_ctx_init(&ctx);
+        char *args[] = { "prog", "-vf", NULL };
+        int c1 = l_getopt_ctx(&ctx, 2, args, "vf");
+        TEST_ASSERT(c1 == 'v', "grouped first is v");
+        int c2 = l_getopt_ctx(&ctx, 2, args, "vf");
+        TEST_ASSERT(c2 == 'f', "grouped second is f");
+    }
+
+    // -- stops parsing
+    {
+        L_GetoptCtx ctx;
+        l_getopt_ctx_init(&ctx);
+        char *args[] = { "prog", "--", "-v", NULL };
+        int c = l_getopt_ctx(&ctx, 3, args, "v");
+        TEST_ASSERT(c == -1, "-- stops option parsing");
+        TEST_ASSERT(ctx.optind == 2, "optind past --");
+    }
+
+    TEST_SECTION_PASS("l_getopt_ctx");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     test_qsort_large_element();
@@ -1023,6 +1141,10 @@ int main(int argc, char *argv[]) {
     test_mktime();
     test_strtof();
     test_str_replace_helper();
+
+    // Context variant tests
+    test_rand_ctx();
+    test_getopt_ctx();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");
