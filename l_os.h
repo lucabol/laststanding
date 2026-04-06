@@ -80,9 +80,47 @@ typedef uint16_t  __wasi_fdflags_t;
 typedef uint32_t  __wasi_lookupflags_t;
 typedef uint32_t  __wasi_exitcode_t;
 typedef uint32_t  __wasi_size_t_w;
+typedef uint8_t   __wasi_filetype_t;
+typedef uint64_t  __wasi_device_t;
+typedef uint64_t  __wasi_inode_t;
+typedef uint64_t  __wasi_linkcount_t;
+typedef uint64_t  __wasi_dircookie_t;
+typedef uint32_t  __wasi_dirnamlen_t;
 
 typedef struct { uint8_t *buf; uint32_t buf_len; } __wasi_iovec_t;
 typedef struct { const uint8_t *buf; uint32_t buf_len; } __wasi_ciovec_t;
+
+// WASI filestat — must match ABI layout exactly (64 bytes, 8-byte aligned)
+typedef struct {
+    __wasi_device_t dev;
+    __wasi_inode_t ino;
+    __wasi_filetype_t filetype;
+    uint8_t __pad0[7];
+    __wasi_linkcount_t nlink;
+    __wasi_filesize_t size;
+    __wasi_timestamp_t atim;
+    __wasi_timestamp_t mtim;
+    __wasi_timestamp_t ctim;
+} __wasi_filestat_t;
+
+// WASI dirent — must match ABI layout exactly (24 bytes)
+typedef struct {
+    __wasi_dircookie_t d_next;
+    __wasi_inode_t d_ino;
+    __wasi_dirnamlen_t d_namlen;
+    __wasi_filetype_t d_type;
+    uint8_t __pad0[3];
+} __wasi_dirent_t;
+
+#define __WASI_FILETYPE_UNKNOWN        0
+#define __WASI_FILETYPE_DIRECTORY      3
+#define __WASI_FILETYPE_REGULAR_FILE   4
+#define __WASI_FILETYPE_SYMBOLIC_LINK  7
+
+// Preopened directory fd (convention: fd 3 = cwd with --dir .)
+#ifndef L_WASI_PREOPEN_FD
+#define L_WASI_PREOPEN_FD 3
+#endif
 
 #define __WASI_WHENCE_SET 0
 #define __WASI_WHENCE_CUR 1
@@ -157,6 +195,25 @@ __wasi_errno_t __wasi_path_unlink_file(__wasi_fd_t fd, const char *path, size_t 
     __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_unlink_file")));
 __wasi_errno_t __wasi_path_remove_directory(__wasi_fd_t fd, const char *path, size_t path_len)
     __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_remove_directory")));
+__wasi_errno_t __wasi_path_rename(__wasi_fd_t old_fd, const char *old_path, size_t old_path_len,
+    __wasi_fd_t new_fd, const char *new_path, size_t new_path_len)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_rename")));
+__wasi_errno_t __wasi_path_symlink(const char *old_path, size_t old_path_len,
+    __wasi_fd_t fd, const char *new_path, size_t new_path_len)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_symlink")));
+__wasi_errno_t __wasi_path_readlink(__wasi_fd_t fd, const char *path, size_t path_len,
+    uint8_t *buf, __wasi_size_t_w buf_len, __wasi_size_t_w *bufused)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_readlink")));
+__wasi_errno_t __wasi_path_filestat_get(__wasi_fd_t fd, __wasi_lookupflags_t flags,
+    const char *path, size_t path_len, __wasi_filestat_t *filestat)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("path_filestat_get")));
+__wasi_errno_t __wasi_fd_filestat_get(__wasi_fd_t fd, __wasi_filestat_t *filestat)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("fd_filestat_get")));
+__wasi_errno_t __wasi_fd_filestat_set_size(__wasi_fd_t fd, __wasi_filesize_t size)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("fd_filestat_set_size")));
+__wasi_errno_t __wasi_fd_readdir(__wasi_fd_t fd, uint8_t *buf, __wasi_size_t_w buf_len,
+    __wasi_dircookie_t cookie, __wasi_size_t_w *bufused)
+    __attribute__((__import_module__("wasi_snapshot_preview1"), __import_name__("fd_readdir")));
 
 #endif // L_WASI_TYPES_DEFINED
 #endif // __wasi__
@@ -181,6 +238,15 @@ typedef struct {
     L_DirEntry current;   // current entry
     int first;            // 1 = first call returns current, then FindNextFileW
     int done;             // 1 = no more entries
+} L_Dir;
+#elif defined(__wasi__)
+typedef struct {
+    L_FD fd;
+    unsigned char buf[1024]; // fd_readdir buffer
+    int  pos;           // current position in buffer
+    int  len;           // bytes used in buffer
+    unsigned long long cookie; // __wasi_dircookie_t for continuation
+    int  done;          // 1 = no more entries
 } L_Dir;
 #else
 typedef struct {
@@ -5543,8 +5609,38 @@ static inline int l_isatty(L_FD fd)
 // ============================================================
 // WASI uses imported host functions instead of inline asm syscalls.
 // Types and imports are defined at file scope (near top of file).
-// Preopened directory fd 3 is used for filesystem access.
+// Preopened directory fd is L_WASI_PREOPEN_FD (default 3, --dir .).
 // Run with: wasmtime --dir . program.wasm
+
+// ABI layout verification
+_Static_assert(sizeof(__wasi_filestat_t) == 64, "wasi_filestat_t must be 64 bytes");
+_Static_assert(sizeof(__wasi_dirent_t) == 24, "wasi_dirent_t must be 24 bytes");
+
+// WASI errno values (from WASI spec) differ from POSIX L_E* constants.
+// Map WASI errno to L_E* so callers can check error codes portably.
+static inline int l_wasi_errno_map(__wasi_errno_t e) {
+    switch (e) {
+        case  0: return 0;
+        case  2: return L_EACCES;   // __WASI_ERRNO_ACCES
+        case  8: return L_EBADF;    // __WASI_ERRNO_BADF
+        case 17: return L_EEXIST;   // __WASI_ERRNO_EXIST
+        case 22: return L_EINVAL;   // __WASI_ERRNO_INVAL
+        case 28: return L_EISDIR;   // __WASI_ERRNO_ISDIR
+        case 36: return L_ENOMEM;   // __WASI_ERRNO_NOMEM
+        case 44: return L_ENOENT;   // __WASI_ERRNO_NOENT
+        case 54: return L_ENOTDIR;  // __WASI_ERRNO_NOTDIR
+        case 55: return L_ENOTEMPTY;// __WASI_ERRNO_NOTEMPTY
+        case 58: return L_ENOSPC;   // __WASI_ERRNO_NOSPC
+        case  6: return L_EAGAIN;   // __WASI_ERRNO_AGAIN
+        default: return (int)e;     // pass through unknown
+    }
+}
+
+static inline int l_wasi_err(__wasi_errno_t e) {
+    if (e == 0) return 0;
+    l_set_errno(l_wasi_errno_map(e));
+    return -1;
+}
 
 #define SEEK_SET 0
 #define SEEK_CUR 1
@@ -5671,48 +5767,67 @@ static inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 
 static inline int l_truncate(const char *path, long long size)
 {
-    (void)path; (void)size;
-    return -1; // @stub todo: WASI preview 1 — truncate could use fd_filestat_set_size
+    if (size < 0) { l_set_errno(L_EINVAL); return -1; }
+    // Open the file, set size, close
+    __wasi_fd_t fd;
+    __wasi_errno_t err = __wasi_path_open(L_WASI_PREOPEN_FD,
+        __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW, path, l_strlen(path),
+        0, __WASI_RIGHTS_FD_FILESTAT_SET_SIZE, 0, 0, &fd);
+    if (err != 0) return l_wasi_err(err);
+    err = __wasi_fd_filestat_set_size(fd, (__wasi_filesize_t)size);
+    __wasi_fd_close(fd);
+    if (err != 0) return l_wasi_err(err);
+    return 0;
 }
 
 static inline int l_ftruncate(L_FD fd, long long size)
 {
-    (void)fd; (void)size;
-    return -1; // @stub todo: WASI preview 1 — ftruncate could use fd_filestat_set_size
+    if (size < 0) { l_set_errno(L_EINVAL); return -1; }
+    __wasi_errno_t err = __wasi_fd_filestat_set_size((__wasi_fd_t)fd, (__wasi_filesize_t)size);
+    if (err != 0) return l_wasi_err(err);
+    return 0;
 }
 
 static inline int l_mkdir(const char *path, mode_t mode)
 {
     (void)mode;
-    __wasi_errno_t err = __wasi_path_create_directory(3, path, l_strlen(path));
-    if (err != 0) { l_set_errno((int)err); return -1; }
+    __wasi_errno_t err = __wasi_path_create_directory(L_WASI_PREOPEN_FD, path, l_strlen(path));
+    if (err != 0) return l_wasi_err(err);
     return 0;
 }
 
 static inline int l_unlink(const char *path)
 {
-    __wasi_errno_t err = __wasi_path_unlink_file(3, path, l_strlen(path));
-    if (err != 0) { l_set_errno((int)err); return -1; }
+    __wasi_errno_t err = __wasi_path_unlink_file(L_WASI_PREOPEN_FD, path, l_strlen(path));
+    if (err != 0) return l_wasi_err(err);
     return 0;
 }
 
 static inline int l_rmdir(const char *path)
 {
-    __wasi_errno_t err = __wasi_path_remove_directory(3, path, l_strlen(path));
-    if (err != 0) { l_set_errno((int)err); return -1; }
+    __wasi_errno_t err = __wasi_path_remove_directory(L_WASI_PREOPEN_FD, path, l_strlen(path));
+    if (err != 0) return l_wasi_err(err);
     return 0;
 }
 
 static inline int l_rename(const char *oldpath, const char *newpath)
 {
-    (void)oldpath; (void)newpath;
-    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_rename
+    __wasi_errno_t err = __wasi_path_rename(L_WASI_PREOPEN_FD, oldpath, l_strlen(oldpath),
+                                            L_WASI_PREOPEN_FD, newpath, l_strlen(newpath));
+    if (err != 0) return l_wasi_err(err);
+    return 0;
 }
 
 static inline int l_access(const char *path, int mode)
 {
-    (void)path; (void)mode;
-    return -1; // @stub todo: WASI — could emulate via path_filestat_get
+    // Emulate via path_filestat_get — F_OK is reliable, permission bits are approximate
+    __wasi_filestat_t fs;
+    __wasi_errno_t err = __wasi_path_filestat_get(L_WASI_PREOPEN_FD,
+        __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW, path, l_strlen(path), &fs);
+    if (err != 0) return l_wasi_err(err);
+    if (mode == L_F_OK) return 0;
+    // WASI doesn't expose per-file permissions; assume accessible if it exists
+    return 0;
 }
 
 static inline int l_chmod(const char *path, mode_t mode)
@@ -5723,52 +5838,136 @@ static inline int l_chmod(const char *path, mode_t mode)
 
 static inline int l_symlink(const char *target, const char *linkpath)
 {
-    (void)target; (void)linkpath;
-    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_symlink
+    __wasi_errno_t err = __wasi_path_symlink(target, l_strlen(target),
+                                             L_WASI_PREOPEN_FD, linkpath, l_strlen(linkpath));
+    if (err != 0) return l_wasi_err(err);
+    return 0;
 }
 
 static inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
 {
-    (void)path; (void)buf; (void)bufsiz;
-    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_readlink
+    __wasi_size_t_w used = 0;
+    __wasi_errno_t err = __wasi_path_readlink(L_WASI_PREOPEN_FD,
+        path, l_strlen(path), (uint8_t *)buf, (__wasi_size_t_w)bufsiz, &used);
+    if (err != 0) { l_set_errno(l_wasi_errno_map(err)); return -1; }
+    return (ptrdiff_t)used;
 }
 
 static inline char *l_realpath(const char *path, char *resolved)
 {
     if (!path || !resolved) return (char *)0;
-    // Minimal: just copy path as-is
+    // Minimal: just copy path as-is (no /proc/self/fd on WASI)
     size_t len = l_strlen(path);
     l_memcpy(resolved, path, len + 1);
     return resolved;
 }
 
+// Map WASI filestat to L_Stat
+static inline void l_wasi_filestat_to_l_stat(const __wasi_filestat_t *fs, L_Stat *st)
+{
+    st->st_size = (long long)fs->size;
+    st->st_mtime = (long long)(fs->mtim / 1000000000ULL); // nanoseconds → seconds
+    // Map filetype to st_mode with reasonable default permissions
+    switch (fs->filetype) {
+        case __WASI_FILETYPE_DIRECTORY:     st->st_mode = L_S_IFDIR | 0755; break;
+        case __WASI_FILETYPE_SYMBOLIC_LINK: st->st_mode = L_S_IFLNK | 0777; break;
+        case __WASI_FILETYPE_REGULAR_FILE:  st->st_mode = L_S_IFREG | 0644; break;
+        default:                            st->st_mode = L_S_IFREG | 0644; break;
+    }
+}
+
 static inline int l_stat(const char *path, L_Stat *st)
 {
-    (void)path; (void)st;
-    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_filestat_get
+    __wasi_filestat_t fs;
+    __wasi_errno_t err = __wasi_path_filestat_get(L_WASI_PREOPEN_FD,
+        __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW, path, l_strlen(path), &fs);
+    if (err != 0) return l_wasi_err(err);
+    l_wasi_filestat_to_l_stat(&fs, st);
+    return 0;
 }
 
 static inline int l_fstat(L_FD fd, L_Stat *st)
 {
-    (void)fd; (void)st;
-    return -1; // @stub todo: WASI preview 1 — would need __wasi_fd_filestat_get
+    __wasi_filestat_t fs;
+    __wasi_errno_t err = __wasi_fd_filestat_get((__wasi_fd_t)fd, &fs);
+    if (err != 0) return l_wasi_err(err);
+    l_wasi_filestat_to_l_stat(&fs, st);
+    return 0;
 }
 
 static inline int l_opendir(const char *path, L_Dir *dir)
 {
-    (void)path; (void)dir;
-    return -1; // @stub todo: WASI preview 1 — would need __wasi_fd_readdir
+    __wasi_fd_t fd;
+    __wasi_errno_t err = __wasi_path_open(L_WASI_PREOPEN_FD,
+        __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW, path, l_strlen(path),
+        __WASI_OFLAGS_DIRECTORY,
+        __WASI_RIGHTS_FD_READDIR | __WASI_RIGHTS_FD_READ,
+        0, 0, &fd);
+    if (err != 0) return l_wasi_err(err);
+    dir->fd = (L_FD)fd;
+    dir->pos = 0;
+    dir->len = 0;
+    dir->cookie = 0;
+    dir->done = 0;
+    return 0;
 }
+
+static L_DirEntry l__wasi_dirent;
 
 static inline L_DirEntry *l_readdir(L_Dir *dir)
 {
-    (void)dir;
-    return (L_DirEntry *)0;
+    for (;;) {
+        // Try to read an entry from the current buffer
+        if (dir->pos < dir->len) {
+            int remaining = dir->len - dir->pos;
+            if (remaining < (int)sizeof(__wasi_dirent_t)) {
+                // Partial header — need to refill from this cookie
+                dir->pos = dir->len; // force refill
+                continue;
+            }
+            __wasi_dirent_t de;
+            l_memcpy(&de, dir->buf + dir->pos, sizeof(__wasi_dirent_t));
+            int entry_size = (int)sizeof(__wasi_dirent_t) + (int)de.d_namlen;
+            if (dir->pos + entry_size > dir->len) {
+                // Partial name — advance cookie and refill
+                dir->cookie = de.d_next;
+                dir->pos = dir->len; // force refill
+                continue;
+            }
+            // Full entry available — copy name
+            int namlen = (int)de.d_namlen;
+            if (namlen > 255) namlen = 255;
+            l_memcpy(l__wasi_dirent.d_name, dir->buf + dir->pos + sizeof(__wasi_dirent_t), namlen);
+            l__wasi_dirent.d_name[namlen] = '\0';
+            // Map filetype
+            switch (de.d_type) {
+                case __WASI_FILETYPE_DIRECTORY:     l__wasi_dirent.d_type = L_DT_DIR; break;
+                case __WASI_FILETYPE_REGULAR_FILE:  l__wasi_dirent.d_type = L_DT_REG; break;
+                case __WASI_FILETYPE_SYMBOLIC_LINK: l__wasi_dirent.d_type = L_DT_LNK; break;
+                default:                            l__wasi_dirent.d_type = L_DT_UNKNOWN; break;
+            }
+            dir->pos += entry_size;
+            dir->cookie = de.d_next;
+            return &l__wasi_dirent;
+        }
+        // Buffer exhausted — refill
+        if (dir->done) return (L_DirEntry *)0;
+        __wasi_size_t_w used = 0;
+        __wasi_errno_t err = __wasi_fd_readdir((__wasi_fd_t)dir->fd,
+            dir->buf, (__wasi_size_t_w)sizeof(dir->buf),
+            dir->cookie, &used);
+        if (err != 0) return (L_DirEntry *)0;
+        if (used == 0) { dir->done = 1; return (L_DirEntry *)0; }
+        // If less than buffer size returned, this is the last batch
+        if (used < (__wasi_size_t_w)sizeof(dir->buf)) dir->done = 1;
+        dir->pos = 0;
+        dir->len = (int)used;
+    }
 }
 
 static inline void l_closedir(L_Dir *dir)
 {
-    (void)dir;
+    __wasi_fd_close((__wasi_fd_t)dir->fd);
 }
 
 // l_mmap — WASI: use WebAssembly memory.grow for anonymous mappings
@@ -5818,12 +6017,12 @@ static inline L_FD l_open(const char *path, int flags, mode_t mode)
 
     __wasi_fd_t opened_fd;
     __wasi_errno_t err = __wasi_path_open(
-        3, // preopened directory fd (convention: fd 3 = cwd with --dir .)
+        L_WASI_PREOPEN_FD,
         __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW,
         path, l_strlen(path),
         oflags, rights_base, rights_base,
         fdflags, &opened_fd);
-    if (err != 0) { l_set_errno((int)err); return -1; }
+    if (err != 0) return l_wasi_err(err);
     return (L_FD)opened_fd;
 }
 
