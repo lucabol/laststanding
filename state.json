@@ -1,16 +1,13 @@
 {
-  "last_run": "2026-04-05T13:20:00Z",
-  "last_run_id": "24002342935",
-  "monthly_activity_issue": "2026-04 (open, #101)",
+  "last_run": "2026-04-06T13:25:00Z",
+  "last_run_id": "24033525945",
+  "monthly_activity_issue": "2026-04 (open, new this run)",
   "open_prs": [
-    {"branch": "repo-assist/perf-strcmp-word-at-a-time-2026-04-04", "title": "[Repo Assist] perf: word-at-a-time l_strcmp and l_strncmp", "pr": "#103", "created": "2026-04-04", "status": "open"},
-    {"branch": "repo-assist/perf-strstr-linebuf-2026-04-05", "title": "[Repo Assist] perf+feat: word-at-a-time l_strstr and buffered L_LineBuf reader", "pr": "#105", "created": "2026-04-05", "status": "open"},
-    {"branch": "repo-assist/perf-memrchr-word-at-a-time-2026-04-05", "title": "[Repo Assist] perf: word-at-a-time l_memrchr backward scan", "pr": "pending", "created": "2026-04-05", "status": "open"}
+    {"branch": "repo-assist/feat-base64-2026-04-06", "title": "[Repo Assist] feat: add l_base64_encode and l_base64_decode", "created": "2026-04-06", "status": "open"},
+    {"branch": "repo-assist/test-fnmatch-strtod-2026-04-06", "title": "[Repo Assist] test: extend l_fnmatch tests + fix strtod/strtof infinity endptr", "created": "2026-04-06", "status": "open"}
   ],
-  "resolved_issues": [
-    {"number": 104, "title": "WASI macro fix + CI", "note": "Resolved by maintainer in commit e6e5f08 — should be closed"}
-  ],
+  "resolved_issues": [],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed_no_open_human_prs"},
   "checked_off_items": [],
-  "notes": "Three word-at-a-time PRs open: strcmp (#103), strstr+LineBuf (#105), memrchr (new this run). Issue #104 WASI CI was resolved by maintainer directly. Next perf target: l_memmem could use two-way or BM-Horspool for long needles, but that's complex. Engineering: consider documenting the word-at-a-time pattern in README or comments."
+  "notes": "Previous PRs #103,#105,#107,#108 all merged. Two new PRs: base64 encode/decode (Task 10) and fnmatch tests + strtod infinity fix (Task 9). Next: l_memmem BM-Horspool for long needles, or more correctness surveys."
 }
