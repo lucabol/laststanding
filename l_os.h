@@ -449,10 +449,10 @@ typedef struct {
 
 /// Independent option parser context (reentrant getopt)
 typedef struct {
-    char *optarg;   // argument of the current option
-    int   optind;   // index of the next argv element (starts at 1)
-    int   optopt;   // unknown option character when '?' is returned
-    int   _optpos;  // position within grouped short-option cluster
+    char *arg;      // argument of the current option (like l_optarg)
+    int   ind;      // index of the next argv element (starts at 1, like l_optind)
+    int   opt;      // unknown option character when '?' is returned (like l_optopt)
+    int   _pos;     // position within grouped short-option cluster
 } L_GetoptCtx;
 
 #endif // L_NEWTYPES_DEFINED
@@ -1706,26 +1706,26 @@ static inline int l_getopt(int argc, char *const argv[], const char *optstring) 
 
 // Context-based getopt (reentrant, for nested option parsing)
 static inline void l_getopt_ctx_init(L_GetoptCtx *ctx) {
-    ctx->optarg = (char *)0;
-    ctx->optind = 1;
-    ctx->optopt = 0;
-    ctx->_optpos = 0;
+    ctx->arg = (char *)0;
+    ctx->ind = 1;
+    ctx->opt = 0;
+    ctx->_pos = 0;
 }
 
 static inline int l_getopt_ctx(L_GetoptCtx *ctx, int argc, char *const argv[], const char *optstring) {
-    ctx->optarg = (char *)0;
+    ctx->arg = (char *)0;
 
-    if (ctx->optind >= argc)
+    if (ctx->ind >= argc)
         return -1;
 
-    char *arg = argv[ctx->optind];
+    char *a = argv[ctx->ind];
 
-    if (arg[0] != '-' || arg[1] == '\0') return -1;
-    if (arg[1] == '-' && arg[2] == '\0') { ctx->optind++; return -1; }
+    if (a[0] != '-' || a[1] == '\0') return -1;
+    if (a[1] == '-' && a[2] == '\0') { ctx->ind++; return -1; }
 
-    int pos = ctx->_optpos ? ctx->_optpos : 1;
-    char c = arg[pos];
-    ctx->optopt = c;
+    int pos = ctx->_pos ? ctx->_pos : 1;
+    char c = a[pos];
+    ctx->opt = c;
 
     const char *p = optstring;
     while (*p) {
@@ -1735,30 +1735,30 @@ static inline int l_getopt_ctx(L_GetoptCtx *ctx, int argc, char *const argv[], c
     }
 
     if (*p == '\0') {
-        if (!arg[pos + 1]) { ctx->optind++; ctx->_optpos = 0; }
-        else               { ctx->_optpos = pos + 1; }
+        if (!a[pos + 1]) { ctx->ind++; ctx->_pos = 0; }
+        else             { ctx->_pos = pos + 1; }
         return '?';
     }
 
     if (*(p + 1) == ':') {
-        if (arg[pos + 1]) {
-            ctx->optarg = &arg[pos + 1];
-        } else if (ctx->optind + 1 < argc) {
-            ctx->optind++;
-            ctx->optarg = argv[ctx->optind];
+        if (a[pos + 1]) {
+            ctx->arg = &a[pos + 1];
+        } else if (ctx->ind + 1 < argc) {
+            ctx->ind++;
+            ctx->arg = argv[ctx->ind];
         } else {
-            ctx->optind++;
-            ctx->_optpos = 0;
+            ctx->ind++;
+            ctx->_pos = 0;
             return '?';
         }
-        ctx->optind++;
-        ctx->_optpos = 0;
+        ctx->ind++;
+        ctx->_pos = 0;
     } else {
-        if (arg[pos + 1]) {
-            ctx->_optpos = pos + 1;
+        if (a[pos + 1]) {
+            ctx->_pos = pos + 1;
         } else {
-            ctx->optind++;
-            ctx->_optpos = 0;
+            ctx->ind++;
+            ctx->_pos = 0;
         }
     }
 

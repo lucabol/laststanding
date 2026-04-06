@@ -1052,7 +1052,7 @@ void test_getopt_ctx(void) {
         TEST_ASSERT(c1 == 'v', "first option is v");
         int c2 = l_getopt_ctx(&ctx, 4, args, "vn:");
         TEST_ASSERT(c2 == 'n', "second option is n");
-        TEST_ASSERT(ctx.optarg != NULL && l_strcmp(ctx.optarg, "42") == 0, "optarg is 42");
+        TEST_ASSERT(ctx.arg != NULL && l_strcmp(ctx.arg, "42") == 0, "optarg is 42");
         int c3 = l_getopt_ctx(&ctx, 4, args, "vn:");
         TEST_ASSERT(c3 == -1, "done after all options");
     }
@@ -1064,7 +1064,7 @@ void test_getopt_ctx(void) {
         char *args[] = { "prog", "-x", NULL };
         int c = l_getopt_ctx(&ctx, 2, args, "vn:");
         TEST_ASSERT(c == '?', "unknown option returns ?");
-        TEST_ASSERT(ctx.optopt == 'x', "optopt is the unknown char");
+        TEST_ASSERT(ctx.opt == 'x', "optopt is the unknown char");
     }
 
     // Nested parsing — two independent contexts
@@ -1080,15 +1080,15 @@ void test_getopt_ctx(void) {
         TEST_ASSERT(c == -1, "outer done at non-option");
 
         // Inner parses remaining args
-        int sub_argc = 5 - outer.optind;
-        char **sub_argv = outer_args + outer.optind;
+        int sub_argc = 5 - outer.ind;
+        char **sub_argv = outer_args + outer.ind;
         c = l_getopt_ctx(&inner, sub_argc, sub_argv, "n:");
         TEST_ASSERT(c == 'n', "inner parses -n from subcommand");
-        TEST_ASSERT(inner.optarg != NULL && l_strcmp(inner.optarg, "5") == 0,
+        TEST_ASSERT(inner.arg != NULL && l_strcmp(inner.arg, "5") == 0,
                     "inner optarg is 5");
 
         // Outer state was not clobbered
-        TEST_ASSERT(outer.optind == 2, "outer optind unchanged after inner parse");
+        TEST_ASSERT(outer.ind == 2, "outer optind unchanged after inner parse");
     }
 
     // Grouped short options
@@ -1109,7 +1109,7 @@ void test_getopt_ctx(void) {
         char *args[] = { "prog", "--", "-v", NULL };
         int c = l_getopt_ctx(&ctx, 3, args, "v");
         TEST_ASSERT(c == -1, "-- stops option parsing");
-        TEST_ASSERT(ctx.optind == 2, "optind past --");
+        TEST_ASSERT(ctx.ind == 2, "optind past --");
     }
 
     TEST_SECTION_PASS("l_getopt_ctx");
