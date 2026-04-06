@@ -1828,16 +1828,16 @@ static inline char *l_strchr(const char *s, int c)
     return (unsigned char)*s == uc ? (char *)s : NULL;
 }
 
+/* l_memrchr is defined later in L_OSH; this declaration lets l_strrchr call it
+ * on the first-include path before L_WITHDEFS forward declarations are active. */
+static inline void *l_memrchr(const void *s, int c, size_t n);
+
 static inline char *l_strrchr(const char *s, int c)
 {
-    const char *ret = NULL;
-
-    while (*s) {
-        if (*s == (char)c)
-            ret = s;
-        s++;
-    }
-    return (char)c == '\0' ? (char *)s : (char *)ret;
+    size_t len = l_strlen(s);
+    if ((char)c == '\0')
+        return (char *)s + len;  /* pointer to the null terminator */
+    return (char *)l_memrchr(s, c, len);
 }
 
 static inline int l_strncmp(const char *s1, const char *s2, size_t n) {
@@ -2162,25 +2162,28 @@ static inline double l_strtod(const char *nptr, char **endptr)
         return __builtin_nan("");
     }
 
-    const char *start = s;
     double val = 0.0;
+    int has_digits = 0;
 
     /* integer part */
-    while (*s >= '0' && *s <= '9')
+    while (*s >= '0' && *s <= '9') {
         val = val * 10.0 + (double)(*s++ - '0');
+        has_digits = 1;
+    }
 
-    /* fractional part */
+    /* fractional part — a lone "." with no adjacent digits is not a valid number */
     if (*s == '.') {
         s++;
         double frac = 0.1;
         while (*s >= '0' && *s <= '9') {
             val += (double)(*s++ - '0') * frac;
             frac *= 0.1;
+            has_digits = 1;
         }
     }
 
-    /* exponent */
-    if (*s == 'e' || *s == 'E') {
+    /* exponent — only valid when at least one digit was consumed */
+    if (has_digits && (*s == 'e' || *s == 'E')) {
         const char *es = s + 1;
         int eneg = 0;
         if (*es == '-') { eneg = 1; es++; }
@@ -2198,7 +2201,7 @@ static inline double l_strtod(const char *nptr, char **endptr)
         }
     }
 
-    if (s == start) { if (endptr) *endptr = (char *)nptr; return 0.0; }
+    if (!has_digits) { if (endptr) *endptr = (char *)nptr; return 0.0; }
     if (endptr) *endptr = (char *)s;
     return neg ? -val : val;
 }
@@ -2757,10 +2760,8 @@ static inline void *l_memrchr(const void *s, int c, size_t n)
 
 static inline size_t l_strnlen(const char *s, size_t maxlen)
 {
-    size_t len = 0;
-    while (len < maxlen && s[len] != '\0')
-        len++;
-    return len;
+    const char *end = (const char *)l_memchr(s, '\0', maxlen);
+    return end ? (size_t)(end - s) : maxlen;
 }
 
 static inline void *l_memmem(const void *haystack, size_t haystacklen,
