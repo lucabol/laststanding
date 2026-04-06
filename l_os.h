@@ -16,6 +16,7 @@
 #define _UNICODE
 #ifdef L_WITHSOCKETS
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #endif
 #include <windows.h>
 #include <shellapi.h>
@@ -379,6 +380,26 @@ typedef void (*L_SigHandler)(int);
 #define L_SIG_DFL ((L_SigHandler)0)
 #define L_SIG_IGN ((L_SigHandler)1)
 
+// Address families and socket types
+#define L_AF_INET   2
+#define L_AF_INET6 10
+#ifdef _WIN32
+#undef  L_AF_INET6
+#define L_AF_INET6 23
+#endif
+#define L_SOCK_STREAM 1
+#define L_SOCK_DGRAM  2
+
+// Generic socket address — library-owned, stable layout
+// Holds either IPv4 or IPv6. Convert to OS structs internally.
+typedef struct {
+    int family;             // L_AF_INET or L_AF_INET6
+    unsigned short port;    // host byte order
+    unsigned char addr[16]; // IPv4 in first 4 bytes, IPv6 in all 16
+} L_SockAddr;
+
+#define L_INET6_ADDRSTRLEN 46
+
 // Scatter-gather I/O
 typedef struct { void *base; size_t len; } L_IoVec;
 
@@ -430,6 +451,14 @@ typedef struct {
     unsigned int   sin_addr;
     char           sin_zero[8];
 } L_SockAddrIn;
+
+typedef struct {
+    unsigned short sin6_family;
+    unsigned short sin6_port;
+    unsigned int   sin6_flowinfo;
+    unsigned char  sin6_addr[16];
+    unsigned int   sin6_scope_id;
+} L_SockAddrIn6;
 #endif
 #endif
 
@@ -1007,6 +1036,26 @@ static inline L_SOCKET l_socket_udp(void);
 static inline ptrdiff_t l_socket_sendto(L_SOCKET s, const void *data, size_t len, const char *addr, int port);
 /// Receive data via UDP. addr_out (>=16 bytes) and port_out receive sender info. Returns bytes received or -1.
 static inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, char *addr_out, int *port_out);
+
+// Generic address-based socket API (IPv4 and IPv6)
+/// Build an IPv4 L_SockAddr from dotted-quad string and port. Returns 0 on success, -1 on error.
+static inline int l_sockaddr_ipv4(L_SockAddr *sa, const char *ip, int port);
+/// Build an IPv6 L_SockAddr from IPv6 text and port. Returns 0 on success, -1 on error.
+static inline int l_sockaddr_ipv6(L_SockAddr *sa, const char *ip, int port);
+/// Parse IPv6 text representation into 16-byte binary. Returns 1 on success, 0 on error.
+static inline int l_parse_ipv6(const char *ip, unsigned char out[16]);
+/// Format 16-byte IPv6 binary to text. buf must be at least L_INET6_ADDRSTRLEN bytes. Returns buf.
+static inline char *l_format_ipv6(const unsigned char addr[16], char *buf, size_t bufsz);
+/// Create a socket of the given family (L_AF_INET or L_AF_INET6) and type (L_SOCK_STREAM or L_SOCK_DGRAM). Returns socket fd or -1.
+static inline L_SOCKET l_socket_open(int family, int type);
+/// Connect socket to an L_SockAddr. Returns 0 on success, -1 on error.
+static inline int l_socket_connect_addr(L_SOCKET sock, const L_SockAddr *addr);
+/// Bind socket to an L_SockAddr. Returns 0 on success, -1 on error.
+static inline int l_socket_bind_addr(L_SOCKET sock, const L_SockAddr *addr);
+/// Send data to an L_SockAddr via UDP. Returns bytes sent or -1.
+static inline ptrdiff_t l_socket_sendto_addr(L_SOCKET s, const void *data, size_t len, const L_SockAddr *dest);
+/// Receive data via UDP. src receives sender address. Returns bytes received or -1.
+static inline ptrdiff_t l_socket_recvfrom_addr(L_SOCKET s, void *buf, size_t len, L_SockAddr *src);
 #endif // L_WITHSOCKETS
 
 #endif // L_WITHDEFS
@@ -3511,6 +3560,104 @@ static inline void l_format_ipv4(unsigned int ip, char *out) {
     out[pos] = '\0';
 }
 
+// IPv6 parse: "2001:db8::1" → 16-byte binary. Returns 1 on success, 0 on error.
+static inline int l_parse_ipv6(const char *ip, unsigned char out[16]) {
+    if (!ip) return 0;
+    unsigned char tmp[16];
+    l_memset(tmp, 0, 16);
+    int groups = 0, dcolon = -1, pos = 0;
+    const char *p = ip;
+
+    // Handle leading ::
+    if (p[0] == ':' && p[1] == ':') { dcolon = 0; p += 2; if (*p == '\0') { l_memcpy(out, tmp, 16); return 1; } }
+
+    while (*p && groups < 8) {
+        if (*p == ':' && p[1] == ':') {
+            if (dcolon >= 0) return 0; // only one :: allowed
+            dcolon = groups;
+            p += 2;
+            if (*p == '\0') break;
+            continue;
+        }
+        if (*p == ':') p++;
+
+        // Parse hex group
+        unsigned int val = 0;
+        int digits = 0;
+        while ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F')) {
+            val <<= 4;
+            if (*p >= '0' && *p <= '9') val += (unsigned)(*p - '0');
+            else if (*p >= 'a' && *p <= 'f') val += (unsigned)(*p - 'a' + 10);
+            else val += (unsigned)(*p - 'A' + 10);
+            digits++;
+            p++;
+        }
+        if (digits == 0 || digits > 4 || val > 0xFFFF) return 0;
+        tmp[pos++] = (unsigned char)(val >> 8);
+        tmp[pos++] = (unsigned char)(val & 0xFF);
+        groups++;
+    }
+    if (*p != '\0') return 0;
+
+    if (dcolon >= 0) {
+        // Expand :: by shifting groups after dcolon to the end
+        int head = dcolon * 2;
+        int tail = (groups - dcolon) * 2;
+        int gap = 16 - head - tail;
+        if (gap < 0) return 0;
+        l_memset(out, 0, 16);
+        l_memcpy(out, tmp, head);
+        l_memcpy(out + head + gap, tmp + head, tail);
+    } else {
+        if (groups != 8) return 0;
+        l_memcpy(out, tmp, 16);
+    }
+    return 1;
+}
+
+// IPv6 format: 16-byte binary → compressed text (no :: shortening for simplicity)
+static inline char *l_format_ipv6(const unsigned char addr[16], char *buf, size_t bufsz) {
+    if (!buf || bufsz < L_INET6_ADDRSTRLEN) return (char *)0;
+    static const char hex[] = "0123456789abcdef";
+    int pos = 0;
+    for (int i = 0; i < 8; i++) {
+        unsigned int g = ((unsigned int)addr[i*2] << 8) | addr[i*2+1];
+        // Skip leading zeros but always emit at least one digit
+        int started = 0;
+        for (int shift = 12; shift >= 0; shift -= 4) {
+            int nibble = (int)((g >> shift) & 0xF);
+            if (nibble || started || shift == 0) {
+                buf[pos++] = hex[nibble];
+                started = 1;
+            }
+        }
+        if (i < 7) buf[pos++] = ':';
+    }
+    buf[pos] = '\0';
+    return buf;
+}
+
+// Construct L_SockAddr from IPv4 dotted-quad string
+static inline int l_sockaddr_ipv4(L_SockAddr *sa, const char *ip, int port) {
+    unsigned int addr;
+    if (!sa || !l_parse_ipv4(ip, &addr)) return -1;
+    l_memset(sa, 0, sizeof(*sa));
+    sa->family = L_AF_INET;
+    sa->port = (unsigned short)port;
+    l_memcpy(sa->addr, &addr, 4);
+    return 0;
+}
+
+// Construct L_SockAddr from IPv6 text string
+static inline int l_sockaddr_ipv6(L_SockAddr *sa, const char *ip, int port) {
+    if (!sa) return -1;
+    l_memset(sa, 0, sizeof(*sa));
+    if (!l_parse_ipv6(ip, sa->addr)) return -1;
+    sa->family = L_AF_INET6;
+    sa->port = (unsigned short)port;
+    return 0;
+}
+
 static inline int l_valid_hostname(const char *name) {
     size_t label_len = 0;
 
@@ -5517,9 +5664,121 @@ static inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, cha
     return (ptrdiff_t)ret;
 }
 
-#endif // L_WITHSOCKETS
+// --- Generic address-based socket API (Linux) ---
 
-// l_poll — I/O multiplexing
+static inline int l_sockaddr_to_os(const L_SockAddr *sa, void *out, int *outlen) {
+    if (sa->family == L_AF_INET) {
+        L_SockAddrIn *s = (L_SockAddrIn *)out;
+        l_memset(s, 0, sizeof(*s));
+        s->sin_family = 2;
+        s->sin_port = l_htons(sa->port);
+        l_memcpy(&s->sin_addr, sa->addr, 4);
+        *outlen = (int)sizeof(L_SockAddrIn);
+        return 0;
+    }
+    if (sa->family == L_AF_INET6) {
+        L_SockAddrIn6 *s = (L_SockAddrIn6 *)out;
+        l_memset(s, 0, sizeof(*s));
+        s->sin6_family = 10;
+        s->sin6_port = l_htons(sa->port);
+        l_memcpy(s->sin6_addr, sa->addr, 16);
+        *outlen = (int)sizeof(L_SockAddrIn6);
+        return 0;
+    }
+    return -1;
+}
+
+static inline void l_sockaddr_from_os4(L_SockAddr *sa, const L_SockAddrIn *s) {
+    l_memset(sa, 0, sizeof(*sa));
+    sa->family = L_AF_INET;
+    sa->port = l_htons(s->sin_port);
+    l_memcpy(sa->addr, &s->sin_addr, 4);
+}
+
+static inline void l_sockaddr_from_os6(L_SockAddr *sa, const L_SockAddrIn6 *s) {
+    l_memset(sa, 0, sizeof(*sa));
+    sa->family = L_AF_INET6;
+    sa->port = l_htons(s->sin6_port);
+    l_memcpy(sa->addr, s->sin6_addr, 16);
+}
+
+static inline L_SOCKET l_socket_open(int family, int type) {
+    int af = (family == L_AF_INET6) ? 10 : 2;
+    int st = (type == L_SOCK_DGRAM) ? 2 : 1;
+#if defined(__x86_64__)
+    long ret = my_syscall3(41, af, st, 0);
+#elif defined(__aarch64__) || defined(__riscv)
+    long ret = my_syscall3(198, af, st, 0);
+#elif defined(__arm__)
+    long ret = my_syscall3(281, af, st, 0);
+#endif
+    return (L_SOCKET)(ret < 0 ? -1 : ret);
+}
+
+static inline int l_socket_connect_addr(L_SOCKET sock, const L_SockAddr *addr) {
+    char osbuf[28];
+    int salen;
+    if (l_sockaddr_to_os(addr, osbuf, &salen) < 0) return -1;
+#if defined(__x86_64__)
+    long ret = my_syscall3(42, sock, (long)osbuf, salen);
+#elif defined(__aarch64__) || defined(__riscv)
+    long ret = my_syscall3(203, sock, (long)osbuf, salen);
+#elif defined(__arm__)
+    long ret = my_syscall3(283, sock, (long)osbuf, salen);
+#endif
+    return (int)(ret < 0 ? -1 : 0);
+}
+
+static inline int l_socket_bind_addr(L_SOCKET sock, const L_SockAddr *addr) {
+    char osbuf[28];
+    int salen;
+    if (l_sockaddr_to_os(addr, osbuf, &salen) < 0) return -1;
+#if defined(__x86_64__)
+    long ret = my_syscall3(49, sock, (long)osbuf, salen);
+#elif defined(__aarch64__) || defined(__riscv)
+    long ret = my_syscall3(200, sock, (long)osbuf, salen);
+#elif defined(__arm__)
+    long ret = my_syscall3(282, sock, (long)osbuf, salen);
+#endif
+    return (int)(ret < 0 ? -1 : 0);
+}
+
+static inline ptrdiff_t l_socket_sendto_addr(L_SOCKET s, const void *data, size_t len, const L_SockAddr *dest) {
+    char osbuf[28];
+    int salen;
+    if (l_sockaddr_to_os(dest, osbuf, &salen) < 0) return -1;
+#if defined(__x86_64__)
+    long ret = my_syscall6(44, s, (long)data, len, 0, (long)osbuf, salen);
+#elif defined(__aarch64__) || defined(__riscv)
+    long ret = my_syscall6(206, s, (long)data, len, 0, (long)osbuf, salen);
+#elif defined(__arm__)
+    long ret = my_syscall6(290, s, (long)data, len, 0, (long)osbuf, salen);
+#endif
+    return (ptrdiff_t)(ret < 0 ? -1 : ret);
+}
+
+static inline ptrdiff_t l_socket_recvfrom_addr(L_SOCKET s, void *buf, size_t len, L_SockAddr *src) {
+    char sabuf[28];
+    long salen = sizeof(sabuf);
+    l_memset(sabuf, 0, sizeof(sabuf));
+#if defined(__x86_64__)
+    long ret = my_syscall6(45, s, (long)buf, len, 0, (long)sabuf, (long)&salen);
+#elif defined(__aarch64__) || defined(__riscv)
+    long ret = my_syscall6(207, s, (long)buf, len, 0, (long)sabuf, (long)&salen);
+#elif defined(__arm__)
+    long ret = my_syscall6(292, s, (long)buf, len, 0, (long)sabuf, (long)&salen);
+#endif
+    if (ret < 0) return -1;
+    if (src) {
+        unsigned short fam;
+        l_memcpy(&fam, sabuf, 2);
+        if (fam == 10) l_sockaddr_from_os6(src, (const L_SockAddrIn6 *)sabuf);
+        else l_sockaddr_from_os4(src, (const L_SockAddrIn *)sabuf);
+    }
+    return (ptrdiff_t)ret;
+}
+
+#endif // L_WITHSOCKETS
 static inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
 {
     // Kernel pollfd layout: int fd, short events, short revents
@@ -7262,9 +7521,89 @@ static inline ptrdiff_t l_socket_recvfrom(L_SOCKET s, void *buf, size_t len, cha
     return (ptrdiff_t)ret;
 }
 
-#endif // L_WITHSOCKETS
+// --- Generic address-based socket API (Windows) ---
 
-// l_poll — Windows: WaitForMultipleObjects pattern
+static inline int l_sockaddr_to_wsa(const L_SockAddr *sa, void *out, int *outlen) {
+    if (sa->family == L_AF_INET) {
+        struct sockaddr_in *s = (struct sockaddr_in *)out;
+        l_memset(s, 0, sizeof(*s));
+        s->sin_family = AF_INET;
+        s->sin_port = l_htons(sa->port);
+        l_memcpy(&s->sin_addr.s_addr, sa->addr, 4);
+        *outlen = (int)sizeof(struct sockaddr_in);
+        return 0;
+    }
+    if (sa->family == L_AF_INET6) {
+        struct sockaddr_in6 *s = (struct sockaddr_in6 *)out;
+        l_memset(s, 0, sizeof(*s));
+        s->sin6_family = AF_INET6;
+        s->sin6_port = l_htons(sa->port);
+        l_memcpy(&s->sin6_addr, sa->addr, 16);
+        *outlen = (int)sizeof(struct sockaddr_in6);
+        return 0;
+    }
+    return -1;
+}
+
+static inline L_SOCKET l_socket_open(int family, int type) {
+    if (l_wsa_init() < 0) return -1;
+    int af = (family == L_AF_INET6) ? AF_INET6 : AF_INET;
+    int st = (type == L_SOCK_DGRAM) ? SOCK_DGRAM : SOCK_STREAM;
+    int proto = (type == L_SOCK_DGRAM) ? IPPROTO_UDP : IPPROTO_TCP;
+    SOCKET s = socket(af, st, proto);
+    if (s == INVALID_SOCKET) return -1;
+    return (L_SOCKET)s;
+}
+
+static inline int l_socket_connect_addr(L_SOCKET sock, const L_SockAddr *addr) {
+    char osbuf[28];
+    int salen;
+    if (l_sockaddr_to_wsa(addr, osbuf, &salen) < 0) return -1;
+    return connect((SOCKET)sock, (const struct sockaddr *)osbuf, salen) == 0 ? 0 : -1;
+}
+
+static inline int l_socket_bind_addr(L_SOCKET sock, const L_SockAddr *addr) {
+    char osbuf[28];
+    int salen;
+    if (l_sockaddr_to_wsa(addr, osbuf, &salen) < 0) return -1;
+    return bind((SOCKET)sock, (const struct sockaddr *)osbuf, salen) == 0 ? 0 : -1;
+}
+
+static inline ptrdiff_t l_socket_sendto_addr(L_SOCKET s, const void *data, size_t len, const L_SockAddr *dest) {
+    char osbuf[28];
+    int salen;
+    if (l_sockaddr_to_wsa(dest, osbuf, &salen) < 0) return -1;
+    int ret = sendto((SOCKET)s, (const char *)data, (int)len, 0, (const struct sockaddr *)osbuf, salen);
+    return ret == SOCKET_ERROR ? -1 : (ptrdiff_t)ret;
+}
+
+static inline ptrdiff_t l_socket_recvfrom_addr(L_SOCKET s, void *buf, size_t len, L_SockAddr *src) {
+    char sabuf[28];
+    int salen = (int)sizeof(sabuf);
+    l_memset(sabuf, 0, sizeof(sabuf));
+    int ret = recvfrom((SOCKET)s, (char *)buf, (int)len, 0, (struct sockaddr *)sabuf, &salen);
+    if (ret == SOCKET_ERROR) return -1;
+    if (src) {
+        unsigned short fam;
+        l_memcpy(&fam, sabuf, 2);
+        if (fam == AF_INET6) {
+            struct sockaddr_in6 *s6 = (struct sockaddr_in6 *)sabuf;
+            l_memset(src, 0, sizeof(*src));
+            src->family = L_AF_INET6;
+            src->port = l_htons(s6->sin6_port);
+            l_memcpy(src->addr, &s6->sin6_addr, 16);
+        } else {
+            struct sockaddr_in *s4 = (struct sockaddr_in *)sabuf;
+            l_memset(src, 0, sizeof(*src));
+            src->family = L_AF_INET;
+            src->port = l_htons(s4->sin_port);
+            l_memcpy(src->addr, &s4->sin_addr.s_addr, 4);
+        }
+    }
+    return (ptrdiff_t)ret;
+}
+
+#endif // L_WITHSOCKETS
 static inline int l_poll(L_PollFd *fds, int nfds, int timeout_ms)
 {
     if (nfds <= 0) return 0;
