@@ -5582,7 +5582,7 @@ static noreturn inline void l_exit(int status)
 static inline int l_chdir(const char *path)
 {
     (void)path;
-    return -1; // WASI has no chdir
+    return -1; // @stub design: WASI has no chdir
 }
 
 static inline char *l_getcwd(char *buf, size_t size)
@@ -5602,36 +5602,36 @@ static inline int l_close(L_FD fd)
 static inline int l_dup(L_FD fd)
 {
     (void)fd;
-    return -1; // WASI preview 1 has no dup
+    return -1; // @stub design: WASI preview 1 has no dup
 }
 
 static inline int l_pipe(L_FD fds[2])
 {
     (void)fds;
-    return -1; // WASI has no pipes
+    return -1; // @stub design: WASI has no pipes
 }
 
 static inline int l_dup2(L_FD oldfd, L_FD newfd)
 {
     (void)oldfd; (void)newfd;
-    return -1; // WASI preview 1 has no dup2
+    return -1; // @stub design: WASI preview 1 has no dup2
 }
 
 static inline L_PID l_fork(void)
 {
-    return -1; // WASI has no process creation
+    return -1; // @stub design: WASI has no process creation
 }
 
 static inline int l_execve(const char *path, char *const argv[], char *const envp[])
 {
     (void)path; (void)argv; (void)envp;
-    return -1; // WASI has no exec
+    return -1; // @stub design: WASI has no exec
 }
 
 static inline L_PID l_waitpid(L_PID pid, int *status, int options)
 {
     (void)pid; (void)status; (void)options;
-    return -1; // WASI has no process management
+    return -1; // @stub design: WASI has no process management
 }
 
 static inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *const envp[],
@@ -5639,19 +5639,19 @@ static inline L_PID l_spawn_stdio(const char *path, char *const argv[], char *co
 {
     (void)path; (void)argv; (void)envp;
     (void)stdin_fd; (void)stdout_fd; (void)stderr_fd;
-    return -1; // WASI has no process creation
+    return -1; // @stub design: WASI has no process creation
 }
 
 static inline L_PID l_spawn(const char *path, char *const argv[], char *const envp[])
 {
     (void)path; (void)argv; (void)envp;
-    return -1;
+    return -1; // @stub design: WASI has no process creation
 }
 
 static inline int l_wait(L_PID pid, int *exitcode)
 {
     (void)pid; (void)exitcode;
-    return -1;
+    return -1; // @stub design: WASI has no process management
 }
 
 static inline off_t l_lseek(L_FD fd, off_t offset, int whence)
@@ -5672,13 +5672,13 @@ static inline off_t l_lseek(L_FD fd, off_t offset, int whence)
 static inline int l_truncate(const char *path, long long size)
 {
     (void)path; (void)size;
-    return -1; // WASI preview 1: limited truncate support
+    return -1; // @stub todo: WASI preview 1 — truncate could use fd_filestat_set_size
 }
 
 static inline int l_ftruncate(L_FD fd, long long size)
 {
     (void)fd; (void)size;
-    return -1; // WASI preview 1: limited ftruncate support
+    return -1; // @stub todo: WASI preview 1 — ftruncate could use fd_filestat_set_size
 }
 
 static inline int l_mkdir(const char *path, mode_t mode)
@@ -5706,31 +5706,31 @@ static inline int l_rmdir(const char *path)
 static inline int l_rename(const char *oldpath, const char *newpath)
 {
     (void)oldpath; (void)newpath;
-    return -1; // WASI preview 1: would need __wasi_path_rename
+    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_rename
 }
 
 static inline int l_access(const char *path, int mode)
 {
     (void)path; (void)mode;
-    return -1; // WASI has no access() equivalent
+    return -1; // @stub todo: WASI — could emulate via path_filestat_get
 }
 
 static inline int l_chmod(const char *path, mode_t mode)
 {
     (void)path; (void)mode;
-    return -1; // WASI has no chmod
+    return -1; // @stub design: WASI has no chmod
 }
 
 static inline int l_symlink(const char *target, const char *linkpath)
 {
     (void)target; (void)linkpath;
-    return -1; // WASI preview 1: limited symlink support
+    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_symlink
 }
 
 static inline ptrdiff_t l_readlink(const char *path, char *buf, ptrdiff_t bufsiz)
 {
     (void)path; (void)buf; (void)bufsiz;
-    return -1;
+    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_readlink
 }
 
 static inline char *l_realpath(const char *path, char *resolved)
@@ -5745,19 +5745,19 @@ static inline char *l_realpath(const char *path, char *resolved)
 static inline int l_stat(const char *path, L_Stat *st)
 {
     (void)path; (void)st;
-    return -1; // WASI preview 1: would need __wasi_path_filestat_get
+    return -1; // @stub todo: WASI preview 1 — would need __wasi_path_filestat_get
 }
 
 static inline int l_fstat(L_FD fd, L_Stat *st)
 {
     (void)fd; (void)st;
-    return -1; // WASI preview 1: would need __wasi_fd_filestat_get
+    return -1; // @stub todo: WASI preview 1 — would need __wasi_fd_filestat_get
 }
 
 static inline int l_opendir(const char *path, L_Dir *dir)
 {
     (void)path; (void)dir;
-    return -1; // WASI preview 1: would need __wasi_fd_readdir
+    return -1; // @stub todo: WASI preview 1 — would need __wasi_fd_readdir
 }
 
 static inline L_DirEntry *l_readdir(L_Dir *dir)
@@ -5856,7 +5856,7 @@ static inline L_PID l_getppid(void)
 static inline int l_kill(L_PID pid, int sig)
 {
     (void)pid; (void)sig;
-    return -1; // WASI has no signals
+    return -1; // @stub design: WASI has no signals
 }
 
 static inline void l_sleep_ms(unsigned int ms)

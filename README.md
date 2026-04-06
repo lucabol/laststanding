@@ -1,14 +1,14 @@
 # laststanding
 
-A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Three header files give you everything from `strlen` to pixel graphics to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V), **Windows**, and **WASI (WebAssembly)** (experimental), with no libc at all.
+A freestanding C runtime ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â zero dependencies, direct syscalls, tiny binaries. Three header files give you everything from `strlen` to pixel graphics to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V), **Windows**, and **WASI (WebAssembly)** (experimental), with no libc at all.
 
 | Header | What it provides |
 |--------|-----------------|
 | `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access, hash maps, SHA-256, glob matching, time formatting |
-| `l_gfx.h` | Pixel graphics — drawing primitives, bitmap font, keyboard/mouse input (Linux framebuffer / Windows GDI) |
-| `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
+| `l_gfx.h` | Pixel graphics ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â drawing primitives, bitmap font, keyboard/mouse input (Linux framebuffer / Windows GDI) |
+| `l_ui.h` | Immediate-mode UI ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
-Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 13 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 5 graphical demos, and 2 UI demos — all built without a single line of libc.
+Binaries are statically linked, stripped, and typically **2ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“10 KB**. The project includes 13 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 5 graphical demos, and 2 UI demos ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â all built without a single line of libc.
 
 ## Quick Start
 
@@ -247,11 +247,11 @@ l_buf_free(&buf);
 ```c
 L_Arena a = l_arena_init(4096);
 
-// Constructors — zero-copy views
+// Constructors ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â zero-copy views
 L_Str s = l_str("  hello world  ");     // from C string literal
 L_Str t = l_str_from(buf, len);         // from pointer + length
 
-// Trim, substring, find — zero-copy
+// Trim, substring, find ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â zero-copy
 L_Str trimmed = l_str_trim(s);          // "hello world"
 L_Str sub = l_str_sub(trimmed, 0, 5);   // "hello"
 ptrdiff_t pos = l_str_find(trimmed, l_str("world"));  // 6
@@ -398,7 +398,7 @@ if (l_isatty(L_STDOUT)) {
 High-level functions for common file and string operations:
 
 ```c
-// Bulk file I/O — retry on short reads/writes
+// Bulk file I/O ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â retry on short reads/writes
 L_FD fd = l_open_write("data.bin");
 l_write_all(fd, buf, size);              // write exactly size bytes
 l_close(fd);
@@ -431,18 +431,18 @@ l_arena_free(&a);
 | Define | Purpose |
 |--------|---------|
 | `L_MAINFILE` | Activates function definitions and platform startup code. **Exactly one** translation unit must define this. |
-| `L_DONTOVERRIDE` | Prevents `#define strlen l_strlen` aliases — use when mixing with standard headers. |
+| `L_DONTOVERRIDE` | Prevents `#define strlen l_strlen` aliases ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â use when mixing with standard headers. |
 | `L_WITHSNPRINTF` | Enables `l_snprintf` / `l_vsnprintf` (opt-in to keep binaries small). |
 
-By default, `l_os.h` aliases standard names (`strlen`, `memcpy`, `exit`, `puts`, …) to their `l_` equivalents so you can write familiar C. Define `L_DONTOVERRIDE` to disable this.
+By default, `l_os.h` aliases standard names (`strlen`, `memcpy`, `exit`, `puts`, ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦) to their `l_` equivalents so you can write familiar C. Define `L_DONTOVERRIDE` to disable this.
 
 In multi-file projects, only one `.c` file defines `L_MAINFILE`:
 
 ```c
-// utils.c — gets type definitions and constants only
+// utils.c ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â gets type definitions and constants only
 #include "l_os.h"
 
-// main.c — the one file with startup code and function bodies
+// main.c ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the one file with startup code and function bodies
 #define L_MAINFILE
 #include "l_os.h"
 ```
@@ -451,16 +451,16 @@ In multi-file projects, only one `.c` file defines `L_MAINFILE`:
 
 | Type | Purpose |
 |------|---------|
-| `L_FD` | File descriptor (`ptrdiff_t`). On Windows, a library-managed slot — not a raw `HANDLE`. |
+| `L_FD` | File descriptor (`ptrdiff_t`). On Windows, a library-managed slot ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â not a raw `HANDLE`. |
 | `L_STDIN`, `L_STDOUT`, `L_STDERR` | Standard descriptor constants (0, 1, 2). |
-| `L_Str` | Fat string — pointer+length pair (16 bytes, by value). Zero-copy views or arena-backed. |
+| `L_Str` | Fat string ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pointer+length pair (16 bytes, by value). Zero-copy views or arena-backed. |
 | `L_Arena` | Bump allocator. Init with `l_arena_init(size)`, allocate with `l_arena_alloc`. |
 | `L_Buf` | Growable byte buffer (heap-backed via `realloc`). |
 | `L_Canvas` | Pixel graphics context (framebuffer on Linux, GDI window on Windows). |
-| `L_PollFd` | Poll descriptor — fd, events, revents for `l_poll`. |
-| `L_IoVec` | I/O vector — base pointer + length for scatter-gather I/O. |
-| `L_Map` | Arena-backed hash map — FNV-1a, open addressing, linear probing. |
-| `L_Tm` | Broken-down time — year, month, day, hour, min, sec, weekday, yearday. |
+| `L_PollFd` | Poll descriptor ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â fd, events, revents for `l_poll`. |
+| `L_IoVec` | I/O vector ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â base pointer + length for scatter-gather I/O. |
+| `L_Map` | Arena-backed hash map ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â FNV-1a, open addressing, linear probing. |
+| `L_Tm` | Broken-down time ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â year, month, day, hour, min, sec, weekday, yearday. |
 | `L_Sha256` | SHA-256 hash context for incremental hashing. |
 | `L_UI` | Immediate-mode UI context (theme, input state, layout cursor). |
 | `L_UI_Theme` | UI color theme (background, hover, active, text, border, accent, input). |
@@ -480,7 +480,7 @@ Binaries must be compiled freestanding:
 
 > **WASI support is experimental.** Core I/O (`l_read`, `l_write`, `l_open`, `l_close`, `l_lseek`) and environment access work. Process creation (`l_fork`, `l_spawn`), pipes, sockets, signals, and terminal control are stubbed (return -1). Memory mapping for anonymous allocations (`L_Arena`) works via `memory.grow`. Run with: `wasmtime --dir . app.wasm`
 
-## Function Reference — `l_os.h`
+## Function Reference ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `l_os.h`
 
 Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
@@ -641,7 +641,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | **Arena function declarations** | | |
 | `l_arena_init` | Allocate an arena of `size` bytes via mmap. On failure, base=NULL. | All |
 | `l_arena_alloc` | Bump-allocate n bytes (8-byte aligned). Returns NULL if arena is full. | All |
-| `l_arena_reset` | Reset used to 0. Memory is NOT freed — arena can be reused. | All |
+| `l_arena_reset` | Reset used to 0. Memory is NOT freed â€” arena can be reused. | All |
 | `l_arena_free` | Free the backing memory. Sets base=NULL. | All |
 | **Buffer function declarations** | | |
 | `l_buf_init` | Zero-initialize a buffer. | All |
@@ -649,7 +649,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_buf_printf` | Formatted append using l_vsnprintf. Returns bytes written or -1. | All |
 | `l_buf_clear` | Set len=0 (keep allocated memory). | All |
 | `l_buf_free` | Free backing memory and zero the struct. | All |
-| **L_Str — fat string (pointer + length) function declarations** | | |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
 | `l_str` | Wrap a C string (computes strlen). | All |
 | `l_str_from` | Wrap pointer+length. | All |
 | `l_str_null` | Return null string {NULL, 0}. | All |
@@ -748,7 +748,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- END FUNCTION REFERENCE -->
 
-## Function Reference — `l_gfx.h`
+## Function Reference ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `l_gfx.h`
 
 Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
@@ -782,11 +782,11 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- END GFX REFERENCE -->
 
-Platform backends: **Linux** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland). You may need to grant access first: `sudo chmod 666 /dev/fb0`. **Windows** opens a native GDI window (`user32.dll` + `gdi32.dll`). All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
+Platform backends: **Linux** renders to `/dev/fb0` (framebuffer console ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no X11 or Wayland). You may need to grant access first: `sudo chmod 666 /dev/fb0`. **Windows** opens a native GDI window (`user32.dll` + `gdi32.dll`). All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
 
-## Function Reference — `l_ui.h`
+## Function Reference ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `l_ui.h`
 
-Immediate-mode UI library built on `l_gfx.h`. No heap allocation, no widget tree — declare widgets every frame between `l_ui_begin`/`l_ui_end`. Widget functions return action state (e.g. `l_ui_button` returns 1 if clicked). Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
+Immediate-mode UI library built on `l_gfx.h`. No heap allocation, no widget tree ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â declare widgets every frame between `l_ui_begin`/`l_ui_end`. Widget functions return action state (e.g. `l_ui_button` returns 1 if clicked). Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- BEGIN UI REFERENCE -->
 
@@ -811,6 +811,549 @@ Immediate-mode UI library built on `l_gfx.h`. No heap allocation, no widget tree
 | `l_ui_layout_end` | Ends the current layout. |
 
 <!-- END UI REFERENCE -->
+
+## Platform Compatibility
+
+Which `l_os.h` functions work on which platform. Generated from code annotations ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â run `.\gen-docs.ps1` to update.
+
+- ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Implemented
+- ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Stubbed ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â could be implemented (WASI preview 1 host call exists)
+- ÃƒÂ¢Ã‚ÂÃ…â€™ Stubbed by design ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â platform fundamentally cannot support this
+- ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Not applicable (e.g., Unix-only function on Windows)
+
+<!-- BEGIN COMPAT MATRIX -->
+
+| Function | Linux | Windows | WASI |
+|----------|-------|---------|------|
+| **String functions** | | | |
+| ``l_wcslen`` | ✅ | ✅ | ✅ |
+| ``l_strlen`` | ✅ | ✅ | ✅ |
+| ``l_strcpy`` | ✅ | ✅ | ✅ |
+| ``l_strncpy`` | ✅ | ✅ | ✅ |
+| ``l_strcat`` | ✅ | ✅ | ✅ |
+| ``l_strncat`` | ✅ | ✅ | ✅ |
+| ``l_strchr`` | ✅ | ✅ | ✅ |
+| ``l_strrchr`` | ✅ | ✅ | ✅ |
+| ``l_strstr`` | ✅ | ✅ | ✅ |
+| ``l_strcmp`` | ✅ | ✅ | ✅ |
+| ``l_strncmp`` | ✅ | ✅ | ✅ |
+| ``l_strcasecmp`` | ✅ | ✅ | ✅ |
+| ``l_strncasecmp`` | ✅ | ✅ | ✅ |
+| ``l_strspn`` | ✅ | ✅ | ✅ |
+| ``l_strcspn`` | ✅ | ✅ | ✅ |
+| ``l_strpbrk`` | ✅ | ✅ | ✅ |
+| ``l_strtok_r`` | ✅ | ✅ | ✅ |
+| ``l_strsep`` | ✅ | ✅ | ✅ |
+| ``l_bin2hex`` | ✅ | ✅ | ✅ |
+| ``l_hex2bin`` | ✅ | ✅ | ✅ |
+| ``l_basename`` | ✅ | ✅ | ✅ |
+| ``l_dirname`` | ✅ | ✅ | ✅ |
+| ``l_path_join`` | ✅ | ✅ | ✅ |
+| ``l_path_ext`` | ✅ | ✅ | ✅ |
+| ``l_path_exists`` | ✅ | ✅ | ✅ |
+| ``l_path_isdir`` | ✅ | ✅ | ✅ |
+| ``l_reverse`` | ✅ | ✅ | ✅ |
+| **Conversion functions** | | | |
+| ``l_isspace`` | ✅ | ✅ | ✅ |
+| ``l_isdigit`` | ✅ | ✅ | ✅ |
+| ``l_isalpha`` | ✅ | ✅ | ✅ |
+| ``l_isalnum`` | ✅ | ✅ | ✅ |
+| ``l_isupper`` | ✅ | ✅ | ✅ |
+| ``l_islower`` | ✅ | ✅ | ✅ |
+| ``l_toupper`` | ✅ | ✅ | ✅ |
+| ``l_tolower`` | ✅ | ✅ | ✅ |
+| ``l_isprint`` | ✅ | ✅ | ✅ |
+| ``l_isxdigit`` | ✅ | ✅ | ✅ |
+| ``l_abs`` | ✅ | ✅ | ✅ |
+| ``l_labs`` | ✅ | ✅ | ✅ |
+| ``l_llabs`` | ✅ | ✅ | ✅ |
+| ``l_atol`` | ✅ | ✅ | ✅ |
+| ``l_atoi`` | ✅ | ✅ | ✅ |
+| ``l_strtoul`` | ✅ | ✅ | ✅ |
+| ``l_strtol`` | ✅ | ✅ | ✅ |
+| ``l_strtoull`` | ✅ | ✅ | ✅ |
+| ``l_strtoll`` | ✅ | ✅ | ✅ |
+| ``l_strtod`` | ✅ | ✅ | ✅ |
+| ``l_atof`` | ✅ | ✅ | ✅ |
+| ``l_strtof`` | ✅ | ✅ | ✅ |
+| **Math functions** | | | |
+| ``l_fabs`` | ✅ | ✅ | ✅ |
+| ``l_floor`` | ✅ | ✅ | ✅ |
+| ``l_ceil`` | ✅ | ✅ | ✅ |
+| ``l_fmod`` | ✅ | ✅ | ✅ |
+| ``l_sqrt`` | ✅ | ✅ | ✅ |
+| ``l_sin`` | ✅ | ✅ | ✅ |
+| ``l_cos`` | ✅ | ✅ | ✅ |
+| ``l_exp`` | ✅ | ✅ | ✅ |
+| ``l_log`` | ✅ | ✅ | ✅ |
+| ``l_pow`` | ✅ | ✅ | ✅ |
+| ``l_atan2`` | ✅ | ✅ | ✅ |
+| ``l_tan`` | ✅ | ✅ | ✅ |
+| ``l_asin`` | ✅ | ✅ | ✅ |
+| ``l_acos`` | ✅ | ✅ | ✅ |
+| ``l_atan`` | ✅ | ✅ | ✅ |
+| ``l_log10`` | ✅ | ✅ | ✅ |
+| ``l_log2`` | ✅ | ✅ | ✅ |
+| ``l_round`` | ✅ | ✅ | ✅ |
+| ``l_trunc`` | ✅ | ✅ | ✅ |
+| ``l_hypot`` | ✅ | ✅ | ✅ |
+| ``l_itoa`` | ✅ | ✅ | ✅ |
+| **Memory functions** | | | |
+| ``l_memmove`` | ✅ | ✅ | ✅ |
+| ``l_memset`` | ✅ | ✅ | ✅ |
+| ``l_memcmp`` | ✅ | ✅ | ✅ |
+| ``l_memcpy`` | ✅ | ✅ | ✅ |
+| ``l_memchr`` | ✅ | ✅ | ✅ |
+| ``l_memrchr`` | ✅ | ✅ | ✅ |
+| ``l_strnlen`` | ✅ | ✅ | ✅ |
+| ``l_memmem`` | ✅ | ✅ | ✅ |
+| **Random number generation (xorshift32, single-threaded)** | | | |
+| ``l_srand`` | ✅ | ✅ | ✅ |
+| ``l_rand`` | ✅ | ✅ | ✅ |
+| **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | | |
+| ``l_vsnprintf`` | ✅ | ✅ | ✅ |
+| ``l_snprintf`` | ✅ | ✅ | ✅ |
+| ``l_dprintf`` | ✅ | ✅ | ✅ |
+| ``l_printf`` | ✅ | ✅ | ✅ |
+| ``l_vfprintf`` | ✅ | ✅ | ✅ |
+| ``l_vprintf`` | ✅ | ✅ | ✅ |
+| ``l_fprintf`` | ✅ | ✅ | ✅ |
+| **System functions** | | | |
+| ``l_exit`` | ✅ | ✅ | ✅ |
+| ``l_open`` | ✅ | ✅ | ✅ |
+| ``l_close`` | ✅ | ✅ | ✅ |
+| ``l_read`` | ✅ | ✅ | ✅ |
+| ``l_write`` | ✅ | ✅ | ✅ |
+| ``l_read_line`` | ✅ | ✅ | ✅ |
+| ``l_time`` | ✅ | ✅ | ✅ |
+| ``l_puts`` | ✅ | ✅ | ✅ |
+| ``l_exitif`` | ✅ | ✅ | ✅ |
+| ``l_getenv`` | ✅ | ✅ | ✅ |
+| ``l_getenv_init`` | ✅ | ✅ | ✅ |
+| ``l_env_start`` | ✅ | ✅ | ✅ |
+| ``l_env_next`` | ✅ | ✅ | ✅ |
+| ``l_env_end`` | ✅ | ✅ | ✅ |
+| ``l_find_executable`` | ✅ | ✅ | ✅ |
+| **Option parsing (single-threaded; state in static variables)** | | | |
+| ``l_getopt`` | ✅ | ✅ | ✅ |
+| **Convenience file openers** | | | |
+| ``l_open_read`` | ✅ | ✅ | ✅ |
+| ``l_open_write`` | ✅ | ✅ | ✅ |
+| ``l_open_readwrite`` | ✅ | ✅ | ✅ |
+| ``l_open_append`` | ✅ | ✅ | ✅ |
+| ``l_open_trunc`` | ✅ | ✅ | ✅ |
+| **Error reporting** | | | |
+| ``l_errno`` | ✅ | ✅ | ✅ |
+| ``l_strerror`` | ✅ | ✅ | ✅ |
+| **Terminal and timing functions (cross-platform)** | | | |
+| ``l_sleep_ms`` | ✅ | ✅ | ✅ |
+| ``l_term_raw`` | ✅ | ✅ | ✅ |
+| ``l_term_restore`` | ✅ | ✅ | ✅ |
+| ``l_read_nonblock`` | ✅ | ✅ | ✅ |
+| ``l_term_size`` | ✅ | ✅ | ✅ |
+| **ANSI terminal helpers** | | | |
+| ``l_ansi_move`` | ✅ | ✅ | ✅ |
+| ``l_ansi_color`` | ✅ | ✅ | ✅ |
+| **File system functions (cross-platform)** | | | |
+| ``l_unlink`` | ✅ | ✅ | ✅ |
+| ``l_rmdir`` | ✅ | ✅ | ✅ |
+| ``l_rename`` | ✅ | ✅ | ⚠ |
+| ``l_access`` | ✅ | ✅ | ⚠ |
+| ``l_chmod`` | ✅ | ✅ | ❌ |
+| ``l_symlink`` | ✅ | ✅ | ⚠ |
+| ``l_readlink`` | ✅ | ✅ | ⚠ |
+| ``l_realpath`` | ✅ | ✅ | ✅ |
+| ``l_stat`` | ✅ | ✅ | ⚠ |
+| ``l_fstat`` | ✅ | ✅ | ⚠ |
+| ``l_truncate`` | ✅ | ✅ | ⚠ |
+| ``l_ftruncate`` | ✅ | ✅ | ⚠ |
+| ``l_file_size`` | ✅ | ✅ | ✅ |
+| ``l_read_all`` | ✅ | ✅ | ✅ |
+| ``l_write_all`` | ✅ | ✅ | ✅ |
+| ``l_opendir`` | ✅ | ✅ | ⚠ |
+| ``l_readdir`` | ✅ | ✅ | ✅ |
+| ``l_closedir`` | ✅ | ✅ | ✅ |
+| ``l_mmap`` | ✅ | ✅ | ✅ |
+| ``l_munmap`` | ✅ | ✅ | ✅ |
+| **Arena function declarations** | | | |
+| ``l_arena_init`` | ✅ | ✅ | ✅ |
+| ``l_arena_alloc`` | ✅ | ✅ | ✅ |
+| ``l_arena_reset`` | ✅ | ✅ | ✅ |
+| ``l_arena_free`` | ✅ | ✅ | ✅ |
+| **Buffer function declarations** | | | |
+| ``l_buf_init`` | ✅ | ✅ | ✅ |
+| ``l_buf_push`` | ✅ | ✅ | ✅ |
+| ``l_buf_printf`` | ✅ | ✅ | ✅ |
+| ``l_buf_clear`` | ✅ | ✅ | ✅ |
+| ``l_buf_free`` | ✅ | ✅ | ✅ |
+| **L_Str â€” fat string (pointer + length) function declarations** | | | |
+| ``l_str`` | ✅ | ✅ | ✅ |
+| ``l_str_from`` | ✅ | ✅ | ✅ |
+| ``l_str_null`` | ✅ | ✅ | ✅ |
+| ``l_str_eq`` | ✅ | ✅ | ✅ |
+| ``l_str_cmp`` | ✅ | ✅ | ✅ |
+| ``l_str_startswith`` | ✅ | ✅ | ✅ |
+| ``l_str_endswith`` | ✅ | ✅ | ✅ |
+| ``l_str_contains`` | ✅ | ✅ | ✅ |
+| ``l_str_sub`` | ✅ | ✅ | ✅ |
+| ``l_str_trim`` | ✅ | ✅ | ✅ |
+| ``l_str_ltrim`` | ✅ | ✅ | ✅ |
+| ``l_str_rtrim`` | ✅ | ✅ | ✅ |
+| ``l_str_chr`` | ✅ | ✅ | ✅ |
+| ``l_str_rchr`` | ✅ | ✅ | ✅ |
+| ``l_str_find`` | ✅ | ✅ | ✅ |
+| ``l_str_dup`` | ✅ | ✅ | ✅ |
+| ``l_str_cat`` | ✅ | ✅ | ✅ |
+| ``l_str_cstr`` | ✅ | ✅ | ✅ |
+| ``l_str_from_cstr`` | ✅ | ✅ | ✅ |
+| ``l_str_split`` | ✅ | ✅ | ✅ |
+| ``l_str_join`` | ✅ | ✅ | ✅ |
+| ``l_str_upper`` | ✅ | ✅ | ✅ |
+| ``l_str_lower`` | ✅ | ✅ | ✅ |
+| ``l_str_replace`` | ✅ | ✅ | ✅ |
+| ``l_buf_push_str`` | ✅ | ✅ | ✅ |
+| ``l_buf_push_cstr`` | ✅ | ✅ | ✅ |
+| ``l_buf_push_int`` | ✅ | ✅ | ✅ |
+| ``l_buf_as_str`` | ✅ | ✅ | ✅ |
+| **I/O multiplexing** | | | |
+| ``l_poll`` | ✅ | ✅ | ✅ |
+| **Signal handling** | | | |
+| ``l_signal`` | ✅ | ✅ | ✅ |
+| **Environment manipulation** | | | |
+| ``l_setenv`` | ✅ | ✅ | ✅ |
+| ``l_unsetenv`` | ✅ | ✅ | ✅ |
+| **Scatter-gather I/O** | | | |
+| ``l_writev`` | ✅ | ✅ | ✅ |
+| ``l_readv`` | ✅ | ✅ | ✅ |
+| **Terminal detection** | | | |
+| ``l_isatty`` | ✅ | ✅ | ✅ |
+| **Hash map (arena-backed, fixed capacity)** | | | |
+| ``l_map_init`` | ✅ | ✅ | ✅ |
+| ``l_map_get`` | ✅ | ✅ | ✅ |
+| ``l_map_put`` | ✅ | ✅ | ✅ |
+| ``l_map_del`` | ✅ | ✅ | ✅ |
+| **Time conversion** | | | |
+| ``l_gmtime`` | ✅ | ✅ | ✅ |
+| ``l_localtime`` | ✅ | ✅ | ✅ |
+| ``l_mktime`` | ✅ | ✅ | ✅ |
+| ``l_strftime`` | ✅ | ✅ | ✅ |
+| **Glob pattern matching** | | | |
+| ``l_fnmatch`` | ✅ | ✅ | ✅ |
+| ``l_glob`` | ✅ | ✅ | ✅ |
+| **SHA-256** | | | |
+| ``l_sha256_init`` | ✅ | ✅ | ✅ |
+| ``l_sha256_update`` | ✅ | ✅ | ✅ |
+| ``l_sha256_final`` | ✅ | ✅ | ✅ |
+| ``l_sha256`` | ✅ | ✅ | ✅ |
+| ``l_getcwd`` | ✅ | ✅ | ✅ |
+| ``l_chdir`` | ✅ | ✅ | ❌ |
+| ``l_pipe`` | ✅ | ✅ | ❌ |
+| ``l_dup`` | ✅ | ✅ | ❌ |
+| ``l_dup2`` | ✅ | ✅ | ❌ |
+| ``l_getpid`` | ✅ | ✅ | ✅ |
+| ``l_spawn_stdio`` | ✅ | ✅ | ❌ |
+| ``l_spawn`` | ✅ | ✅ | ❌ |
+| ``l_wait`` | ✅ | ✅ | ❌ |
+| ``l_system`` | ✅ | ✅ | ✅ |
+| **Unix and WASI functions** | | | |
+| ``l_lseek`` | ✅ | — | ✅ |
+| ``l_mkdir`` | ✅ | — | ✅ |
+| ``l_sched_yield`` | ✅ | — | ✅ |
+| ``l_fork`` | ✅ | — | ❌ |
+| ``l_execve`` | ✅ | — | ❌ |
+| ``l_waitpid`` | ✅ | — | ❌ |
+| ``l_getppid`` | ✅ | — | ✅ |
+| ``l_kill`` | ✅ | — | ❌ |
+| **Byte order helpers** | | | |
+| ``l_htons`` | ✅ | ✅ | ✅ |
+| ``l_htonl`` | ✅ | ✅ | ✅ |
+| ``l_inet_addr`` | ✅ | ✅ | ✅ |
+| ``l_resolve`` | ✅ | ✅ | ✅ |
+| **TCP socket functions** | | | |
+| ``l_socket_tcp`` | ✅ | ✅ | ✅ |
+| ``l_socket_connect`` | ✅ | ✅ | ✅ |
+| ``l_socket_bind`` | ✅ | ✅ | ✅ |
+| ``l_socket_listen`` | ✅ | ✅ | ✅ |
+| ``l_socket_accept`` | ✅ | ✅ | ✅ |
+| ``l_socket_send`` | ✅ | ✅ | ✅ |
+| ``l_socket_recv`` | ✅ | ✅ | ✅ |
+| ``l_socket_close`` | ✅ | ✅ | ✅ |
+| **UDP socket functions** | | | |
+| ``l_socket_udp`` | ✅ | ✅ | ✅ |
+| ``l_socket_sendto`` | ✅ | ✅ | ✅ |
+| ``l_socket_recvfrom`` | ✅ | ✅ | ✅ |
+
+<!-- END COMPAT MATRIX -->
+
+## Test Coverage
+
+Which `l_os.h` functions are referenced in the test suite. Generated ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â run `.\gen-docs.ps1` to update.
+
+<!-- BEGIN COVERAGE MATRIX -->
+
+| Function | Tested | Test File |
+|----------|--------|-----------|
+| **String functions** | | |
+| `l_wcslen` | ✅ | test_strings.c |
+| `l_strlen` | ✅ | test.c, test_fs.c, test_strings.c, test_utils.c |
+| `l_strcpy` | ✅ | test.c, test_strings.c |
+| `l_strncpy` | ✅ | test_strings.c |
+| `l_strcat` | ✅ | test.c, test_strings.c |
+| `l_strncat` | ✅ | test_strings.c |
+| `l_strchr` | ✅ | test_fs.c, test_strings.c |
+| `l_strrchr` | ✅ | test_strings.c |
+| `l_strstr` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_strcmp` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_strncmp` | ✅ | test_strings.c |
+| `l_strcasecmp` | ✅ | test_strings.c |
+| `l_strncasecmp` | ✅ | test_fs.c, test_strings.c |
+| `l_strspn` | ✅ | test_strings.c |
+| `l_strcspn` | ✅ | test_strings.c |
+| `l_strpbrk` | ✅ | test_strings.c |
+| `l_strtok_r` | ✅ | test_strings.c |
+| `l_strsep` | ✅ | test_strings.c |
+| `l_bin2hex` | ✅ | test_strings.c |
+| `l_hex2bin` | ✅ | test_strings.c |
+| `l_basename` | ✅ | test_strings.c |
+| `l_dirname` | ✅ | test_strings.c |
+| `l_path_join` | ✅ | test_fs.c |
+| `l_path_ext` | ✅ | test_fs.c |
+| `l_path_exists` | ✅ | test_fs.c |
+| `l_path_isdir` | ✅ | test_fs.c |
+| `l_reverse` | ✅ | test_strings.c |
+| **Conversion functions** | | |
+| `l_isspace` | ✅ | test_strings.c |
+| `l_isdigit` | ✅ | test_strings.c |
+| `l_isalpha` | ✅ | test_strings.c |
+| `l_isalnum` | ✅ | test_strings.c |
+| `l_isupper` | ✅ | test_strings.c |
+| `l_islower` | ✅ | test_strings.c |
+| `l_toupper` | ✅ | test_strings.c |
+| `l_tolower` | ✅ | test_strings.c |
+| `l_isprint` | ✅ | test_strings.c |
+| `l_isxdigit` | ✅ | test_strings.c |
+| `l_abs` | ✅ | test_strings.c |
+| `l_labs` | ✅ | test_strings.c |
+| `l_llabs` | ✅ | test.c |
+| `l_atol` | ✅ | test_strings.c |
+| `l_atoi` | ✅ | test.c, test_strings.c |
+| `l_strtoul` | ✅ | test_strings.c |
+| `l_strtol` | ✅ | test_strings.c |
+| `l_strtoull` | ✅ | test_strings.c |
+| `l_strtoll` | ✅ | test_strings.c |
+| `l_strtod` | ✅ | test_strings.c |
+| `l_atof` | ✅ | test_strings.c |
+| `l_strtof` | ✅ | test_utils.c |
+| **Math functions** | | |
+| `l_fabs` | ✅ | test_utils.c |
+| `l_floor` | ✅ | test_utils.c |
+| `l_ceil` | ✅ | test_utils.c |
+| `l_fmod` | ✅ | test_utils.c |
+| `l_sqrt` | ✅ | test_utils.c |
+| `l_sin` | ✅ | test_utils.c |
+| `l_cos` | ✅ | test_utils.c |
+| `l_exp` | ✅ | test_utils.c |
+| `l_log` | ✅ | test_utils.c |
+| `l_pow` | ✅ | test_utils.c |
+| `l_atan2` | ✅ | test_utils.c |
+| `l_tan` | ✅ | test_utils.c |
+| `l_asin` | ✅ | test_utils.c |
+| `l_acos` | ✅ | test_utils.c |
+| `l_atan` | ✅ | test_utils.c |
+| `l_log10` | ✅ | test_utils.c |
+| `l_log2` | ✅ | test_utils.c |
+| `l_round` | ✅ | test_utils.c |
+| `l_trunc` | ✅ | test_fs.c, test_utils.c |
+| `l_hypot` | ✅ | test_utils.c |
+| `l_itoa` | ✅ | test_strings.c |
+| **Memory functions** | | |
+| `l_memmove` | ✅ | test_strings.c |
+| `l_memset` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_memcmp` | ✅ | test.c, test_fs.c, test_strings.c, test_utils.c |
+| `l_memcpy` | ✅ | test_strings.c, test_utils.c |
+| `l_memchr` | ✅ | test_strings.c |
+| `l_memrchr` | ✅ | test_strings.c |
+| `l_strnlen` | ✅ | test_strings.c |
+| `l_memmem` | ✅ | test_strings.c |
+| **Random number generation (xorshift32, single-threaded)** | | |
+| `l_srand` | ✅ | test_strings.c |
+| `l_rand` | ✅ | test_strings.c |
+| **Formatted output (opt-in: define L_WITHSNPRINTF before including l_os.h)** | | |
+| `l_vsnprintf` | ✅ | test_strings.c |
+| `l_snprintf` | ✅ | test_fs.c, test_strings.c |
+| `l_dprintf` | ✅ | test.c |
+| `l_printf` | ✅ | test_strings.c |
+| `l_vfprintf` | ✅ | test_strings.c |
+| `l_vprintf` | ✅ | test_strings.c |
+| `l_fprintf` | ✅ | test_strings.c |
+| **System functions** | | |
+| `l_exit` | ✅ | test.c, test_fs.c |
+| `l_open` | ✅ | test.c, test_fs.c |
+| `l_close` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_read` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_write` | ✅ | test.c, test_fs.c |
+| `l_read_line` | ✅ | test.c |
+| `l_time` | ✅ | test_utils.c |
+| `l_puts` | ✅ | test.c, test_fs.c |
+| `l_exitif` | ✅ | test_fs.c |
+| `l_getenv` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_getenv_init` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_env_start` | ✅ | test_fs.c |
+| `l_env_next` | ✅ | test_fs.c |
+| `l_env_end` | ✅ | test_fs.c |
+| `l_find_executable` | ✅ | test.c |
+| **Option parsing (single-threaded; state in static variables)** | | |
+| `l_getopt` | ✅ | test.c |
+| **Convenience file openers** | | |
+| `l_open_read` | ✅ | test.c, test_fs.c |
+| `l_open_write` | ✅ | test.c, test_fs.c |
+| `l_open_readwrite` | ✅ | test_fs.c |
+| `l_open_append` | ✅ | test_fs.c |
+| `l_open_trunc` | ✅ | test_fs.c |
+| **Error reporting** | | |
+| `l_errno` | ✅ | test.c |
+| `l_strerror` | ✅ | test.c |
+| **Terminal and timing functions (cross-platform)** | | |
+| `l_sleep_ms` | ✅ | test_fs.c |
+| `l_term_raw` | ✅ | test.c |
+| `l_term_restore` | ✅ | test.c |
+| `l_read_nonblock` | ✅ | test.c |
+| `l_term_size` | ✅ | test.c |
+| **ANSI terminal helpers** | | |
+| `l_ansi_move` | ✅ | test_utils.c |
+| `l_ansi_color` | ✅ | test_utils.c |
+| **File system functions (cross-platform)** | | |
+| `l_unlink` | ✅ | test.c, test_fs.c |
+| `l_rmdir` | ✅ | test_fs.c |
+| `l_rename` | ✅ | test_fs.c |
+| `l_access` | ✅ | test.c, test_fs.c |
+| `l_chmod` | ✅ | test_fs.c |
+| `l_symlink` | ✅ | test_fs.c |
+| `l_readlink` | ✅ | test_fs.c |
+| `l_realpath` | ✅ | test_fs.c |
+| `l_stat` | ✅ | test_fs.c |
+| `l_fstat` | ✅ | test_fs.c |
+| `l_truncate` | ✅ | test_fs.c |
+| `l_ftruncate` | ✅ | test_fs.c |
+| `l_file_size` | ✅ | test_fs.c |
+| `l_read_all` | ✅ | test_fs.c |
+| `l_write_all` | ✅ | test_fs.c |
+| `l_opendir` | ✅ | test_fs.c |
+| `l_readdir` | ✅ | test_fs.c |
+| `l_closedir` | ✅ | test_fs.c |
+| `l_mmap` | ✅ | test_fs.c, test_utils.c |
+| `l_munmap` | ✅ | test_fs.c, test_utils.c |
+| **Arena function declarations** | | |
+| `l_arena_init` | ✅ | test_fs.c, test_utils.c |
+| `l_arena_alloc` | ✅ | test_utils.c |
+| `l_arena_reset` | ✅ | test_utils.c |
+| `l_arena_free` | ✅ | test_fs.c, test_utils.c |
+| **Buffer function declarations** | | |
+| `l_buf_init` | ✅ | test_utils.c |
+| `l_buf_push` | ✅ | test_utils.c |
+| `l_buf_printf` | ✅ | test_utils.c |
+| `l_buf_clear` | ✅ | test_utils.c |
+| `l_buf_free` | ✅ | test_utils.c |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
+| `l_str` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_str_from` | ✅ | test_utils.c |
+| `l_str_null` | ✅ | test_utils.c |
+| `l_str_eq` | ✅ | test_utils.c |
+| `l_str_cmp` | ✅ | test_utils.c |
+| `l_str_startswith` | ✅ | test_utils.c |
+| `l_str_endswith` | ✅ | test_utils.c |
+| `l_str_contains` | ✅ | test_fs.c, test_utils.c |
+| `l_str_sub` | ✅ | test_utils.c |
+| `l_str_trim` | ✅ | test_utils.c |
+| `l_str_ltrim` | ✅ | test_utils.c |
+| `l_str_rtrim` | ✅ | test_utils.c |
+| `l_str_chr` | ✅ | test_utils.c |
+| `l_str_rchr` | ✅ | test_utils.c |
+| `l_str_find` | ✅ | test_utils.c |
+| `l_str_dup` | ✅ | test_utils.c |
+| `l_str_cat` | ✅ | test_utils.c |
+| `l_str_cstr` | ✅ | test_utils.c |
+| `l_str_from_cstr` | ✅ | test_utils.c |
+| `l_str_split` | ✅ | test_utils.c |
+| `l_str_join` | ✅ | test_utils.c |
+| `l_str_upper` | ✅ | test_utils.c |
+| `l_str_lower` | ✅ | test_utils.c |
+| `l_str_replace` | ✅ | test_utils.c |
+| `l_buf_push_str` | ✅ | test_utils.c |
+| `l_buf_push_cstr` | ✅ | test_utils.c |
+| `l_buf_push_int` | ✅ | test_utils.c |
+| `l_buf_as_str` | ✅ | test_utils.c |
+| **I/O multiplexing** | | |
+| `l_poll` | ✅ | test_fs.c, test_net.c |
+| **Signal handling** | | |
+| `l_signal` | ✅ | test.c |
+| **Environment manipulation** | | |
+| `l_setenv` | ✅ | test_fs.c, test_utils.c |
+| `l_unsetenv` | ✅ | test_fs.c, test_utils.c |
+| **Scatter-gather I/O** | | |
+| `l_writev` | ✅ | test_fs.c |
+| `l_readv` | ✅ | test_fs.c |
+| **Terminal detection** | | |
+| `l_isatty` | ✅ | test_fs.c |
+| **Hash map (arena-backed, fixed capacity)** | | |
+| `l_map_init` | ✅ | test_utils.c |
+| `l_map_get` | ✅ | test_utils.c |
+| `l_map_put` | ✅ | test_utils.c |
+| `l_map_del` | ✅ | test_utils.c |
+| **Time conversion** | | |
+| `l_gmtime` | ✅ | test_utils.c |
+| `l_localtime` | ✅ | test_utils.c |
+| `l_mktime` | ✅ | test_utils.c |
+| `l_strftime` | ✅ | test_utils.c |
+| **Glob pattern matching** | | |
+| `l_fnmatch` | ✅ | test_utils.c |
+| `l_glob` | ✅ | test_fs.c |
+| **SHA-256** | | |
+| `l_sha256_init` | ✅ | test_utils.c |
+| `l_sha256_update` | ✅ | test_utils.c |
+| `l_sha256_final` | ✅ | test_utils.c |
+| `l_sha256` | ✅ | test_utils.c |
+| `l_getcwd` | ✅ | test_fs.c |
+| `l_chdir` | ✅ | test_fs.c |
+| `l_pipe` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_dup` | ✅ | test.c |
+| `l_dup2` | ✅ | test.c |
+| `l_getpid` | ✅ | test.c |
+| `l_spawn_stdio` | ✅ | test.c |
+| `l_spawn` | ✅ | test.c |
+| `l_wait` | ✅ | test.c |
+| `l_system` | ✅ | test.c |
+| **Unix and WASI functions** | | |
+| `l_lseek` | ✅ | test_fs.c |
+| `l_mkdir` | ✅ | test_fs.c |
+| `l_sched_yield` | ✅ | test_fs.c |
+| `l_fork` | ✅ | test.c |
+| ``l_execve`` | — | |
+| `l_waitpid` | ✅ | test.c |
+| `l_getppid` | ✅ | test.c |
+| `l_kill` | ✅ | test.c |
+| **Byte order helpers** | | |
+| `l_htons` | ✅ | test_net.c |
+| `l_htonl` | ✅ | test_net.c |
+| `l_inet_addr` | ✅ | test_net.c |
+| `l_resolve` | ✅ | test_net.c |
+| **TCP socket functions** | | |
+| `l_socket_tcp` | ✅ | test_net.c |
+| `l_socket_connect` | ✅ | test_net.c |
+| `l_socket_bind` | ✅ | test_net.c |
+| `l_socket_listen` | ✅ | test_net.c |
+| `l_socket_accept` | ✅ | test_net.c |
+| `l_socket_send` | ✅ | test_net.c |
+| `l_socket_recv` | ✅ | test_net.c |
+| `l_socket_close` | ✅ | test_net.c |
+| **UDP socket functions** | | |
+| `l_socket_udp` | ✅ | test_net.c |
+| `l_socket_sendto` | ✅ | test_net.c |
+| `l_socket_recvfrom` | ✅ | test_net.c |
+
+**Coverage: 227 / 228 functions referenced in tests** (100%)
+
+<!-- END COVERAGE MATRIX -->
 
 ## Example Programs
 
@@ -841,28 +1384,28 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | Program | Description | Source |
 |---------|-------------|--------|
 | **led** | Vim-style text editor (hjkl, insert/normal/command, :w/:q, search, SIGWINCH resize) | [led.c](examples/led.c) |
-| **mandelbrot** | Fixed-point fractal renderer — pan, zoom, iteration control | [mandelbrot.c](examples/mandelbrot.c) |
-| **sh** | Shell — builtins (cd, pwd, echo, export), L_Map lookup, PATH search, quotes, I/O redirection, pipes | [sh.c](examples/sh.c) |
+| **mandelbrot** | Fixed-point fractal renderer ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pan, zoom, iteration control | [mandelbrot.c](examples/mandelbrot.c) |
+| **sh** | Shell ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â builtins (cd, pwd, echo, export), L_Map lookup, PATH search, quotes, I/O redirection, pipes | [sh.c](examples/sh.c) |
 | **snake** | Terminal Snake game with WASD controls | [snake.c](examples/snake.c) |
 
 ### Graphical Demos (`l_gfx.h`)
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **gfx_demo** | Static drawing — rectangles, circles, text (README example) | [gfx_demo.c](examples/gfx_demo.c) |
-| **bounce** | Bouncing ball animation — run with `-f` for fullscreen (README example) | [bounce.c](examples/bounce.c) |
-| **life** | Conway's Game of Life — 80×60 grid, pause/randomize/clear | [life.c](examples/life.c) |
-| **plasma** | Rainbow plasma — animated sine-wave color cycling | [plasma.c](examples/plasma.c) |
-| **starfield** | 3D starfield — 200 stars with perspective projection | [starfield.c](examples/starfield.c) |
-| **fire** | Doom-style fire — bottom-up heat propagation | [fire.c](examples/fire.c) |
-| **clock** | Analog clock — hour/minute/second hands, ticking in real time | [clock.c](examples/clock.c) |
+| **gfx_demo** | Static drawing ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rectangles, circles, text (README example) | [gfx_demo.c](examples/gfx_demo.c) |
+| **bounce** | Bouncing ball animation ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â run with `-f` for fullscreen (README example) | [bounce.c](examples/bounce.c) |
+| **life** | Conway's Game of Life ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 80ÃƒÆ’Ã¢â‚¬â€60 grid, pause/randomize/clear | [life.c](examples/life.c) |
+| **plasma** | Rainbow plasma ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â animated sine-wave color cycling | [plasma.c](examples/plasma.c) |
+| **starfield** | 3D starfield ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â 200 stars with perspective projection | [starfield.c](examples/starfield.c) |
+| **fire** | Doom-style fire ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â bottom-up heat propagation | [fire.c](examples/fire.c) |
+| **clock** | Analog clock ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â hour/minute/second hands, ticking in real time | [clock.c](examples/clock.c) |
 
 ### UI Demos (`l_ui.h`)
 
 | Program | Description | Source |
 |---------|-------------|--------|
-| **ui_demo** | Full widget showcase — buttons, checkbox, slider, textbox, layout | [ui_demo.c](examples/ui_demo.c) |
-| **ui_controls** | RGB color mixer — three sliders, hex input, live color preview | [ui_controls.c](examples/ui_controls.c) |
+| **ui_demo** | Full widget showcase ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â buttons, checkbox, slider, textbox, layout | [ui_demo.c](examples/ui_demo.c) |
+| **ui_controls** | RGB color mixer ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â three sliders, hex input, live color preview | [ui_controls.c](examples/ui_controls.c) |
 
 ### Test Suite
 
@@ -879,20 +1422,20 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 ## Directory Structure
 
 ```
-l_os.h          — Core runtime header (strings, I/O, processes, terminal)
-l_gfx.h        — Pixel graphics header (drawing, font, canvas)
-l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
-examples/       — Example programs and utilities (30 programs)
-tests/          — Test suites (test.c, test_strings.c, test_fs.c, test_utils.c, test_net.c, gfx_test.c, ui_test.c)
-tests/fixtures/ — Test data files (binaries, expected outputs)
-tests/smoke/    — Smoke test scripts (showcase_smoke.sh, showcase_smoke.ps1)
-bin/            — Compiled binaries (generated)
-misc/           — Reference implementations (incl. multi-client echo_server via l_poll)
-Taskfile        — Linux/macOS build automation (bash)
-build.bat       — Windows build script
-test_all.bat    — Windows build + default regression tests
-runtime_checks.bat — Windows on-demand socket + showcase checks
-ci.ps1          — Cross-platform CI (PowerShell)
+l_os.h          ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Core runtime header (strings, I/O, processes, terminal)
+l_gfx.h        ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Pixel graphics header (drawing, font, canvas)
+l_ui.h         ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Immediate-mode UI header (widgets, layout, theme)
+examples/       ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Example programs and utilities (30 programs)
+tests/          ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Test suites (test.c, test_strings.c, test_fs.c, test_utils.c, test_net.c, gfx_test.c, ui_test.c)
+tests/fixtures/ ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Test data files (binaries, expected outputs)
+tests/smoke/    ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Smoke test scripts (showcase_smoke.sh, showcase_smoke.ps1)
+bin/            ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Compiled binaries (generated)
+misc/           ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Reference implementations (incl. multi-client echo_server via l_poll)
+Taskfile        ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Linux/macOS build automation (bash)
+build.bat       ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Windows build script
+test_all.bat    ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Windows build + default regression tests
+runtime_checks.bat ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Windows on-demand socket + showcase checks
+ci.ps1          ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Cross-platform CI (PowerShell)
 ```
 
 ## Building and Testing
@@ -925,10 +1468,10 @@ runtime_checks.bat           :: run socket + showcase runtime checks on demand
 
 **Requirements:** clang on PATH (Windows), WSL with `gcc`, `clang`, `arm-linux-gnueabihf-gcc`, `aarch64-linux-gnu-gcc`, `riscv64-linux-gnu-gcc`, `qemu-user`, plus `lld`, `libclang-rt-dev-wasm32`, `wasi-libc`, `wabt`, and `wasmtime` for the WASI target.
 
-## Scope — Not Included (by Design)
-- `printf`/`sprintf` — use `l_snprintf` or direct `l_write`
-- `malloc`/`free` — no heap allocation
-- Threads — no multithreading primitives
+## Scope ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Not Included (by Design)
+- `printf`/`sprintf` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â use `l_snprintf` or direct `l_write`
+- `malloc`/`free` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no heap allocation
+- Threads ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no multithreading primitives
 
 ## License
 MIT License
