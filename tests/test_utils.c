@@ -1115,6 +1115,77 @@ void test_getopt_ctx(void) {
     TEST_SECTION_PASS("l_getopt_ctx");
 }
 
+void test_base64(void) {
+    TEST_FUNCTION("l_base64_encode / l_base64_decode");
+
+    char buf[256];
+    unsigned char out[256];
+
+    // RFC 4648 test vectors
+    TEST_ASSERT(l_base64_encode("", 0, buf, sizeof(buf)) == 0, "empty → ''");
+    TEST_ASSERT(buf[0] == '\0', "empty encodes to empty string");
+
+    TEST_ASSERT(l_base64_encode("f", 1, buf, sizeof(buf)) == 4, "1-byte len 4");
+    TEST_ASSERT(l_strcmp(buf, "Zg==") == 0, "encode 'f' -> 'Zg=='");
+
+    TEST_ASSERT(l_base64_encode("fo", 2, buf, sizeof(buf)) == 4, "2-byte len 4");
+    TEST_ASSERT(l_strcmp(buf, "Zm8=") == 0, "encode 'fo' -> 'Zm8='");
+
+    TEST_ASSERT(l_base64_encode("foo", 3, buf, sizeof(buf)) == 4, "3-byte len 4");
+    TEST_ASSERT(l_strcmp(buf, "Zm9v") == 0, "encode 'foo' -> 'Zm9v'");
+
+    TEST_ASSERT(l_base64_encode("foobar", 6, buf, sizeof(buf)) == 8, "6-byte len 8");
+    TEST_ASSERT(l_strcmp(buf, "Zm9vYmFy") == 0, "encode 'foobar' -> 'Zm9vYmFy'");
+
+    // Round-trip: encode then decode
+    const char *msg = "Hello, Base64 World!";
+    size_t msglen = l_strlen(msg);
+    l_base64_encode(msg, msglen, buf, sizeof(buf));
+    ptrdiff_t dlen = l_base64_decode(buf, l_strlen(buf), out, sizeof(out));
+    TEST_ASSERT(dlen == (ptrdiff_t)msglen, "decode round-trip length");
+    TEST_ASSERT(l_memcmp(out, msg, msglen) == 0, "decode round-trip content");
+
+    // Binary data round-trip
+    unsigned char bin[8] = {0x00, 0xff, 0x80, 0x01, 0x7f, 0xfe, 0x55, 0xaa};
+    l_base64_encode(bin, 8, buf, sizeof(buf));
+    dlen = l_base64_decode(buf, l_strlen(buf), out, sizeof(out));
+    TEST_ASSERT(dlen == 8, "binary round-trip length");
+    TEST_ASSERT(l_memcmp(out, bin, 8) == 0, "binary round-trip content");
+
+    // URL-safe input: '-' replaces '+', '_' replaces '/'
+    // "fo" encodes as "Zm8=" — no + or /, use a value that needs them
+    // '+' (62): 0xfb => '+'  example: encode "\xfb\xef" => "+3\xef" in base64
+    unsigned char needspm[2] = {0xfb, 0xef};
+    l_base64_encode(needspm, 2, buf, sizeof(buf));
+    // Standard encodes to "+3\xef..."; now replace + with - and / with _ for URL-safe
+    for (int i = 0; buf[i]; i++) {
+        if (buf[i] == '+') buf[i] = '-';
+        if (buf[i] == '/') buf[i] = '_';
+    }
+    dlen = l_base64_decode(buf, l_strlen(buf), out, sizeof(out));
+    TEST_ASSERT(dlen == 2, "url-safe decode length");
+    TEST_ASSERT(l_memcmp(out, needspm, 2) == 0, "url-safe decode content");
+
+    // Buffer too small returns -1
+    TEST_ASSERT(l_base64_encode("abc", 3, buf, 4) == -1, "outsz too small returns -1");
+
+    // Decode empty input
+    dlen = l_base64_decode("", 0, out, sizeof(out));
+    TEST_ASSERT(dlen == 0, "decode empty string → 0 bytes");
+
+    // Decode with whitespace/newlines embedded (should be skipped)
+    const char *padded = "Zm9v\nYmFy";
+    dlen = l_base64_decode(padded, l_strlen(padded), out, sizeof(out));
+    TEST_ASSERT(dlen == 6, "decode with embedded newline");
+    TEST_ASSERT(l_memcmp(out, "foobar", 6) == 0, "decode with newline content");
+
+    // Invalid character returns -1
+    dlen = l_base64_decode("Zm9@", 4, out, sizeof(out));
+    TEST_ASSERT(dlen == -1, "invalid char returns -1");
+
+    TEST_SECTION_PASS("l_base64_encode / l_base64_decode");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     test_qsort_large_element();
@@ -1145,6 +1216,7 @@ int main(int argc, char *argv[]) {
     // Context variant tests
     test_rand_ctx();
     test_getopt_ctx();
+    test_base64();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");
