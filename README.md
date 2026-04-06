@@ -591,6 +591,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_read` | Reads up to count bytes from fd into buf | All |
 | `l_write` | Writes up to count bytes from buf to fd | All |
 | `l_read_line` | Reads one line from fd into buf (up to bufsz-1 bytes). Strips the newline. | All |
+| `l_linebuf_init` | Initialise a buffered line reader wrapping fd. | All |
+| `l_linebuf_read` | Read one line into out (up to outsz-1 bytes). Strips newline. Buffers reads in 4096-byte chunks. | All |
 | `l_time` | Returns current Unix timestamp (seconds since 1970-01-01). Also writes to *t if non-NULL. | All |
 | `l_puts` | Writes a string to stdout | All |
 | `l_exitif` | Exits with code and message if condition is true | All |
@@ -943,6 +945,8 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_read`` | ✅ | ✅ | ✅ |
 | ``l_write`` | ✅ | ✅ | ✅ |
 | ``l_read_line`` | ✅ | ✅ | ✅ |
+| ``l_linebuf_init`` | ✅ | ✅ | ✅ |
+| ``l_linebuf_read`` | ✅ | ✅ | ✅ |
 | ``l_time`` | ✅ | ✅ | ✅ |
 | ``l_puts`` | ✅ | ✅ | ✅ |
 | ``l_exitif`` | ✅ | ✅ | ✅ |
@@ -1224,8 +1228,10 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_open` | ✅ | test_fs.c, test.c |
 | `l_close` | ✅ | test_fs.c, test_strings.c, test.c |
 | `l_read` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_write` | ✅ | test_fs.c, test.c |
+| `l_write` | ✅ | test_fs.c, test_strings.c, test.c |
 | `l_read_line` | ✅ | test.c |
+| `l_linebuf_init` | ✅ | test_strings.c |
+| `l_linebuf_read` | ✅ | test_strings.c |
 | `l_time` | ✅ | test_utils.c |
 | `l_puts` | ✅ | test_fs.c, test.c |
 | `l_exitif` | ✅ | test_fs.c |
@@ -1396,7 +1402,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | ``l_socket_sendto_addr`` | — | |
 | ``l_socket_recvfrom_addr`` | — | |
 
-**Coverage: 239 / 242 functions referenced in tests** (99%)
+**Coverage: 241 / 244 functions referenced in tests** (99%)
 
 <!-- END COVERAGE MATRIX -->
 
