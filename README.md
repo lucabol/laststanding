@@ -641,7 +641,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | **Arena function declarations** | | |
 | `l_arena_init` | Allocate an arena of `size` bytes via mmap. On failure, base=NULL. | All |
 | `l_arena_alloc` | Bump-allocate n bytes (8-byte aligned). Returns NULL if arena is full. | All |
-| `l_arena_reset` | Reset used to 0. Memory is NOT freed — arena can be reused. | All |
+| `l_arena_reset` | Reset used to 0. Memory is NOT freed â€” arena can be reused. | All |
 | `l_arena_free` | Free the backing memory. Sets base=NULL. | All |
 | **Buffer function declarations** | | |
 | `l_buf_init` | Zero-initialize a buffer. | All |
@@ -649,7 +649,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_buf_printf` | Formatted append using l_vsnprintf. Returns bytes written or -1. | All |
 | `l_buf_clear` | Set len=0 (keep allocated memory). | All |
 | `l_buf_free` | Free backing memory and zero the struct. | All |
-| **L_Str — fat string (pointer + length) function declarations** | | |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
 | `l_str` | Wrap a C string (computes strlen). | All |
 | `l_str_from` | Wrap pointer+length. | All |
 | `l_str_null` | Return null string {NULL, 0}. | All |
@@ -996,7 +996,7 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_buf_printf`` | ✅ | ✅ | ✅ |
 | ``l_buf_clear`` | ✅ | ✅ | ✅ |
 | ``l_buf_free`` | ✅ | ✅ | ✅ |
-| **L_Str — fat string (pointer + length) function declarations** | | | |
+| **L_Str â€” fat string (pointer + length) function declarations** | | | |
 | ``l_str`` | ✅ | ✅ | ✅ |
 | ``l_str_from`` | ✅ | ✅ | ✅ |
 | ``l_str_null`` | ✅ | ✅ | ✅ |
@@ -1115,15 +1115,15 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 |----------|--------|-----------|
 | **String functions** | | |
 | `l_wcslen` | ✅ | test_strings.c |
-| `l_strlen` | ✅ | test_fs.c, test_strings.c, test_utils.c, test.c |
-| `l_strcpy` | ✅ | test_strings.c, test.c |
+| `l_strlen` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_strcpy` | ✅ | test.c, test_strings.c |
 | `l_strncpy` | ✅ | test_strings.c |
-| `l_strcat` | ✅ | test_strings.c, test.c |
+| `l_strcat` | ✅ | test.c, test_strings.c |
 | `l_strncat` | ✅ | test_strings.c |
 | `l_strchr` | ✅ | test_fs.c, test_strings.c |
 | `l_strrchr` | ✅ | test_strings.c |
-| `l_strstr` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_strcmp` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| `l_strstr` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_strcmp` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_strncmp` | ✅ | test_strings.c |
 | `l_strcasecmp` | ✅ | test_strings.c |
 | `l_strncasecmp` | ✅ | test_fs.c, test_strings.c |
@@ -1156,7 +1156,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_labs` | ✅ | test_strings.c |
 | `l_llabs` | ✅ | test.c |
 | `l_atol` | ✅ | test_strings.c |
-| `l_atoi` | ✅ | test_strings.c, test.c |
+| `l_atoi` | ✅ | test.c, test_strings.c |
 | `l_strtoul` | ✅ | test_strings.c |
 | `l_strtol` | ✅ | test_strings.c |
 | `l_strtoull` | ✅ | test_strings.c |
@@ -1188,8 +1188,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_itoa` | ✅ | test_strings.c |
 | **Memory functions** | | |
 | `l_memmove` | ✅ | test_strings.c |
-| `l_memset` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
-| `l_memcmp` | ✅ | test_fs.c, test_strings.c, test_utils.c, test.c |
+| `l_memset` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_memcmp` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_memcpy` | ✅ | test_strings.c, test_utils.c |
 | `l_memchr` | ✅ | test_strings.c |
 | `l_memrchr` | ✅ | test_strings.c |
@@ -1207,17 +1207,17 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_vprintf` | ✅ | test_strings.c |
 | `l_fprintf` | ✅ | test_strings.c |
 | **System functions** | | |
-| `l_exit` | ✅ | test_fs.c, test.c |
-| `l_open` | ✅ | test_fs.c, test.c |
-| `l_close` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_read` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_write` | ✅ | test_fs.c, test.c |
+| `l_exit` | ✅ | test.c, test_fs.c |
+| `l_open` | ✅ | test.c, test_fs.c |
+| `l_close` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_read` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_write` | ✅ | test.c, test_fs.c |
 | `l_read_line` | ✅ | test.c |
 | `l_time` | ✅ | test_utils.c |
-| `l_puts` | ✅ | test_fs.c, test.c |
+| `l_puts` | ✅ | test.c, test_fs.c |
 | `l_exitif` | ✅ | test_fs.c |
-| `l_getenv` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
-| `l_getenv_init` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| `l_getenv` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_getenv_init` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_env_start` | ✅ | test_fs.c |
 | `l_env_next` | ✅ | test_fs.c |
 | `l_env_end` | ✅ | test_fs.c |
@@ -1225,8 +1225,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | **Option parsing (single-threaded; state in static variables)** | | |
 | `l_getopt` | ✅ | test.c |
 | **Convenience file openers** | | |
-| `l_open_read` | ✅ | test_fs.c, test.c |
-| `l_open_write` | ✅ | test_fs.c, test.c |
+| `l_open_read` | ✅ | test.c, test_fs.c |
+| `l_open_write` | ✅ | test.c, test_fs.c |
 | `l_open_readwrite` | ✅ | test_fs.c |
 | `l_open_append` | ✅ | test_fs.c |
 | `l_open_trunc` | ✅ | test_fs.c |
@@ -1243,10 +1243,10 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_ansi_move` | ✅ | test_utils.c |
 | `l_ansi_color` | ✅ | test_utils.c |
 | **File system functions (cross-platform)** | | |
-| `l_unlink` | ✅ | test_fs.c, test.c |
+| `l_unlink` | ✅ | test.c, test_fs.c |
 | `l_rmdir` | ✅ | test_fs.c |
 | `l_rename` | ✅ | test_fs.c |
-| `l_access` | ✅ | test_fs.c, test.c |
+| `l_access` | ✅ | test.c, test_fs.c |
 | `l_chmod` | ✅ | test_fs.c |
 | `l_symlink` | ✅ | test_fs.c |
 | `l_readlink` | ✅ | test_fs.c |
@@ -1274,8 +1274,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_buf_printf` | ✅ | test_utils.c |
 | `l_buf_clear` | ✅ | test_utils.c |
 | `l_buf_free` | ✅ | test_utils.c |
-| **L_Str — fat string (pointer + length) function declarations** | | |
-| `l_str` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
+| `l_str` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_str_from` | ✅ | test_utils.c |
 | `l_str_null` | ✅ | test_utils.c |
 | `l_str_eq` | ✅ | test_utils.c |
@@ -1335,7 +1335,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_sha256` | ✅ | test_utils.c |
 | `l_getcwd` | ✅ | test_fs.c |
 | `l_chdir` | ✅ | test_fs.c |
-| `l_pipe` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_pipe` | ✅ | test.c, test_fs.c, test_strings.c |
 | `l_dup` | ✅ | test.c |
 | `l_dup2` | ✅ | test.c |
 | `l_getpid` | ✅ | test.c |
@@ -1371,17 +1371,17 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_socket_sendto` | ✅ | test_net.c |
 | `l_socket_recvfrom` | ✅ | test_net.c |
 | **Generic address-based socket API (IPv4 and IPv6)** | | |
-| ``l_sockaddr_ipv4`` | — | |
-| ``l_sockaddr_ipv6`` | — | |
-| ``l_parse_ipv6`` | — | |
-| ``l_format_ipv6`` | — | |
-| ``l_socket_open`` | — | |
-| ``l_socket_connect_addr`` | — | |
-| ``l_socket_bind_addr`` | — | |
+| `l_sockaddr_ipv4` | ✅ | test_net.c |
+| `l_sockaddr_ipv6` | ✅ | test_net.c |
+| `l_parse_ipv6` | ✅ | test_net.c |
+| `l_format_ipv6` | ✅ | test_net.c |
+| `l_socket_open` | ✅ | test_net.c |
+| `l_socket_connect_addr` | ✅ | test_net.c |
+| `l_socket_bind_addr` | ✅ | test_net.c |
 | ``l_socket_sendto_addr`` | — | |
 | ``l_socket_recvfrom_addr`` | — | |
 
-**Coverage: 227 / 237 functions referenced in tests** (96%)
+**Coverage: 234 / 237 functions referenced in tests** (99%)
 
 <!-- END COVERAGE MATRIX -->
 
