@@ -1099,6 +1099,34 @@ void test_memmem(void) {
     /* Haystack length of 0 */
     TEST_ASSERT(l_memmem("x", 0, "x", 1) == NULL, "haystacklen=0 returns NULL");
 
+    /* Long needle (>= 8 bytes) exercises the Boyer-Moore-Horspool path */
+    const char sentence[] = "The quick brown fox jumps over the lazy dog";
+    TEST_ASSERT(l_memmem(sentence, 43, "jumps over", 10) == sentence + 20,
+                "BMH: finds 10-byte needle");
+    TEST_ASSERT(l_memmem(sentence, 43, "The quick", 9) == sentence,
+                "BMH: finds needle at start");
+    TEST_ASSERT(l_memmem(sentence, 43, "lazy dog", 8) == sentence + 35,
+                "BMH: finds 8-byte needle at end");
+    TEST_ASSERT(l_memmem(sentence, 43, "slow turtle", 11) == NULL,
+                "BMH: absent needle returns NULL");
+
+    /* Long needle with repeated last character (stresses skip table) */
+    const char rep[] = "aababcabcdabcde";
+    TEST_ASSERT(l_memmem(rep, 15, "abcdabcde", 9) == rep + 6,
+                "BMH: needle with repeated last char");
+
+    /* Multiple occurrences of long needle: first one returned */
+    const char dbl[] = "foobarfoo_foobarfoo";
+    TEST_ASSERT(l_memmem(dbl, 19, "foobarfoo", 9) == dbl,
+                "BMH: returns first occurrence");
+
+    /* Needle exactly as long as haystack */
+    const char exact[] = "abcdefgh";
+    TEST_ASSERT(l_memmem(exact, 8, "abcdefgh", 8) == exact,
+                "BMH: needle == haystack length matches");
+    TEST_ASSERT(l_memmem(exact, 8, "abcdefgx", 8) == NULL,
+                "BMH: needle == haystack length no match");
+
     TEST_SECTION_PASS("l_memmem");
 }
 
