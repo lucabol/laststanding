@@ -36,11 +36,13 @@ typedef long long     off_t;
 typedef long          off_t;
 #endif
 
-#if defined(_MSC_VER)
+#ifdef _WIN32
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 typedef DWORD mode_t;
+#endif
 
+#if defined(_MSC_VER)
 #pragma comment(linker, "/subsystem:console")
 #pragma comment(compiler, "/GS-")
 #pragma comment(lib, "kernel32.lib")
