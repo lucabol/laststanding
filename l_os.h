@@ -2248,12 +2248,19 @@ static inline unsigned long l_strtoul(const char *nptr, char **endptr, int base)
     unsigned long acc = 0;
     int overflow = 0;
     int any = 0;
+    int neg = 0;
 
     while (l_isspace((unsigned char)*s))
         s++;
 
-    if (*s == '+')
+    /* C99 §7.20.1.4: an optional sign is accepted; a minus sign negates
+     * the converted value in the return type (unsigned wrap-around). */
+    if (*s == '-') {
+        neg = 1;
         s++;
+    } else if (*s == '+') {
+        s++;
+    }
 
     /* Auto-detect base or consume 0x/0X prefix for hex */
     if ((base == 0 || base == 16) && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
@@ -2296,7 +2303,7 @@ static inline unsigned long l_strtoul(const char *nptr, char **endptr, int base)
 
     if (endptr)
         *endptr = (char *)(any ? s : nptr);
-    return acc;
+    return neg ? (unsigned long)(-(long)acc) : acc;
 }
 
 static inline long l_strtol(const char *nptr, char **endptr, int base)
@@ -2340,12 +2347,18 @@ static inline unsigned long long l_strtoull(const char *nptr, char **endptr, int
     unsigned long long acc = 0;
     int overflow = 0;
     int any = 0;
+    int neg = 0;
 
     while (l_isspace((unsigned char)*s))
         s++;
 
-    if (*s == '+')
+    /* C99 §7.20.1.4: optional sign; minus negates in the return type. */
+    if (*s == '-') {
+        neg = 1;
         s++;
+    } else if (*s == '+') {
+        s++;
+    }
 
     if ((base == 0 || base == 16) && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
         s += 2;
@@ -2387,7 +2400,7 @@ static inline unsigned long long l_strtoull(const char *nptr, char **endptr, int
 
     if (endptr)
         *endptr = (char *)(any ? s : nptr);
-    return acc;
+    return neg ? (unsigned long long)(-(long long)acc) : acc;
 }
 
 static inline long long l_strtoll(const char *nptr, char **endptr, int base)
