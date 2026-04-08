@@ -3256,20 +3256,24 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
         }
         fmt++;
 
-        int flag_minus = 0, flag_zero = 0;
+        int flag_minus = 0, flag_zero = 0, flag_plus = 0, flag_space = 0;
         for (;;) {
             if      (*fmt == '-') { flag_minus = 1; fmt++; }
             else if (*fmt == '0') { flag_zero  = 1; fmt++; }
+            else if (*fmt == '+') { flag_plus  = 1; fmt++; }
+            else if (*fmt == ' ') { flag_space = 1; fmt++; }
             else break;
         }
 
         int width = 0;
-        while (*fmt >= '0' && *fmt <= '9') width = width * 10 + (*fmt++ - '0');
+        if (*fmt == '*') { fmt++; width = va_arg(ap, int); if (width < 0) { flag_minus = 1; width = -width; } }
+        else while (*fmt >= '0' && *fmt <= '9') width = width * 10 + (*fmt++ - '0');
 
         int prec = -1;
         if (*fmt == '.') {
             fmt++; prec = 0;
-            while (*fmt >= '0' && *fmt <= '9') prec = prec * 10 + (*fmt++ - '0');
+            if (*fmt == '*') { fmt++; prec = va_arg(ap, int); if (prec < 0) prec = -1; }
+            else while (*fmt >= '0' && *fmt <= '9') prec = prec * 10 + (*fmt++ - '0');
         }
 
         int is_long = 0, is_ll = 0;
@@ -3299,8 +3303,11 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
         if (spec == 's') {
             const char *sv = va_arg(ap, const char *);
             if (!sv) sv = "(null)";
-            int slen = (int)l_strlen(sv);
-            if (prec >= 0 && prec < slen) slen = prec;
+            /* C11 §7.21.6.1: when precision is given, the string need not be
+             * null-terminated — only 'prec' bytes are examined.  Calling
+             * l_strlen on such a pointer reads past the end of the buffer. */
+            int slen = (prec >= 0) ? (int)l_strnlen(sv, (size_t)prec)
+                                   : (int)l_strlen(sv);
             int pad = width - slen; if (pad < 0) pad = 0;
             if (!flag_minus) for (int i = 0; i < pad; i++) L_SNPRINTF_EMIT(' ');
             for (int i = 0; i < slen; i++) L_SNPRINTF_EMIT(sv[i]);
@@ -3430,10 +3437,14 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
             }
         }
 
-        /* prefix: "-", "+", or "0x" for pointers */
+        /* prefix: "-", "+", " ", or "0x" for pointers */
         const char *prefix = ""; int preflen = 0;
-        if (neg)    { prefix = "-";  preflen = 1; }
-        if (is_ptr) { prefix = "0x"; preflen = 2; }
+        if (neg)                   { prefix = "-";  preflen = 1; }
+        else if (flag_plus  && (spec == 'd' || spec == 'i'))
+                                   { prefix = "+";  preflen = 1; }
+        else if (flag_space && (spec == 'd' || spec == 'i'))
+                                   { prefix = " ";  preflen = 1; }
+        if (is_ptr)                { prefix = "0x"; preflen = 2; }
 
         /* precision zero-padding (separate from flag_zero) */
         int prec_pad = (prec > nlen) ? prec - nlen : 0;
