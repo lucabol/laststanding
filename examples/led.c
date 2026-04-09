@@ -652,6 +652,7 @@ static void sigwinch_handler(int sig) { (void)sig; sigwinch_received = 1; }
 #endif
 
 int main(int argc, char *argv[]) {
+    l_getenv_init(argc, argv);
     memset(&E, 0, sizeof(E));
 
     E.arena = l_arena_init(4 * 1024 * 1024); // 4MB
