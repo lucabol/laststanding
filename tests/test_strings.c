@@ -750,6 +750,60 @@ void test_strtod_atof(void) {
     TEST_SECTION_PASS("l_strtod / l_atof");
 }
 
+void test_strtof(void) {
+    char *ep;
+
+    TEST_FUNCTION("l_strtof");
+
+    /* Basic values */
+    TEST_ASSERT(l_strtof("0", (char **)0) == 0.0f, "strtof '0'");
+    TEST_ASSERT(l_strtof("1", (char **)0) == 1.0f, "strtof '1'");
+    TEST_ASSERT(l_strtof("3.14", (char **)0) > 3.13f && l_strtof("3.14", (char **)0) < 3.15f,
+                "strtof '3.14'");
+    TEST_ASSERT(l_strtof("-1.5", (char **)0) == -1.5f, "strtof '-1.5'");
+    TEST_ASSERT(l_strtof(".5", (char **)0) == 0.5f, "strtof '.5'");
+    TEST_ASSERT(l_strtof("1e3", (char **)0) == 1000.0f, "strtof '1e3'");
+    TEST_ASSERT(l_strtof("1.5e2", (char **)0) == 150.0f, "strtof '1.5e2'");
+
+    /* endptr — valid number */
+    ep = (char *)0;
+    l_strtof("1.5abc", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'a', "strtof endptr stops at non-numeric");
+
+    /* endptr — no digits at all */
+    ep = (char *)0;
+    l_strtof("nope", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'n', "strtof no digits -> endptr at start");
+
+    /* endptr — lone dot (C standard: not a valid float) */
+    ep = (char *)0;
+    l_strtof(".", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == '.', "strtof lone dot -> endptr at start");
+
+    /* endptr — bare exponent with no significand digits (C standard: not a valid float) */
+    ep = (char *)0;
+    l_strtof("e5", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == 'e', "strtof bare 'e5' -> endptr at start");
+
+    /* endptr — dot followed by bare exponent (no digits on either side of dot) */
+    ep = (char *)0;
+    l_strtof(".e5", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == '.', "strtof '.e5' -> endptr at start");
+
+    /* endptr — sign+dot only */
+    ep = (char *)0;
+    l_strtof("-.", &ep);
+    TEST_ASSERT(ep != (char *)0 && ep[0] == '-', "strtof '-.' -> endptr at start");
+
+    /* inf and nan */
+    TEST_ASSERT(l_strtof("inf", (char **)0) > 3.4e38f, "strtof 'inf' is infinity");
+    TEST_ASSERT(l_strtof("-inf", (char **)0) < -3.4e38f, "strtof '-inf' is neg infinity");
+    float fnan = l_strtof("nan", (char **)0);
+    TEST_ASSERT(fnan != fnan, "strtof 'nan' is NaN");
+
+    TEST_SECTION_PASS("l_strtof");
+}
+
 void test_itoa(void) {
     TEST_FUNCTION("l_itoa");
 
@@ -1920,6 +1974,7 @@ int main(int argc, char *argv[]) {
     test_strtoul_strtol();
     test_strtoull_strtoll();
     test_strtod_atof();
+    test_strtof();
     test_itoa();
     test_itoa_atoi_roundtrip();
     test_memcmp();
