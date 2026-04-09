@@ -3122,16 +3122,36 @@ static inline void *l_memmem(const void *haystack, size_t haystacklen,
     if (needlelen > haystacklen)
         return NULL;
 
-    const unsigned char *end   = h + haystacklen - needlelen;
-    const unsigned char  first = n[0];
+    /* Short needles: first-byte scan with l_memchr + l_memcmp. */
+    if (needlelen < 8) {
+        const unsigned char *end   = h + haystacklen - needlelen;
+        const unsigned char  first = n[0];
+        while (h <= end) {
+            h = (const unsigned char *)l_memchr(h, first, (size_t)(end - h + 1));
+            if (!h)
+                return NULL;
+            if (l_memcmp(h, n, needlelen) == 0)
+                return (void *)h;
+            h++;
+        }
+        return NULL;
+    }
 
-    while (h <= end) {
-        h = (const unsigned char *)l_memchr(h, first, (size_t)(end - h + 1));
-        if (!h)
-            return NULL;
-        if (l_memcmp(h, n, needlelen) == 0)
-            return (void *)h;
-        h++;
+    /* Boyer-Moore-Horspool for needles >= 8 bytes.
+       skip[c] = safe advance when c appears at the window's last position. */
+    size_t skip[256];
+    size_t i;
+    for (i = 0; i < 256; i++)
+        skip[i] = needlelen;
+    for (i = 0; i < needlelen - 1; i++)
+        skip[n[i]] = needlelen - 1 - i;
+
+    size_t pos  = 0;
+    size_t last = needlelen - 1;
+    while (pos + needlelen <= haystacklen) {
+        if (h[pos + last] == n[last] && l_memcmp(h + pos, n, needlelen) == 0)
+            return (void *)(h + pos);
+        pos += skip[h[pos + last]];
     }
     return NULL;
 }
