@@ -23,14 +23,17 @@
 
 #ifdef L_WITHDEFS
 
-#define L_IMG_POOL_SIZE (64 * 1024 * 1024)  /* 64 MB — handles images up to ~4000x4000 */
+/* Pool size: 256 MB virtual. On modern OSes with MAP_ANONYMOUS, pages are
+   demand-paged — only physical memory for pages actually touched is used.
+   A 256 MB reservation costs ~0 until pixels are decoded into it. */
+#define L_IMG_POOL_SIZE (256 * 1024 * 1024)
 
 /* Pool state — initialized on first use */
 static unsigned char *l_img__pool_base;
 static size_t l_img__pool_used;
 static size_t l_img__pool_cap;
 
-/* Track allocations for free */
+/* Track allocations for realloc */
 #define L_IMG_MAX_ALLOCS 1024
 static struct { void *ptr; size_t size; } l_img__allocs[L_IMG_MAX_ALLOCS];
 static int l_img__alloc_count;
@@ -49,7 +52,6 @@ static inline void l_img__pool_init(void) {
 static inline void *l_img_malloc(size_t sz) {
     l_img__pool_init();
     if (!l_img__pool_base) return 0;
-    /* Align to 16 bytes */
     size_t aligned = (sz + 15) & ~(size_t)15;
     if (l_img__pool_used + aligned > l_img__pool_cap) return 0;
     void *p = l_img__pool_base + l_img__pool_used;
@@ -82,7 +84,6 @@ static inline void *l_img_realloc(void *ptr, size_t newsz) {
         size_t extra = new_aligned - old_aligned;
         if (l_img__pool_used + extra <= l_img__pool_cap) {
             l_img__pool_used += extra;
-            /* Update tracked size */
             for (int i = 0; i < l_img__alloc_count; i++) {
                 if (l_img__allocs[i].ptr == ptr) { l_img__allocs[i].size = newsz; break; }
             }
