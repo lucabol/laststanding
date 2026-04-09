@@ -151,8 +151,31 @@ static inline void l_img__pool_reset(void) {
 #endif
 #endif
 
+/* Temporarily undefine l_os.h macros that clash with system headers
+   pulled in by stb_image.h (stdlib.h, string.h) on Linux freestanding builds */
+#ifdef rand
+#undef rand
+#endif
+#ifdef setenv
+#undef setenv
+#endif
+#ifdef strerror
+#undef strerror
+#endif
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+/* Restore l_os.h macros after stb_image.h is done with system headers */
+#ifndef rand
+#define rand l_rand
+#endif
+#ifndef setenv
+#define setenv l_setenv
+#endif
+#ifndef strerror
+#define strerror l_strerror
+#endif
 
 #ifdef __clang__
 #pragma clang diagnostic pop
