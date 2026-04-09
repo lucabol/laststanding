@@ -135,6 +135,16 @@
       "owner": "tests/gfx_test.c",
       "status": "uncovered",
       "notes": "Left intentionally uncovered in CI because it requires a live framebuffer or windowing environment."
+    },
+    "l_base64_encode": {
+      "owner": "tests/test_utils.c",
+      "status": "covered",
+      "notes": "Tested via RFC 4648 vectors, round-trip, binary data, URL-safe aliases, whitespace skip, and error paths."
+    },
+    "l_base64_decode": {
+      "owner": "tests/test_utils.c",
+      "status": "covered",
+      "notes": "Tested via RFC 4648 vectors, round-trip, binary data, URL-safe aliases, whitespace skip, and error paths."
     }
   }
 }

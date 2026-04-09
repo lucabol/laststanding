@@ -990,6 +990,13 @@ static inline void l_sha256_final(L_Sha256 *ctx, unsigned char hash[32]);
 /// One-shot SHA-256.
 static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]);
 
+/// Encode `len` bytes from `data` into standard Base64. Writes at most `outsz` bytes (including NUL)
+/// to `out`. Returns the number of characters written (excluding NUL), or -1 if `outsz` is too small.
+static inline ptrdiff_t l_base64_encode(const void *data, size_t len, char *out, size_t outsz);
+/// Decode Base64 text of length `inlen` into `out`. Returns decoded byte count, or -1 on invalid input
+/// or insufficient `outsz`. Ignores whitespace; accepts both standard (+/) and URL-safe (-_) alphabets.
+static inline ptrdiff_t l_base64_decode(const char *in, size_t inlen, void *out, size_t outsz);
+
 /// Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error.
 static inline char *l_getcwd(char *buf, size_t size);
 /// Changes the current working directory
@@ -9220,6 +9227,80 @@ static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]
     l_sha256_init(&ctx);
     l_sha256_update(&ctx, data, len);
     l_sha256_final(&ctx, hash);
+}
+
+// --- Base64 encode / decode ---
+
+static inline ptrdiff_t l_base64_encode(const void *data, size_t len, char *out, size_t outsz)
+{
+    static const char enc[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t outlen = ((len + 2) / 3) * 4;
+    if (!out || outsz < outlen + 1) return -1;
+
+    const unsigned char *p = (const unsigned char *)data;
+    char *q = out;
+    size_t i;
+    for (i = 0; i + 2 < len; i += 3) {
+        unsigned int v = ((unsigned int)p[i] << 16) |
+                         ((unsigned int)p[i+1] << 8) | p[i+2];
+        *q++ = enc[(v >> 18) & 0x3f];
+        *q++ = enc[(v >> 12) & 0x3f];
+        *q++ = enc[(v >>  6) & 0x3f];
+        *q++ = enc[ v        & 0x3f];
+    }
+    if (i < len) {
+        unsigned int v = (unsigned int)p[i] << 16;
+        if (i + 1 < len) v |= (unsigned int)p[i+1] << 8;
+        *q++ = enc[(v >> 18) & 0x3f];
+        *q++ = enc[(v >> 12) & 0x3f];
+        *q++ = (i + 1 < len) ? enc[(v >> 6) & 0x3f] : '=';
+        *q++ = '=';
+    }
+    *q = '\0';
+    return (ptrdiff_t)outlen;
+}
+
+static inline ptrdiff_t l_base64_decode(const char *in, size_t inlen, void *out, size_t outsz)
+{
+    /* 6-bit decode table: 255 = invalid, 64 = padding/whitespace */
+    static const unsigned char dec[256] = {
+        255,255,255,255,255,255,255,255,255, 64,64,255,255, 64,255,255, /* 0x00-0x0f */
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255, /* 0x10-0x1f */
+         64,255,255,255,255,255,255,255,255,255,255, 62,255, 62,255, 63, /* 0x20-0x2f: sp,+,-,/ */
+         52, 53, 54, 55, 56, 57, 58, 59, 60, 61,255,255,255, 64,255,255, /* 0x30-0x3f: 0-9,= */
+        255,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, /* 0x40-0x4f: A-O */
+         15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,255,255,255,255, 63, /* 0x50-0x5f: P-Z,_ */
+        255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, /* 0x60-0x6f: a-o */
+         41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,255,255,255,255,255, /* 0x70-0x7f: p-z */
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+        255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    };
+
+    unsigned char *dst = (unsigned char *)out;
+    size_t written = 0;
+    unsigned int acc = 0;
+    int bits = 0;
+
+    for (size_t i = 0; i < inlen; i++) {
+        unsigned char c = dec[(unsigned char)in[i]];
+        if (c == 64) continue;   /* whitespace or padding — skip */
+        if (c == 255) return -1; /* invalid character */
+        acc = (acc << 6) | c;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            if (written >= outsz) return -1;
+            dst[written++] = (unsigned char)((acc >> bits) & 0xff);
+        }
+    }
+    return (ptrdiff_t)written;
 }
 
 static inline int l_path_exists(const char *path) {
