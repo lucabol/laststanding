@@ -2518,25 +2518,28 @@ static inline float l_strtof(const char *nptr, char **endptr)
         return __builtin_nanf("");
     }
 
-    const char *start = s;
     float val = 0.0f;
+    int has_digits = 0;
 
     /* integer part */
-    while (*s >= '0' && *s <= '9')
+    while (*s >= '0' && *s <= '9') {
         val = val * 10.0f + (float)(*s++ - '0');
+        has_digits = 1;
+    }
 
-    /* fractional part */
+    /* fractional part — a lone "." with no adjacent digits is not a valid number */
     if (*s == '.') {
         s++;
         float frac = 0.1f;
         while (*s >= '0' && *s <= '9') {
             val += (float)(*s++ - '0') * frac;
             frac *= 0.1f;
+            has_digits = 1;
         }
     }
 
-    /* exponent */
-    if (*s == 'e' || *s == 'E') {
+    /* exponent — only valid when at least one digit was consumed */
+    if (has_digits && (*s == 'e' || *s == 'E')) {
         const char *es = s + 1;
         int eneg = 0;
         if (*es == '-') { eneg = 1; es++; }
@@ -2554,7 +2557,7 @@ static inline float l_strtof(const char *nptr, char **endptr)
         }
     }
 
-    if (s == start) { if (endptr) *endptr = (char *)nptr; return 0.0f; }
+    if (!has_digits) { if (endptr) *endptr = (char *)nptr; return 0.0f; }
     if (endptr) *endptr = (char *)s;
     return neg ? -val : val;
 }
