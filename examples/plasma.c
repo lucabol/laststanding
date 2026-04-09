@@ -50,7 +50,7 @@ static void init_palette(void) {
 }
 
 int main(int argc, char *argv[]) {
-    (void)argc; (void)argv;
+    l_getenv_init(argc, argv);
 
     L_Canvas canvas;
     if (l_canvas_open(&canvas, W, H, "Plasma") != 0) {

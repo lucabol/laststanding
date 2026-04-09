@@ -383,6 +383,7 @@ typedef void (*L_SigHandler)(int);
 #define L_SIG_IGN ((L_SigHandler)1)
 
 // Address families and socket types
+#define L_AF_UNIX   1
 #define L_AF_INET   2
 #define L_AF_INET6 10
 #ifdef _WIN32
@@ -1107,6 +1108,10 @@ static inline int l_socket_bind_addr(L_SOCKET sock, const L_SockAddr *addr);
 static inline ptrdiff_t l_socket_sendto_addr(L_SOCKET s, const void *data, size_t len, const L_SockAddr *dest);
 /// Receive data via UDP. src receives sender address. Returns bytes received or -1.
 static inline ptrdiff_t l_socket_recvfrom_addr(L_SOCKET s, void *buf, size_t len, L_SockAddr *src);
+#ifndef _WIN32
+/// Create a Unix domain socket and connect to the given path. Returns socket fd or -1.
+static inline L_SOCKET l_socket_unix_connect(const char *path);
+#endif
 #endif // L_WITHSOCKETS
 
 #endif // L_WITHDEFS
@@ -5999,7 +6004,7 @@ static inline void l_sockaddr_from_os6(L_SockAddr *sa, const L_SockAddrIn6 *s) {
 }
 
 static inline L_SOCKET l_socket_open(int family, int type) {
-    int af = (family == L_AF_INET6) ? 10 : 2;
+    int af = (family == L_AF_UNIX) ? 1 : (family == L_AF_INET6) ? 10 : 2;
     int st = (type == L_SOCK_DGRAM) ? 2 : 1;
 #if defined(__x86_64__)
     long ret = my_syscall3(41, af, st, 0);
@@ -6072,6 +6077,37 @@ static inline ptrdiff_t l_socket_recvfrom_addr(L_SOCKET s, void *buf, size_t len
         else l_sockaddr_from_os4(src, (const L_SockAddrIn *)sabuf);
     }
     return (ptrdiff_t)ret;
+}
+
+static inline L_SOCKET l_socket_unix_connect(const char *path) {
+    /* sockaddr_un: uint16_t sun_family + char sun_path[108] = 110 bytes */
+    char sa[110];
+    l_memset(sa, 0, sizeof(sa));
+    unsigned short fam = 1; /* AF_UNIX */
+    l_memcpy(sa, &fam, 2);
+    size_t plen = l_strlen(path);
+    if (plen >= 108) return -1;
+    l_memcpy(sa + 2, path, plen);
+    int salen = (int)(2 + plen + 1);
+    /* Create socket */
+#if defined(__x86_64__)
+    long sfd = my_syscall3(41, 1 /*AF_UNIX*/, 1 /*SOCK_STREAM*/, 0);
+#elif defined(__aarch64__) || defined(__riscv)
+    long sfd = my_syscall3(198, 1, 1, 0);
+#elif defined(__arm__)
+    long sfd = my_syscall3(281, 1, 1, 0);
+#endif
+    if (sfd < 0) return -1;
+    /* Connect */
+#if defined(__x86_64__)
+    long ret = my_syscall3(42, sfd, (long)sa, salen);
+#elif defined(__aarch64__) || defined(__riscv)
+    long ret = my_syscall3(203, sfd, (long)sa, salen);
+#elif defined(__arm__)
+    long ret = my_syscall3(283, sfd, (long)sa, salen);
+#endif
+    if (ret < 0) { my_syscall1(__NR_close, sfd); return -1; }
+    return (L_SOCKET)sfd;
 }
 
 #endif // L_WITHSOCKETS

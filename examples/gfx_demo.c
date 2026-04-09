@@ -5,7 +5,7 @@
 // Exit: press Escape
 
 int main(int argc, char *argv[]) {
-    (void)argc; (void)argv;
+    l_getenv_init(argc, argv);
 
     L_Canvas c;
     if (l_canvas_open(&c, 320, 240, "Demo") != 0) return 1;

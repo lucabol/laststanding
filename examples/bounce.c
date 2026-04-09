@@ -6,6 +6,7 @@
 // Exit: press Escape
 
 int main(int argc, char *argv[]) {
+    l_getenv_init(argc, argv);
     int fullscreen = 0;
     for (int i = 1; i < argc; i++)
         if (l_strcmp(argv[i], "-f") == 0) fullscreen = 1;

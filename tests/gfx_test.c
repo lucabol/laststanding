@@ -137,7 +137,7 @@ static void test_backend_helpers(void) {
 }
 
 int main(int argc, char *argv[]) {
-    (void)argc; (void)argv;
+    l_getenv_init(argc, argv);
     puts("Testing l_gfx.h pixel graphics (in-memory)...\n");
     test_in_memory();
     test_backend_helpers();

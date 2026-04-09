@@ -3,8 +3,17 @@
 // Usage: #define L_MAINFILE
 //        #include "l_gfx.h"   // pulls in l_os.h automatically
 //
-// Linux:   renders to /dev/fb0 (framebuffer console, no X11/Wayland)
+// Linux:   renders via X11 wire protocol if $DISPLAY is set,
+//          falls back to /dev/fb0 (framebuffer console) otherwise.
+//          No X11 library linking — direct socket protocol.
 // Windows: opens a native GDI window (user32 + gdi32, no external deps)
+
+// X11 backend needs sockets (Unix domain socket to X server)
+#if !defined(_WIN32) && !defined(__wasi__)
+#ifndef L_WITHSOCKETS
+#define L_WITHSOCKETS
+#endif
+#endif
 
 #include "l_os.h"
 
@@ -53,7 +62,9 @@ typedef struct {
     int       key_head;
     int       key_tail;
 #else
-    // Linux framebuffer internals
+    // Linux internals — X11 or framebuffer
+    int       backend;      // 0=framebuffer, 1=X11
+    // Framebuffer fields
     int       fb_fd;        // fd to /dev/fb0
     uint8_t  *fb_mem;       // mmap'd framebuffer
     int       fb_size;      // total mmap size
@@ -63,6 +74,16 @@ typedef struct {
     int       fb_yoff;      // y offset in virtual framebuffer
     unsigned long saved_tty; // saved terminal mode for restore
     int       mouse_fd;    // fd to /dev/input/mice (-1 if unavailable)
+    // X11 fields
+    int       x11_fd;       // socket to X server
+    uint32_t  x11_wid;      // window resource ID
+    uint32_t  x11_gc;       // graphics context ID
+    uint32_t  x11_root;     // root window ID
+    int       x11_depth;    // screen depth
+    int       closed;       // set when window is destroyed
+    int       keys[16];     // small ring buffer for key events
+    int       key_head;
+    int       key_tail;
 #endif
 } L_Canvas;
 
@@ -509,14 +530,13 @@ static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
 
 #else
 // ═══════════════════════════════════════════════════════════════════════════════
-// Linux framebuffer backend
+// Linux backend — X11 wire protocol or framebuffer
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Framebuffer ioctl numbers
 #define L_FBIOGET_VSCREENINFO 0x4600
 #define L_FBIOGET_FSCREENINFO 0x4602
 
-// Simplified fb_var_screeninfo (first 40 bytes are what we need)
 struct l_fb_var_screeninfo {
     uint32_t xres;
     uint32_t yres;
@@ -526,14 +546,12 @@ struct l_fb_var_screeninfo {
     uint32_t yoffset;
     uint32_t bits_per_pixel;
     uint32_t grayscale;
-    // We don't need the rest, but pad to safe ioctl size
     uint32_t pad[56];
 };
 
-// Simplified fb_fix_screeninfo
 struct l_fb_fix_screeninfo {
     char     id[16];
-    uint64_t smem_start;    // unsigned long on kernel side
+    uint64_t smem_start;
     uint32_t smem_len;
     uint32_t type;
     uint32_t type_aux;
@@ -542,16 +560,495 @@ struct l_fb_fix_screeninfo {
     uint16_t ypanstep;
     uint16_t ywrapstep;
     uint32_t line_length;
-    // Pad to safe size
     uint32_t pad[16];
 };
 
-static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *title) {
-    (void)title;
-    l_memset(c, 0, sizeof(*c));
+// ── X11 wire protocol helpers ────────────────────────────────────────────────
 
-    // Try to open framebuffer
-    c->fb_fd = (int)l_open("/dev/fb0", 2 /* O_RDWR */, 0);  // O_RDWR = 2
+/* Read exactly n bytes from fd, retrying on short reads */
+static inline int l_x11_read_full(int fd, void *buf, int n) {
+    int total = 0;
+    while (total < n) {
+        ssize_t r = l_read(fd, (uint8_t *)buf + total, (size_t)(n - total));
+        if (r <= 0) return -1;
+        total += (int)r;
+    }
+    return 0;
+}
+
+/* Write exactly n bytes to fd */
+static inline int l_x11_write_full(int fd, const void *buf, int n) {
+    int total = 0;
+    while (total < n) {
+        ssize_t r = l_write(fd, (const uint8_t *)buf + total, (size_t)(n - total));
+        if (r <= 0) return -1;
+        total += (int)r;
+    }
+    return 0;
+}
+
+/* Parse $DISPLAY to extract display number; returns -1 if not local Unix */
+static inline int l_x11_parse_display(const char *disp, char *sockpath, int pathsz) {
+    if (!disp || !disp[0]) return -1;
+    /* Accept ":N" or ":N.S" — must start with ':' for local Unix socket */
+    if (disp[0] != ':') return -1;
+    int dnum = l_atoi(disp + 1);
+    if (dnum < 0) dnum = 0;
+    l_snprintf(sockpath, (size_t)pathsz, "/tmp/.X11-unix/X%d", dnum);
+    return dnum;
+}
+
+/* Read ~/.Xauthority and find MIT-MAGIC-COOKIE-1 for the given display.
+   Returns cookie length (should be 16) or 0 if not found. */
+static inline int l_x11_read_xauth(int display_num, uint8_t *cookie, int cookie_sz) {
+    char path[256];
+    const char *home = l_getenv("HOME");
+    if (!home) return 0;
+    l_snprintf(path, sizeof(path), "%s/.Xauthority", home);
+    L_FD fd = l_open(path, 0 /*O_RDONLY*/, 0);
+    if (fd < 0) return 0;
+
+    /* Xauthority format: repeated entries of:
+       uint16_t family (big-endian)
+       uint16_t addr_len, addr_len bytes of address
+       uint16_t number_len, number_len bytes of display number string
+       uint16_t name_len, name_len bytes of protocol name
+       uint16_t data_len, data_len bytes of auth data */
+    char dnum_str[16];
+    l_snprintf(dnum_str, sizeof(dnum_str), "%d", display_num);
+    int dnum_len = (int)l_strlen(dnum_str);
+
+    for (;;) {
+        uint8_t hdr[2];
+        if (l_x11_read_full((int)fd, hdr, 2) < 0) break;
+        /* family is big-endian uint16 */
+        /* Read address */
+        uint8_t lenbuf[2];
+        if (l_x11_read_full((int)fd, lenbuf, 2) < 0) break;
+        int alen = (lenbuf[0] << 8) | lenbuf[1];
+        char abuf[256];
+        if (alen > 255) { l_close(fd); return 0; }
+        if (l_x11_read_full((int)fd, abuf, alen) < 0) break;
+        /* Read display number */
+        if (l_x11_read_full((int)fd, lenbuf, 2) < 0) break;
+        int nlen = (lenbuf[0] << 8) | lenbuf[1];
+        char nbuf[64];
+        if (nlen > 63) { l_close(fd); return 0; }
+        if (l_x11_read_full((int)fd, nbuf, nlen) < 0) break;
+        /* Read protocol name */
+        if (l_x11_read_full((int)fd, lenbuf, 2) < 0) break;
+        int plen = (lenbuf[0] << 8) | lenbuf[1];
+        char pbuf[64];
+        if (plen > 63) { l_close(fd); return 0; }
+        if (l_x11_read_full((int)fd, pbuf, plen) < 0) break;
+        /* Read auth data */
+        if (l_x11_read_full((int)fd, lenbuf, 2) < 0) break;
+        int dlen = (lenbuf[0] << 8) | lenbuf[1];
+        uint8_t dbuf[64];
+        if (dlen > 64) { l_close(fd); return 0; }
+        if (l_x11_read_full((int)fd, dbuf, dlen) < 0) break;
+
+        /* Check if this matches our display */
+        if (nlen == dnum_len && l_memcmp(nbuf, dnum_str, (size_t)nlen) == 0) {
+            /* Check protocol is MIT-MAGIC-COOKIE-1 */
+            if (plen == 18 && l_memcmp(pbuf, "MIT-MAGIC-COOKIE-1", 18) == 0) {
+                int copy = dlen < cookie_sz ? dlen : cookie_sz;
+                l_memcpy(cookie, dbuf, (size_t)copy);
+                l_close(fd);
+                return copy;
+            }
+        }
+    }
+    l_close(fd);
+    return 0;
+}
+
+/* Connect to X server, perform setup handshake.
+   On success: fills c->x11_fd, x11_wid, x11_gc, x11_root, x11_depth.
+   Returns 0 on success, -1 on failure. */
+static inline int l_x11_connect(L_Canvas *c, int width, int height, const char *title) {
+    const char *disp = l_getenv("DISPLAY");
+    char sockpath[128];
+    int display_num = l_x11_parse_display(disp, sockpath, (int)sizeof(sockpath));
+    if (display_num < 0) return -1;
+
+    int fd = (int)l_socket_unix_connect(sockpath);
+    if (fd < 0) return -1;
+
+    /* Read Xauthority cookie */
+    uint8_t cookie[16];
+    int cookie_len = l_x11_read_xauth(display_num, cookie, 16);
+    const char *auth_name = "MIT-MAGIC-COOKIE-1";
+    int auth_name_len = cookie_len > 0 ? 18 : 0;
+    int auth_data_len = cookie_len > 0 ? cookie_len : 0;
+
+    /* Pad to 4-byte boundary */
+    int name_pad = (4 - (auth_name_len % 4)) % 4;
+    int data_pad = (4 - (auth_data_len % 4)) % 4;
+
+    /* Build setup request */
+    uint8_t setup[12];
+    setup[0] = 0x6C; /* little-endian ('l') */
+    setup[1] = 0;
+    setup[2] = 11; setup[3] = 0; /* major version 11 */
+    setup[4] = 0;  setup[5] = 0; /* minor version 0 */
+    setup[6] = (uint8_t)(auth_name_len & 0xFF); setup[7] = (uint8_t)((auth_name_len >> 8) & 0xFF);
+    setup[8] = (uint8_t)(auth_data_len & 0xFF); setup[9] = (uint8_t)((auth_data_len >> 8) & 0xFF);
+    setup[10] = 0; setup[11] = 0;
+
+    if (l_x11_write_full(fd, setup, 12) < 0) goto fail;
+    if (auth_name_len > 0) {
+        if (l_x11_write_full(fd, auth_name, auth_name_len) < 0) goto fail;
+        if (name_pad > 0) { uint8_t pad[4] = {0}; if (l_x11_write_full(fd, pad, name_pad) < 0) goto fail; }
+        if (l_x11_write_full(fd, cookie, auth_data_len) < 0) goto fail;
+        if (data_pad > 0) { uint8_t pad[4] = {0}; if (l_x11_write_full(fd, pad, data_pad) < 0) goto fail; }
+    }
+
+    /* Read setup reply header */
+    uint8_t reply_hdr[8];
+    if (l_x11_read_full(fd, reply_hdr, 8) < 0) goto fail;
+    if (reply_hdr[0] != 1) goto fail; /* 1 = success */
+
+    /* Read additional data length (in 4-byte units) */
+    uint16_t extra_len;
+    l_memcpy(&extra_len, reply_hdr + 6, 2);
+    int extra_bytes = (int)extra_len * 4;
+    if (extra_bytes <= 0 || extra_bytes > 65536) goto fail;
+
+    uint8_t *reply = (uint8_t *)l_mmap(0, (size_t)extra_bytes, L_PROT_READ | L_PROT_WRITE,
+                                        L_MAP_PRIVATE | L_MAP_ANONYMOUS, -1, 0);
+    if (reply == (uint8_t *)L_MAP_FAILED) goto fail;
+    if (l_x11_read_full(fd, reply, extra_bytes) < 0) { l_munmap(reply, (size_t)extra_bytes); goto fail; }
+
+    /* Parse setup reply:
+       offset 0-3: release number
+       offset 4-7: resource-id-base
+       offset 8-11: resource-id-mask
+       offset 12-15: motion-buffer-size
+       offset 16-17: length of vendor
+       offset 18-19: max request length
+       offset 20: number of screens
+       offset 21: number of formats
+       ... vendor string (padded to 4) ...
+       ... format list (8 bytes each) ...
+       ... screens ... */
+    uint32_t id_base, id_mask;
+    l_memcpy(&id_base, reply + 4, 4);
+    l_memcpy(&id_mask, reply + 8, 4);
+    uint16_t vendor_len;
+    l_memcpy(&vendor_len, reply + 16, 2);
+    uint16_t max_req_len;
+    l_memcpy(&max_req_len, reply + 18, 2);
+    uint8_t num_screens = reply[20];
+    uint8_t num_formats = reply[21];
+    if (num_screens < 1) { l_munmap(reply, (size_t)extra_bytes); goto fail; }
+
+    int vendor_pad = (4 - (vendor_len % 4)) % 4;
+    int screen_offset = 24 + vendor_len + vendor_pad + num_formats * 8;
+    if (screen_offset + 40 > extra_bytes) { l_munmap(reply, (size_t)extra_bytes); goto fail; }
+
+    /* Parse first screen:
+       offset 0-3: root window
+       offset 4-7: default colormap
+       offset 8-11: white pixel
+       offset 12-15: black pixel
+       ... skip some ...
+       offset 20-21: width in pixels
+       offset 22-23: height in pixels
+       ... skip ...
+       offset 28-29: root depth (at offset 38 in some versions)
+       offset 38: root_depth */
+    uint8_t *scr = reply + screen_offset;
+    uint32_t root_wid;
+    l_memcpy(&root_wid, scr, 4);
+    uint8_t root_depth = scr[38];
+    uint32_t root_visual = 0;
+    /* root visual is at offset 32 */
+    l_memcpy(&root_visual, scr + 32, 4);
+
+    c->x11_fd = fd;
+    c->x11_root = root_wid;
+    c->x11_depth = (int)root_depth;
+    c->x11_wid = id_base;
+    c->x11_gc = id_base | 1;
+
+    /* Store max request length for PutImage chunking */
+    int max_req_bytes = (int)max_req_len * 4;
+    (void)max_req_bytes;
+
+    l_munmap(reply, (size_t)extra_bytes);
+
+    /* CreateWindow: opcode 1 */
+    {
+        uint32_t vals[2];
+        vals[0] = 1; /* event mask: override-redirect would go here but skip it */
+        /* We want: KeyPress(1) | KeyRelease(2) | ButtonPress(4) | ButtonRelease(8) |
+           PointerMotion(64) | Exposure(32768) | StructureNotify(131072) */
+        vals[0] = 1 | 2 | 4 | 8 | 64 | 32768 | 131072;
+        uint32_t value_mask = 0x800; /* event-mask */
+        uint8_t req[32 + 4]; /* CreateWindow fixed=32 + 4 bytes for event mask value */
+        int reqlen = 32 + 4;
+        req[0] = 1; /* CreateWindow opcode */
+        req[1] = root_depth; /* depth */
+        uint16_t wlen = (uint16_t)(reqlen / 4);
+        l_memcpy(req + 2, &wlen, 2);
+        l_memcpy(req + 4, &c->x11_wid, 4); /* wid */
+        l_memcpy(req + 8, &root_wid, 4); /* parent */
+        int16_t x = 0, y = 0;
+        l_memcpy(req + 12, &x, 2);
+        l_memcpy(req + 14, &y, 2);
+        uint16_t w = (uint16_t)width, h = (uint16_t)height;
+        l_memcpy(req + 16, &w, 2);
+        l_memcpy(req + 18, &h, 2);
+        uint16_t bw = 0;
+        l_memcpy(req + 20, &bw, 2);
+        uint16_t wclass = 1; /* InputOutput */
+        l_memcpy(req + 22, &wclass, 2);
+        l_memcpy(req + 24, &root_visual, 4); /* visual — copy parent */
+        l_memcpy(req + 28, &value_mask, 4);
+        l_memcpy(req + 32, &vals[0], 4);
+        if (l_x11_write_full(fd, req, reqlen) < 0) goto fail;
+    }
+
+    /* CreateGC: opcode 55 */
+    {
+        uint8_t req[16];
+        req[0] = 55;
+        req[1] = 0;
+        uint16_t wlen = 4;
+        l_memcpy(req + 2, &wlen, 2);
+        l_memcpy(req + 4, &c->x11_gc, 4);
+        l_memcpy(req + 8, &c->x11_wid, 4);
+        uint32_t vmask = 0;
+        l_memcpy(req + 12, &vmask, 4);
+        if (l_x11_write_full(fd, req, 16) < 0) goto fail;
+    }
+
+    /* MapWindow: opcode 8 */
+    {
+        uint8_t req[8];
+        req[0] = 8;
+        req[1] = 0;
+        uint16_t wlen = 2;
+        l_memcpy(req + 2, &wlen, 2);
+        l_memcpy(req + 4, &c->x11_wid, 4);
+        if (l_x11_write_full(fd, req, 8) < 0) goto fail;
+    }
+
+    /* Set window title using ChangeProperty: opcode 18 */
+    if (title && title[0]) {
+        int tlen = (int)l_strlen(title);
+        int tpad = (4 - (tlen % 4)) % 4;
+        int reqlen = 24 + tlen + tpad;
+        uint8_t req[280]; /* title up to 256 chars */
+        if (reqlen > (int)sizeof(req)) reqlen = (int)sizeof(req);
+        l_memset(req, 0, (size_t)reqlen);
+        req[0] = 18; /* ChangeProperty */
+        req[1] = 0;  /* Replace */
+        uint16_t wlen = (uint16_t)(reqlen / 4);
+        l_memcpy(req + 2, &wlen, 2);
+        l_memcpy(req + 4, &c->x11_wid, 4);
+        uint32_t prop = 39; /* WM_NAME atom */
+        l_memcpy(req + 8, &prop, 4);
+        uint32_t type = 31; /* STRING atom */
+        l_memcpy(req + 12, &type, 4);
+        uint8_t fmt = 8;
+        req[16] = fmt;
+        uint32_t datalen = (uint32_t)tlen;
+        l_memcpy(req + 20, &datalen, 4);
+        l_memcpy(req + 24, title, (size_t)tlen);
+        if (l_x11_write_full(fd, req, reqlen) < 0) goto fail;
+    }
+
+    return 0;
+fail:
+    l_close(fd);
+    return -1;
+}
+
+/* Process pending X11 events. Non-blocking. */
+static inline void l_x11_pump_events(L_Canvas *c) {
+    uint8_t ev[32];
+    for (;;) {
+        ssize_t n = l_read_nonblock(c->x11_fd, ev, 32);
+        if (n < 32) break;
+        uint8_t code = ev[0] & 0x7F; /* strip "generated" flag */
+        switch (code) {
+        case 2: /* KeyPress */ {
+            uint8_t keycode = ev[1];
+            /* Minimal keycode→keysym mapping (X11 keycodes: key = keycode - 8 for US layout) */
+            int key = 0;
+            if (keycode == 9) key = 27; /* Escape */
+            else if (keycode == 36) key = 13; /* Return */
+            else if (keycode == 22) key = 8; /* Backspace */
+            else if (keycode == 23) key = 9; /* Tab */
+            else if (keycode == 65) key = ' ';
+            else if (keycode == 113) key = 1001; /* Left */
+            else if (keycode == 114) key = 1002; /* Right */
+            else if (keycode == 111) key = 1003; /* Up */
+            else if (keycode == 116) key = 1004; /* Down */
+            /* Letters: keycodes 24-33 = q,w,e,r,t,y,u,i,o,p */
+            else if (keycode >= 24 && keycode <= 33) {
+                static const char row1[] = "qwertyuiop";
+                key = row1[keycode - 24];
+            }
+            /* keycodes 38-46 = a,s,d,f,g,h,j,k,l */
+            else if (keycode >= 38 && keycode <= 46) {
+                static const char row2[] = "asdfghjkl";
+                key = row2[keycode - 38];
+            }
+            /* keycodes 52-58 = z,x,c,v,b,n,m */
+            else if (keycode >= 52 && keycode <= 58) {
+                static const char row3[] = "zxcvbnm";
+                key = row3[keycode - 52];
+            }
+            /* Numbers: keycodes 10-19 = 1,2,...,9,0 */
+            else if (keycode >= 10 && keycode <= 18) key = '0' + (keycode - 9);
+            else if (keycode == 19) key = '0';
+            /* Minus, equal, etc */
+            else if (keycode == 20) key = '-';
+            else if (keycode == 21) key = '=';
+            else if (keycode == 34) key = '[';
+            else if (keycode == 35) key = ']';
+            else if (keycode == 47) key = ';';
+            else if (keycode == 48) key = '\'';
+            else if (keycode == 49) key = '`';
+            else if (keycode == 51) key = '\\';
+            else if (keycode == 59) key = ',';
+            else if (keycode == 60) key = '.';
+            else if (keycode == 61) key = '/';
+            if (key) {
+                int next = (c->key_head + 1) % 16;
+                if (next != c->key_tail) {
+                    c->keys[c->key_head] = key;
+                    c->key_head = next;
+                }
+            }
+            break;
+        }
+        case 4: /* ButtonPress */ {
+            uint8_t btn = ev[1];
+            if (btn == 1) c->mouse_btn |= 1;
+            else if (btn == 2) c->mouse_btn |= 4;
+            else if (btn == 3) c->mouse_btn |= 2;
+            break;
+        }
+        case 5: /* ButtonRelease */ {
+            uint8_t btn = ev[1];
+            if (btn == 1) c->mouse_btn &= ~1;
+            else if (btn == 2) c->mouse_btn &= ~4;
+            else if (btn == 3) c->mouse_btn &= ~2;
+            break;
+        }
+        case 6: /* MotionNotify */ {
+            uint16_t mx, my;
+            l_memcpy(&mx, ev + 24, 2); /* event-x */
+            l_memcpy(&my, ev + 26, 2); /* event-y */
+            c->mouse_x = (int)mx;
+            c->mouse_y = (int)my;
+            break;
+        }
+        case 17: /* DestroyNotify */
+            c->closed = 1;
+            break;
+        case 33: /* ClientMessage — may be WM_DELETE_WINDOW */
+            c->closed = 1;
+            break;
+        case 12: /* Expose — we always redraw on flush, ignore */
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+/* Send pixel buffer to X server via PutImage. Handles chunking for large images. */
+static inline void l_x11_put_image(L_Canvas *c) {
+    int depth = c->x11_depth;
+    int bpp = (depth <= 16) ? 2 : 4;
+    int row_bytes = c->width * bpp;
+    int row_pad = (4 - (row_bytes % 4)) % 4;
+    int padded_row = row_bytes + row_pad;
+
+    /* PutImage header is 24 bytes. Max request is 262140 bytes (65535 * 4).
+       Send in horizontal bands. */
+    int max_data = 262140 - 24;
+    int rows_per_chunk = max_data / padded_row;
+    if (rows_per_chunk < 1) rows_per_chunk = 1;
+    if (rows_per_chunk > c->height) rows_per_chunk = c->height;
+
+    for (int y = 0; y < c->height; y += rows_per_chunk) {
+        int band_h = rows_per_chunk;
+        if (y + band_h > c->height) band_h = c->height - y;
+        int data_size = band_h * padded_row;
+        int reqlen = 24 + data_size;
+        uint16_t wlen = (uint16_t)(reqlen / 4);
+
+        /* Build header */
+        uint8_t hdr[24];
+        hdr[0] = 72; /* PutImage */
+        hdr[1] = 2;  /* ZPixmap */
+        l_memcpy(hdr + 2, &wlen, 2);
+        l_memcpy(hdr + 4, &c->x11_wid, 4);
+        l_memcpy(hdr + 8, &c->x11_gc, 4);
+        uint16_t w = (uint16_t)c->width, h = (uint16_t)band_h;
+        l_memcpy(hdr + 12, &w, 2);
+        l_memcpy(hdr + 14, &h, 2);
+        int16_t dx = 0, dy = (int16_t)y;
+        l_memcpy(hdr + 16, &dx, 2);
+        l_memcpy(hdr + 18, &dy, 2);
+        hdr[20] = 0; /* left-pad */
+        hdr[21] = (uint8_t)depth;
+        hdr[22] = 0; hdr[23] = 0;
+        if (l_x11_write_full(c->x11_fd, hdr, 24) < 0) return;
+
+        /* Convert and send pixel data row by row.
+           Our pixels are ARGB (0xAARRGGBB). X11 ZPixmap at depth 24/32 on little-endian
+           expects BGRX (B in byte 0, G in byte 1, R in byte 2, X/A in byte 3). */
+        for (int row = 0; row < band_h; row++) {
+            uint32_t *src = c->pixels + (y + row) * (c->stride / 4);
+            if (bpp == 4) {
+                /* ARGB → BGRA: swap R and B channels */
+                uint8_t rowbuf[4096 * 4]; /* up to 4096 pixels wide */
+                int rw = c->width;
+                if (rw > 4096) rw = 4096;
+                for (int x = 0; x < rw; x++) {
+                    uint32_t p = src[x];
+                    rowbuf[x * 4 + 0] = (uint8_t)(p);        /* B */
+                    rowbuf[x * 4 + 1] = (uint8_t)(p >> 8);   /* G */
+                    rowbuf[x * 4 + 2] = (uint8_t)(p >> 16);  /* R */
+                    rowbuf[x * 4 + 3] = (uint8_t)(p >> 24);  /* A */
+                }
+                if (l_x11_write_full(c->x11_fd, rowbuf, rw * 4) < 0) return;
+                if (row_pad > 0) {
+                    uint8_t pad[4] = {0};
+                    if (l_x11_write_full(c->x11_fd, pad, row_pad) < 0) return;
+                }
+            } else {
+                /* 16-bit: convert ARGB → RGB565 */
+                uint8_t rowbuf[4096 * 2];
+                int rw = c->width;
+                if (rw > 4096) rw = 4096;
+                for (int x = 0; x < rw; x++) {
+                    uint32_t p = src[x];
+                    uint16_t c16 = (uint16_t)(((p >> 8) & 0xF800) | ((p >> 5) & 0x07E0) | ((p >> 3) & 0x001F));
+                    rowbuf[x * 2 + 0] = (uint8_t)(c16);
+                    rowbuf[x * 2 + 1] = (uint8_t)(c16 >> 8);
+                }
+                if (l_x11_write_full(c->x11_fd, rowbuf, rw * 2) < 0) return;
+                if (row_pad > 0) {
+                    uint8_t pad[4] = {0};
+                    if (l_x11_write_full(c->x11_fd, pad, row_pad) < 0) return;
+                }
+            }
+        }
+    }
+}
+
+// ── Framebuffer open (extracted for backend selection) ────────────────────────
+
+static inline int l_fb_canvas_open(L_Canvas *c, int width, int height) {
+    c->fb_fd = (int)l_open("/dev/fb0", 2, 0);
     if (c->fb_fd < 0) return -1;
 
     struct l_fb_var_screeninfo vinfo;
@@ -559,26 +1056,18 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     l_memset(&vinfo, 0, sizeof(vinfo));
     l_memset(&finfo, 0, sizeof(finfo));
 
-    // GCC -Wpedantic warns about GNU statement expressions in my_syscall macros
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
     long vret = my_syscall3(__NR_ioctl, c->fb_fd, L_FBIOGET_VSCREENINFO, &vinfo);
-    if (vret < 0) {
-        l_close(c->fb_fd);
-        return -1;
-    }
+    if (vret < 0) { l_close(c->fb_fd); return -1; }
     long fret = my_syscall3(__NR_ioctl, c->fb_fd, L_FBIOGET_FSCREENINFO, &finfo);
-    if (fret < 0) {
-        l_close(c->fb_fd);
-        return -1;
-    }
+    if (fret < 0) { l_close(c->fb_fd); return -1; }
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 
-    // Use requested size or framebuffer size, whichever is smaller
     c->width  = (width  > 0 && width  < (int)vinfo.xres) ? width  : (int)vinfo.xres;
     c->height = (height > 0 && height < (int)vinfo.yres) ? height : (int)vinfo.yres;
     c->stride = c->width * 4;
@@ -587,17 +1076,12 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     c->fb_xoff   = (int)vinfo.xoffset;
     c->fb_yoff   = (int)vinfo.yoffset;
 
-    // Map framebuffer
     int fb_size = (int)(finfo.line_length * vinfo.yres_virtual);
     if (fb_size <= 0) fb_size = (int)(finfo.line_length * vinfo.yres);
     c->fb_size = fb_size;
     c->fb_mem = (uint8_t *)l_mmap(0, (size_t)fb_size, L_PROT_READ | L_PROT_WRITE, L_MAP_SHARED, c->fb_fd, 0);
-    if (c->fb_mem == (uint8_t *)L_MAP_FAILED) {
-        l_close(c->fb_fd);
-        return -1;
-    }
+    if (c->fb_mem == (uint8_t *)L_MAP_FAILED) { l_close(c->fb_fd); return -1; }
 
-    // Allocate pixel buffer (anonymous mmap)
     int pix_size = c->stride * c->height;
     c->pixels = (uint32_t *)l_mmap(0, (size_t)pix_size, L_PROT_READ | L_PROT_WRITE,
                                     L_MAP_PRIVATE | L_MAP_ANONYMOUS, -1, 0);
@@ -607,39 +1091,83 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
         return -1;
     }
 
-    // Enter raw terminal mode for keyboard input
     c->saved_tty = l_term_raw();
-
-    // Try to open PS/2 mouse device (failure is non-fatal)
-    c->mouse_fd = (int)l_open("/dev/input/mice", 0 /* O_RDONLY */, 0);
+    c->mouse_fd = (int)l_open("/dev/input/mice", 0, 0);
     return 0;
 }
 
+// ── Public API implementations ───────────────────────────────────────────────
+
+static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *title) {
+    l_memset(c, 0, sizeof(*c));
+    c->mouse_fd = -1;
+
+    /* Try X11 first if $DISPLAY is set */
+    const char *disp = l_getenv("DISPLAY");
+    if (disp && disp[0]) {
+        if (width <= 0) width = 800;
+        if (height <= 0) height = 600;
+        c->width = width;
+        c->height = height;
+        c->stride = width * 4;
+
+        /* Allocate pixel buffer */
+        int pix_size = c->stride * c->height;
+        c->pixels = (uint32_t *)l_mmap(0, (size_t)pix_size, L_PROT_READ | L_PROT_WRITE,
+                                        L_MAP_PRIVATE | L_MAP_ANONYMOUS, -1, 0);
+        if (c->pixels != (uint32_t *)L_MAP_FAILED) {
+            if (l_x11_connect(c, width, height, title) == 0) {
+                c->backend = 1;
+                return 0;
+            }
+            l_munmap(c->pixels, (size_t)pix_size);
+        }
+    }
+
+    /* Fall back to framebuffer */
+    c->backend = 0;
+    return l_fb_canvas_open(c, width, height);
+}
+
 static inline void l_canvas_close(L_Canvas *c) {
-    if (c->mouse_fd >= 0) l_close(c->mouse_fd);
-    if (c->saved_tty) l_term_restore(c->saved_tty);
-    if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
-        l_munmap(c->pixels, (size_t)(c->stride * c->height));
-    if (c->fb_mem && c->fb_mem != (uint8_t *)L_MAP_FAILED)
-        l_munmap(c->fb_mem, (size_t)c->fb_size);
-    if (c->fb_fd > 0) l_close(c->fb_fd);
+    if (c->backend == 1) {
+        /* X11 cleanup */
+        if (c->x11_fd > 0) l_close(c->x11_fd);
+        if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
+            l_munmap(c->pixels, (size_t)(c->stride * c->height));
+    } else {
+        /* Framebuffer cleanup */
+        if (c->mouse_fd >= 0) l_close(c->mouse_fd);
+        if (c->saved_tty) l_term_restore(c->saved_tty);
+        if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
+            l_munmap(c->pixels, (size_t)(c->stride * c->height));
+        if (c->fb_mem && c->fb_mem != (uint8_t *)L_MAP_FAILED)
+            l_munmap(c->fb_mem, (size_t)c->fb_size);
+        if (c->fb_fd > 0) l_close(c->fb_fd);
+    }
     l_memset(c, 0, sizeof(*c));
 }
 
 static inline int l_canvas_alive(L_Canvas *c) {
+    if (c->backend == 1)
+        return !c->closed && c->x11_fd > 0;
     return c->fb_mem != 0 && c->fb_mem != (uint8_t *)L_MAP_FAILED;
 }
 
 static inline void l_canvas_flush(L_Canvas *c) {
+    if (c->backend == 1) {
+        l_x11_pump_events(c);
+        l_x11_put_image(c);
+        return;
+    }
+    /* Framebuffer flush */
     if (!c->fb_mem || c->fb_mem == (uint8_t *)L_MAP_FAILED) return;
-    // Copy pixel buffer → framebuffer, handling stride and bpp differences
     for (int y = 0; y < c->height; y++) {
         uint32_t *src = c->pixels + y * (c->stride / 4);
         uint8_t  *dst = c->fb_mem + (y + c->fb_yoff) * c->fb_stride + c->fb_xoff * (c->fb_bpp / 8);
         if (c->fb_bpp == 32) {
             l_memcpy(dst, src, (size_t)(c->width * 4));
         } else if (c->fb_bpp == 16) {
-            // Convert ARGB8888 → RGB565
             uint16_t *d16 = (uint16_t *)dst;
             for (int x = 0; x < c->width; x++) {
                 uint32_t p = src[x];
@@ -648,9 +1176,9 @@ static inline void l_canvas_flush(L_Canvas *c) {
         } else if (c->fb_bpp == 24) {
             for (int x = 0; x < c->width; x++) {
                 uint32_t p = src[x];
-                dst[x*3+0] = (uint8_t)(p);        // B
-                dst[x*3+1] = (uint8_t)(p >> 8);   // G
-                dst[x*3+2] = (uint8_t)(p >> 16);  // R
+                dst[x*3+0] = (uint8_t)(p);
+                dst[x*3+1] = (uint8_t)(p >> 8);
+                dst[x*3+2] = (uint8_t)(p >> 16);
             }
         }
     }
@@ -663,25 +1191,33 @@ static inline void l_canvas_clear(L_Canvas *c, uint32_t color) {
 }
 
 static inline int l_canvas_key(L_Canvas *c) {
-    (void)c;
+    if (c->backend == 1) {
+        l_x11_pump_events(c);
+        if (c->key_head == c->key_tail) return 0;
+        int key = c->keys[c->key_tail];
+        c->key_tail = (c->key_tail + 1) % 16;
+        return key;
+    }
+    /* Framebuffer: terminal raw mode */
     char buf[8];
     ssize_t n = l_read_nonblock(L_STDIN, buf, sizeof(buf));
     if (n <= 0) return 0;
-    // Decode escape sequences for arrow keys
     if (n == 1) return (unsigned char)buf[0];
     if (n >= 3 && buf[0] == '\033' && buf[1] == '[') {
         switch (buf[2]) {
-        case 'A': return 1003; // up
-        case 'B': return 1004; // down
-        case 'C': return 1002; // right
-        case 'D': return 1001; // left
+        case 'A': return 1003;
+        case 'B': return 1004;
+        case 'C': return 1002;
+        case 'D': return 1001;
         }
     }
     return (unsigned char)buf[0];
 }
 
 static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
-    if (c->mouse_fd >= 0) {
+    if (c->backend == 1) {
+        l_x11_pump_events(c);
+    } else if (c->mouse_fd >= 0) {
         uint8_t pkt[3];
         while (l_read_nonblock(c->mouse_fd, pkt, 3) == 3) {
             int dx = (int)pkt[1] - ((pkt[0] & 0x10) ? 256 : 0);

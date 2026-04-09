@@ -10,7 +10,7 @@
 #define WIN_H 480
 
 int main(int argc, char *argv[]) {
-    (void)argc; (void)argv;
+    l_getenv_init(argc, argv);
 
     L_Canvas canvas;
     if (l_canvas_open(&canvas, WIN_W, WIN_H, "UI Demo") != 0) {

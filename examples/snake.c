@@ -139,7 +139,7 @@ static void update(void) {
 }
 
 int main(int argc, char *argv[]) {
-    (void)argc; (void)argv;
+    l_getenv_init(argc, argv);
 
     unsigned long old_mode = l_term_raw();
     write_str(L_ANSI_CLEAR);  // Clear screen

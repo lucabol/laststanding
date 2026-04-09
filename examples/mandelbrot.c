@@ -103,7 +103,7 @@ static void draw_hud(L_Canvas *c) {
 }
 
 int main(int argc, char *argv[]) {
-    (void)argc; (void)argv;
+    l_getenv_init(argc, argv);
 
     L_Canvas canvas;
     if (l_canvas_open(&canvas, W, H, "Mandelbrot") != 0) {
