@@ -715,6 +715,8 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_sha256_update` | Feed data into SHA-256. | All |
 | `l_sha256_final` | Finalize and produce 32-byte hash. | All |
 | `l_sha256` | One-shot SHA-256. | All |
+| `l_base64_encode` | Encode `len` bytes from `data` into standard Base64. Writes at most `outsz` bytes (including NUL) | All |
+| `l_base64_decode` | Decode Base64 text of length `inlen` into `out`. Returns decoded byte count, or -1 on invalid input | All |
 | `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
 | `l_chdir` | Changes the current working directory | All |
 | `l_pipe` | Creates a pipe. fds[0] is the read end, fds[1] is the write end. Returns 0 on success, -1 on error. | All |
@@ -1069,6 +1071,8 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_sha256_update`` | ✅ | ✅ | ✅ |
 | ``l_sha256_final`` | ✅ | ✅ | ✅ |
 | ``l_sha256`` | ✅ | ✅ | ✅ |
+| ``l_base64_encode`` | ✅ | ✅ | ✅ |
+| ``l_base64_decode`` | ✅ | ✅ | ✅ |
 | ``l_getcwd`` | ✅ | ✅ | ✅ |
 | ``l_chdir`` | ✅ | ✅ | ❌ |
 | ``l_pipe`` | ✅ | ✅ | ❌ |
@@ -1177,7 +1181,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_strtoll` | ✅ | test_strings.c |
 | `l_strtod` | ✅ | test_strings.c |
 | `l_atof` | ✅ | test_strings.c |
-| `l_strtof` | ✅ | test_utils.c |
+| `l_strtof` | ✅ | test_strings.c, test_utils.c |
 | **Math functions** | | |
 | `l_fabs` | ✅ | test_utils.c |
 | `l_floor` | ✅ | test_utils.c |
@@ -1354,6 +1358,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_sha256_update` | ✅ | test_utils.c |
 | `l_sha256_final` | ✅ | test_utils.c |
 | `l_sha256` | ✅ | test_utils.c |
+| `l_base64_encode` | ✅ | test_utils.c |
+| `l_base64_decode` | ✅ | test_utils.c |
 | `l_getcwd` | ✅ | test_fs.c |
 | `l_chdir` | ✅ | test_fs.c |
 | `l_pipe` | ✅ | test_fs.c, test_strings.c, test.c |
@@ -1402,7 +1408,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | ``l_socket_sendto_addr`` | — | |
 | ``l_socket_recvfrom_addr`` | — | |
 
-**Coverage: 241 / 244 functions referenced in tests** (99%)
+**Coverage: 243 / 246 functions referenced in tests** (99%)
 
 <!-- END COVERAGE MATRIX -->
 
