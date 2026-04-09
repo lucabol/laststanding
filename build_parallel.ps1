@@ -27,6 +27,13 @@ foreach ($f in $files) {
         $extraLibs = "-lws2_32"
     }
 
+    # Detect if source uses l_img.h (needs compat headers for stb_image on non-Windows)
+    $extraInc = ""
+    if ($content -match 'l_img\.h') {
+        # On Windows, system headers provide string.h/stdlib.h — no compat needed
+        # $extraInc = ""  (leave empty on Windows)
+    }
+
     # Add -I<relative_dir> so includes relative to the source file resolve
     # (e.g. test_support.h in tests/) regardless of which clang is on PATH.
     # Use the relative directory name (e.g. "tests", "examples") for portability.
@@ -34,7 +41,7 @@ foreach ($f in $files) {
 
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $CC
-    $psi.Arguments = "-I. -I$relDir `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
+    $psi.Arguments = "-I. -I$relDir $extraInc `"$($f.FullName)`" -Oz -lkernel32 $extraLibs -ffreestanding -o `"$OutDir\$name.exe`""
     $psi.WorkingDirectory = $PWD.Path
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true

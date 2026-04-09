@@ -9437,9 +9437,15 @@ static inline int l_path_isdir(const char *path) {
 #undef memset
 #undef memcpy
 #undef memmove
+#undef memcmp
+#undef strlen
 void *memset(void *dst, int b, size_t len) { return l_memset(dst, b, len); }
 void *memcpy(void *dst, const void *src, size_t len) { return l_memcpy(dst, src, len); }
 void *memmove(void *dst, const void *src, size_t len) { return l_memmove(dst, src, len); }
+#if !defined(_WIN32) && !defined(__wasi__)
+int memcmp(const void *a, const void *b, size_t n) { return l_memcmp(a, b, n); }
+size_t strlen(const char *s) { return l_strlen(s); }
+#endif
 #ifndef L_DONTOVERRIDE
 #define memset l_memset
 #define memcpy l_memcpy

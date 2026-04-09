@@ -655,11 +655,21 @@ static inline int l_x11_write_full(int fd, const void *buf, int n) {
 /* Parse $DISPLAY to extract display number; returns -1 if not local Unix */
 static inline int l_x11_parse_display(const char *disp, char *sockpath, int pathsz) {
     if (!disp || !disp[0]) return -1;
-    /* Accept ":N" or ":N.S" — must start with ':' for local Unix socket */
     if (disp[0] != ':') return -1;
     int dnum = l_atoi(disp + 1);
     if (dnum < 0) dnum = 0;
-    l_snprintf(sockpath, (size_t)pathsz, "/tmp/.X11-unix/X%d", dnum);
+    /* Build "/tmp/.X11-unix/X{dnum}" manually */
+    const char *prefix = "/tmp/.X11-unix/X";
+    int i = 0;
+    while (prefix[i] && i < pathsz - 1) { sockpath[i] = prefix[i]; i++; }
+    /* Append display number as decimal digits */
+    char numbuf[12];
+    int nlen = 0;
+    int d = dnum;
+    if (d == 0) { numbuf[nlen++] = '0'; }
+    else { while (d > 0 && nlen < 10) { numbuf[nlen++] = (char)('0' + d % 10); d /= 10; } }
+    for (int j = nlen - 1; j >= 0 && i < pathsz - 1; j--) sockpath[i++] = numbuf[j];
+    sockpath[i] = '\0';
     return dnum;
 }
 
@@ -669,7 +679,13 @@ static inline int l_x11_read_xauth(int display_num, uint8_t *cookie, int cookie_
     char path[256];
     const char *home = l_getenv("HOME");
     if (!home) return 0;
-    l_snprintf(path, sizeof(path), "%s/.Xauthority", home);
+    /* Build "$HOME/.Xauthority" manually */
+    int i = 0;
+    while (home[i] && i < 240) { path[i] = home[i]; i++; }
+    const char *suffix = "/.Xauthority";
+    int j = 0;
+    while (suffix[j] && i < 255) { path[i++] = suffix[j++]; }
+    path[i] = '\0';
     L_FD fd = l_open(path, 0 /*O_RDONLY*/, 0);
     if (fd < 0) return 0;
 
@@ -680,7 +696,15 @@ static inline int l_x11_read_xauth(int display_num, uint8_t *cookie, int cookie_
        uint16_t name_len, name_len bytes of protocol name
        uint16_t data_len, data_len bytes of auth data */
     char dnum_str[16];
-    l_snprintf(dnum_str, sizeof(dnum_str), "%d", display_num);
+    /* Convert display_num to string manually */
+    {
+        int d = display_num, pos = 0;
+        char tmp[16];
+        if (d == 0) { tmp[pos++] = '0'; }
+        else { while (d > 0 && pos < 14) { tmp[pos++] = (char)('0' + d % 10); d /= 10; } }
+        for (int k = 0; k < pos; k++) dnum_str[k] = tmp[pos - 1 - k];
+        dnum_str[pos] = '\0';
+    }
     int dnum_len = (int)l_strlen(dnum_str);
 
     for (;;) {

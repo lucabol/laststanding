@@ -27,7 +27,9 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
+    EXTRA_INC=""
+    grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
   done
 }
 
@@ -55,7 +57,9 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
+    EXTRA_INC=""
+    grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
   done
 }
 
@@ -80,7 +84,9 @@ function build_aarch64 {    # Build for AArch64 (arm64) {compiler:aarch64-linux-
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.aarch64
+    EXTRA_INC=""
+    grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.aarch64
   done
 }
 
@@ -106,7 +112,9 @@ function build_riscv {    # Build for RISC-V (rv64gc) {compiler:riscv64-linux-gn
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
-    $CC -I. -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.riscv64
+    EXTRA_INC=""
+    grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.riscv64
   done
 }
 
@@ -140,7 +148,7 @@ function test_riscv {    # Build and run default RISC-V regression tests using Q
   build_riscv "$@"
   echo "=== Running default RISC-V regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test.riscv64 bin/test_strings.riscv64 bin/test_fs.riscv64 bin/test_utils.riscv64 bin/gfx_test.riscv64 bin/ui_test.riscv64; do
+  for exe in bin/test.riscv64 bin/test_strings.riscv64 bin/test_fs.riscv64 bin/test_utils.riscv64 bin/test_img.riscv64 bin/gfx_test.riscv64 bin/ui_test.riscv64; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-riscv64 -L /usr/riscv64-linux-gnu "$exe"
@@ -428,7 +436,7 @@ function test {    # Build and run default regression tests (examples compile, r
   build "$@"
   echo "=== Running default regression tests in bin/ ==="
   local fail=0
-  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/gfx_test bin/ui_test; do
+  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/test_img bin/gfx_test bin/ui_test; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       "$exe"
@@ -454,7 +462,7 @@ function test_arm {    # Build and run default ARM regression tests using QEMU
   build_arm "$@"
   echo "=== Running default ARM regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test.armhf bin/test_strings.armhf bin/test_fs.armhf bin/test_utils.armhf bin/gfx_test.armhf bin/ui_test.armhf; do
+  for exe in bin/test.armhf bin/test_strings.armhf bin/test_fs.armhf bin/test_utils.armhf bin/test_img.armhf bin/gfx_test.armhf bin/ui_test.armhf; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-arm -L /usr/arm-linux-gnueabihf "$exe"
@@ -480,7 +488,7 @@ function test_aarch64 {    # Build and run default AArch64 regression tests usin
   build_aarch64 "$@"
   echo "=== Running default AArch64 regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test.aarch64 bin/test_strings.aarch64 bin/test_fs.aarch64 bin/test_utils.aarch64 bin/gfx_test.aarch64 bin/ui_test.aarch64; do
+  for exe in bin/test.aarch64 bin/test_strings.aarch64 bin/test_fs.aarch64 bin/test_utils.aarch64 bin/test_img.aarch64 bin/gfx_test.aarch64 bin/ui_test.aarch64; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-aarch64 -L /usr/aarch64-linux-gnu "$exe"
