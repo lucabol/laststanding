@@ -799,6 +799,11 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | **Text rendering** | |
 | `l_draw_char` | Draws a single character at (x,y) using the embedded 8x8 bitmap font. |
 | `l_draw_text` | Draws a null-terminated string at (x,y), advancing 8 pixels per character. |
+| `l_draw_char_scaled` | Draws a single character at (x,y) scaled by (sx,sy) using nearest-neighbor. |
+| `l_draw_text_scaled` | Draws a string at (x,y) with each glyph scaled by (sx,sy). |
+| **Pixel blitting** | |
+| `l_blit` | Blit a rectangle of ARGB pixels onto the canvas at (dx, dy). |
+| `l_blit_alpha` | Blit with alpha blending (source-over). Assumes pre-multiplied alpha in the A channel. |
 
 <!-- END GFX REFERENCE -->
 

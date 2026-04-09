@@ -94,6 +94,58 @@ static void test_in_memory(void) {
     TEST_CHECK(L_RGB(0, 255, 0) == L_GREEN, "L_RGB green");
     TEST_CHECK(L_RGB(0, 0, 255) == L_BLUE, "L_RGB blue");
     TEST_CHECK(L_RGBA(255, 255, 255, 255) == L_WHITE, "L_RGBA white");
+
+    // Test draw_char_scaled
+    l_canvas_clear(&c, L_BLACK);
+    l_draw_char_scaled(&c, 0, 0, 'A', L_WHITE, 2, 2);
+    // 'A' at 2x: row 0 glyph = 0x0C → bits at col 2,3 → scaled to (4,0)-(5,1) and (6,0)-(7,1)
+    TEST_CHECK(l_get_pixel(&c, 4, 0) == L_WHITE, "draw_char_scaled 2x pixel set");
+    TEST_CHECK(l_get_pixel(&c, 5, 1) == L_WHITE, "draw_char_scaled 2x fills block");
+    TEST_CHECK(l_get_pixel(&c, 0, 0) == L_BLACK, "draw_char_scaled 2x empty bit");
+
+    // Test draw_text_scaled
+    l_canvas_clear(&c, L_BLACK);
+    l_draw_text_scaled(&c, 0, 0, "A", L_RED, 3, 3);
+    // At 3x, each glyph occupies 24x24 pixels. Check the glyph renders.
+    TEST_CHECK(l_get_pixel(&c, 6, 0) == L_RED, "draw_text_scaled 3x pixel");
+    TEST_CHECK(l_get_pixel(&c, 0, 0) == L_BLACK, "draw_text_scaled 3x empty");
+
+    // Test l_blit
+    l_canvas_clear(&c, L_BLACK);
+    uint32_t src_blit[4] = { L_RED, L_GREEN, L_BLUE, L_WHITE };
+    l_blit(&c, 10, 10, 2, 2, src_blit, 2 * 4);
+    TEST_CHECK(l_get_pixel(&c, 10, 10) == L_RED, "blit top-left");
+    TEST_CHECK(l_get_pixel(&c, 11, 10) == L_GREEN, "blit top-right");
+    TEST_CHECK(l_get_pixel(&c, 10, 11) == L_BLUE, "blit bottom-left");
+    TEST_CHECK(l_get_pixel(&c, 11, 11) == L_WHITE, "blit bottom-right");
+    TEST_CHECK(l_get_pixel(&c, 9, 10) == L_BLACK, "blit doesn't bleed left");
+
+    // Test l_blit out-of-bounds (clipped, should not crash)
+    l_blit(&c, -1, -1, 2, 2, src_blit, 2 * 4);
+    TEST_CHECK(l_get_pixel(&c, 0, 0) == L_WHITE, "blit clipped at (-1,-1) writes (0,0)");
+
+    // Test l_blit_alpha (uses pre-multiplied alpha)
+    l_canvas_clear(&c, L_WHITE);
+    uint32_t semi = L_RGBA(128, 0, 0, 128); // pre-multiplied: half-red at half-alpha
+    uint32_t src_alpha[1] = { semi };
+    l_blit_alpha(&c, 20, 20, 1, 1, src_alpha, 4);
+    uint32_t blended = l_get_pixel(&c, 20, 20);
+    // R = 128 + 255*(127/255) ≈ 255, G = 0 + 255*(127/255) ≈ 127
+    uint32_t br = (blended >> 16) & 0xFF;
+    uint32_t bg = (blended >> 8) & 0xFF;
+    TEST_CHECK(br > 200, "blit_alpha red channel high");
+    TEST_CHECK(bg > 100 && bg < 180, "blit_alpha green channel blended");
+
+    // Test fully transparent blit_alpha (no change)
+    l_canvas_clear(&c, L_GREEN);
+    uint32_t transparent = L_RGBA(255, 0, 0, 0);
+    l_blit_alpha(&c, 30, 30, 1, 1, &transparent, 4);
+    TEST_CHECK(l_get_pixel(&c, 30, 30) == L_GREEN, "blit_alpha transparent no change");
+
+    // Test fully opaque blit_alpha (overwrite)
+    uint32_t opaque = L_RGBA(0, 0, 255, 255);
+    l_blit_alpha(&c, 30, 30, 1, 1, &opaque, 4);
+    TEST_CHECK(l_get_pixel(&c, 30, 30) == L_BLUE, "blit_alpha opaque overwrites");
 }
 
 static void test_backend_helpers(void) {
@@ -114,10 +166,21 @@ static void test_backend_helpers(void) {
     TEST_CHECK(l_canvas_key(&c) == 0, "canvas_key returns 0 when queue empty");
 #else
     c.mouse_fd = -1;
+    c.backend = 0; /* framebuffer backend */
     TEST_CHECK(l_canvas_alive(&c) == 0, "canvas_alive false without framebuffer");
     c.fb_mem = (uint8_t *)1;
     TEST_CHECK(l_canvas_alive(&c) == 1, "canvas_alive true with framebuffer memory");
     c.fb_mem = 0;
+    /* X11 backend alive check */
+    c.backend = 1;
+    c.x11_fd = 5;
+    c.closed = 0;
+    TEST_CHECK(l_canvas_alive(&c) == 1, "canvas_alive true with X11 fd");
+    c.closed = 1;
+    TEST_CHECK(l_canvas_alive(&c) == 0, "canvas_alive false when X11 closed");
+    c.backend = 0;
+    c.x11_fd = 0;
+    c.closed = 0;
 #endif
 
     c.mouse_x = 12;

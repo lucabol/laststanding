@@ -316,6 +316,71 @@ static inline void l_draw_text(L_Canvas *c, int x, int y, const char *text, uint
     }
 }
 
+/// Draws a single character at (x,y) scaled by (sx,sy) using nearest-neighbor.
+static inline void l_draw_char_scaled(L_Canvas *c, int x, int y, char ch,
+                                       uint32_t color, int sx, int sy) {
+    if (ch < 32 || ch > 126 || sx < 1 || sy < 1) return;
+    const uint8_t *glyph = l_font8x8[ch - 32];
+    for (int row = 0; row < 8; row++)
+        for (int col = 0; col < 8; col++)
+            if (glyph[row] & (1 << col))
+                l_fill_rect(c, x + col * sx, y + row * sy, sx, sy, color);
+}
+
+/// Draws a string at (x,y) with each glyph scaled by (sx,sy).
+static inline void l_draw_text_scaled(L_Canvas *c, int x, int y, const char *text,
+                                       uint32_t color, int sx, int sy) {
+    while (*text) {
+        l_draw_char_scaled(c, x, y, *text, color, sx, sy);
+        x += 8 * sx;
+        text++;
+    }
+}
+
+// ── Pixel blitting ───────────────────────────────────────────────────────────
+
+/// Blit a rectangle of ARGB pixels onto the canvas at (dx, dy).
+/// src points to width*height pixels in row-major ARGB format; src_stride is bytes per source row.
+static inline void l_blit(L_Canvas *c, int dx, int dy, int w, int h,
+                           const uint32_t *src, int src_stride) {
+    int s = c->stride / 4;
+    for (int y = 0; y < h; y++) {
+        int cy = dy + y;
+        if (cy < 0 || cy >= c->height) continue;
+        const uint32_t *row = (const uint32_t *)((const uint8_t *)src + y * src_stride);
+        for (int x = 0; x < w; x++) {
+            int cx = dx + x;
+            if (cx >= 0 && cx < c->width)
+                c->pixels[cy * s + cx] = row[x];
+        }
+    }
+}
+
+/// Blit with alpha blending (source-over). Assumes pre-multiplied alpha in the A channel.
+static inline void l_blit_alpha(L_Canvas *c, int dx, int dy, int w, int h,
+                                 const uint32_t *src, int src_stride) {
+    int s = c->stride / 4;
+    for (int y = 0; y < h; y++) {
+        int cy = dy + y;
+        if (cy < 0 || cy >= c->height) continue;
+        const uint32_t *row = (const uint32_t *)((const uint8_t *)src + y * src_stride);
+        for (int x = 0; x < w; x++) {
+            int cx = dx + x;
+            if (cx < 0 || cx >= c->width) continue;
+            uint32_t sp = row[x];
+            uint32_t sa = (sp >> 24) & 0xFF;
+            if (sa == 0xFF) { c->pixels[cy * s + cx] = sp; continue; }
+            if (sa == 0) continue;
+            uint32_t dp = c->pixels[cy * s + cx];
+            uint32_t inv = 255 - sa;
+            uint32_t r = ((sp >> 16) & 0xFF) + (((dp >> 16) & 0xFF) * inv / 255);
+            uint32_t g = ((sp >> 8) & 0xFF)  + (((dp >> 8) & 0xFF) * inv / 255);
+            uint32_t b = (sp & 0xFF)         + ((dp & 0xFF) * inv / 255);
+            c->pixels[cy * s + cx] = 0xFF000000u | (r << 16) | (g << 8) | b;
+        }
+    }
+}
+
 // ── Platform implementations ─────────────────────────────────────────────────
 
 #ifdef L_WITHDEFS
