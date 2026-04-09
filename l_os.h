@@ -1117,6 +1117,8 @@ static inline L_SOCKET l_socket_unix_connect(const char *path);
 #endif // L_WITHDEFS
 
 #ifdef L_WITHSTART
+#ifndef L_WITHSTART_DONE
+#define L_WITHSTART_DONE
 
 #ifdef __unix__
 
@@ -1403,6 +1405,7 @@ int WINAPI mainCRTStartup(void)
     return(i);
 }
 #endif // __unix__
+#endif // L_WITHSTART_DONE
 #endif // L_WITHSTART
 
 #ifndef L_OSH
@@ -9434,6 +9437,8 @@ static inline int l_path_isdir(const char *path) {
 // Compilers (especially clang LTO on ARM) emit calls to these for
 // large struct copies/zeroing even in freestanding mode.
 #ifdef L_MAINFILE
+#ifndef L_MEMFUNCS_DONE
+#define L_MEMFUNCS_DONE
 #undef memset
 #undef memcpy
 #undef memmove
@@ -9449,4 +9454,5 @@ size_t strlen(const char *s) { return l_strlen(s); }
 #define memcpy l_memcpy
 #define memmove l_memmove
 #endif
+#endif // L_MEMFUNCS_DONE
 #endif // L_MAINFILE
