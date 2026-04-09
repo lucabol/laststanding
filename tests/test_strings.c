@@ -560,6 +560,13 @@ void test_strtoul_strtol(void) {
     /* strtoul: overflow -> ULONG_MAX */
     TEST_ASSERT(l_strtoul("99999999999999999999999", NULL, 10) == ULONG_MAX, "strtoul overflow -> ULONG_MAX");
 
+    /* strtoul: negative sign — C99 §7.20.1.4: result is negated in the return type */
+    TEST_ASSERT(l_strtoul("-1",  NULL, 10) == ULONG_MAX, "strtoul '-1' -> ULONG_MAX");
+    TEST_ASSERT(l_strtoul("-0",  NULL, 10) == 0UL,       "strtoul '-0' -> 0");
+    ep = NULL;
+    l_strtoul("-42abc", &ep, 10);
+    TEST_ASSERT(ep != NULL && ep[0] == 'a', "strtoul '-42abc' endptr after digits");
+
     /* strtol: positive */
     TEST_ASSERT(l_strtol("42",  NULL, 10) == 42L,  "strtol '42'");
     TEST_ASSERT(l_strtol(" 42", NULL, 10) == 42L,  "strtol leading space");
@@ -610,6 +617,10 @@ void test_strtoull_strtoll(void) {
     /* strtoull: overflow -> ULLONG_MAX */
     TEST_ASSERT(l_strtoull("99999999999999999999999999", NULL, 10) == 18446744073709551615ULL,
                 "strtoull overflow -> ULLONG_MAX");
+
+    /* strtoull: negative sign — C99 §7.20.1.4 */
+    TEST_ASSERT(l_strtoull("-1", NULL, 10) == 18446744073709551615ULL, "strtoull '-1' -> ULLONG_MAX");
+    TEST_ASSERT(l_strtoull("-0", NULL, 10) == 0ULL,                    "strtoull '-0' -> 0");
 
     /* strtoull: endptr */
     ep = NULL;
