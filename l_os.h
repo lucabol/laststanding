@@ -3537,37 +3537,53 @@ static inline int l_strncasecmp(const char *s1, const char *s2, size_t n) {
 }
 
 static inline size_t l_strspn(const char *s, const char *accept) {
-    size_t count = 0;
-    for (; *s; s++) {
-        const char *a = accept;
-        int found = 0;
-        for (; *a; a++) {
-            if (*s == *a) { found = 1; break; }
-        }
-        if (!found) break;
-        count++;
+    /* 256-bit bitmap (32 bytes): build once from accept, then scan s in O(n+m). */
+    unsigned char tbl[32];
+    const char *a;
+    l_memset(tbl, 0, sizeof(tbl));
+    for (a = accept; *a; a++) {
+        unsigned char c = (unsigned char)*a;
+        tbl[c >> 3] |= (unsigned char)(1u << (c & 7));
     }
-    return count;
+    const char *p = s;
+    while (*p) {
+        unsigned char c = (unsigned char)*p;
+        if (!(tbl[c >> 3] & (unsigned char)(1u << (c & 7)))) break;
+        p++;
+    }
+    return (size_t)(p - s);
 }
 
 static inline size_t l_strcspn(const char *s, const char *reject) {
-    size_t count = 0;
-    for (; *s; s++) {
-        const char *r = reject;
-        for (; *r; r++) {
-            if (*s == *r) return count;
-        }
-        count++;
+    /* 256-bit bitmap: build from reject; NUL always terminates (bit 0 stays 0). */
+    unsigned char tbl[32];
+    const char *r;
+    l_memset(tbl, 0, sizeof(tbl));
+    for (r = reject; *r; r++) {
+        unsigned char c = (unsigned char)*r;
+        tbl[c >> 3] |= (unsigned char)(1u << (c & 7));
     }
-    return count;
+    const char *p = s;
+    while (*p) {
+        unsigned char c = (unsigned char)*p;
+        if (tbl[c >> 3] & (unsigned char)(1u << (c & 7))) break;
+        p++;
+    }
+    return (size_t)(p - s);
 }
 
 static inline char *l_strpbrk(const char *s, const char *accept) {
+    /* 256-bit bitmap: build from accept; find first s char in the set. */
+    unsigned char tbl[32];
+    const char *a;
+    l_memset(tbl, 0, sizeof(tbl));
+    for (a = accept; *a; a++) {
+        unsigned char c = (unsigned char)*a;
+        tbl[c >> 3] |= (unsigned char)(1u << (c & 7));
+    }
     for (; *s; s++) {
-        const char *a = accept;
-        for (; *a; a++) {
-            if (*s == *a) return (char *)s;
-        }
+        unsigned char c = (unsigned char)*s;
+        if (tbl[c >> 3] & (unsigned char)(1u << (c & 7))) return (char *)s;
     }
     return (char *)0;
 }
