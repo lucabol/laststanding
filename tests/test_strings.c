@@ -1280,6 +1280,52 @@ void test_snprintf(void) {
     l_snprintf(buf, sizeof(buf), "%zu", (size_t)0);
     TEST_ASSERT(l_strcmp(buf, "0") == 0, "%zu zero");
 
+    /* %s with precision — must NOT call strlen past end of buffer (safety) */
+    {
+        /* non-null-terminated buffer of exactly 5 bytes: "hello" */
+        const char noterminated[5] = { 'h', 'e', 'l', 'l', 'o' };
+        l_snprintf(buf, sizeof(buf), "%.*s", 5, noterminated);
+        TEST_ASSERT(l_strncmp(buf, "hello", 5) == 0 && buf[5] == '\0',
+                    "%.5s non-null-terminated buffer");
+        l_snprintf(buf, sizeof(buf), "%.*s", 3, noterminated);
+        TEST_ASSERT(l_strcmp(buf, "hel") == 0, "%.3s partial non-null-terminated");
+    }
+
+    /* dynamic width: %*d */
+    l_snprintf(buf, sizeof(buf), "%*d", 6, 42);
+    TEST_ASSERT(l_strcmp(buf, "    42") == 0, "%*d width from va_arg");
+
+    l_snprintf(buf, sizeof(buf), "%*d", -6, 42);
+    TEST_ASSERT(l_strcmp(buf, "42    ") == 0, "%*d negative width = left-align");
+
+    /* dynamic precision: %.*s */
+    l_snprintf(buf, sizeof(buf), "%.*s", 3, "hello");
+    TEST_ASSERT(l_strcmp(buf, "hel") == 0, "%.*s precision from va_arg");
+
+    l_snprintf(buf, sizeof(buf), "%.*s", -1, "hello");
+    TEST_ASSERT(l_strcmp(buf, "hello") == 0, "%.*s negative precision = no limit");
+
+    /* dynamic precision: %.*f */
+    l_snprintf(buf, sizeof(buf), "%.*f", 2, 3.14159);
+    TEST_ASSERT(l_strcmp(buf, "3.14") == 0, "%.*f precision from va_arg");
+
+    /* + flag: force sign for positive integers */
+    l_snprintf(buf, sizeof(buf), "%+d", 42);
+    TEST_ASSERT(l_strcmp(buf, "+42") == 0, "%+d positive");
+
+    l_snprintf(buf, sizeof(buf), "%+d", -42);
+    TEST_ASSERT(l_strcmp(buf, "-42") == 0, "%+d negative (minus takes priority)");
+
+    l_snprintf(buf, sizeof(buf), "%+d", 0);
+    TEST_ASSERT(l_strcmp(buf, "+0") == 0, "%+d zero");
+
+    /* space flag: space prefix for positive */
+    l_snprintf(buf, sizeof(buf), "% d", 42);
+    TEST_ASSERT(l_strcmp(buf, " 42") == 0, "% d positive");
+
+    l_snprintf(buf, sizeof(buf), "% d", -42);
+    TEST_ASSERT(l_strcmp(buf, "-42") == 0, "% d negative");
+
     TEST_SECTION_PASS("l_snprintf");
 }
 
