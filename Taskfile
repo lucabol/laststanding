@@ -432,6 +432,25 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
   echo "=== Verification complete ==="
 }
 
+function quick_test {    # Run regression tests only (no build), ~15 seconds
+  echo "=== Quick smoke test (tests only, no build) ==="
+  local fail=0
+  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/test_img bin/gfx_test bin/ui_test; do
+    if [ -f "$exe" ] && [ -x "$exe" ]; then
+      "$exe"
+      if [ $? -ne 0 ]; then
+        echo "FAIL: $exe"
+        fail=1
+      fi
+    fi
+  done
+  if [ $fail -ne 0 ]; then
+    echo "=== SOME TESTS FAILED ==="
+    exit 1
+  fi
+  echo "=== All tests passed ==="
+}
+
 function test {    # Build and run default regression tests (examples compile, runtime checks are on-demand)
   build "$@"
   echo "=== Running default regression tests in bin/ ==="
