@@ -2444,7 +2444,15 @@ static inline double l_strtod(const char *nptr, char **endptr)
     if ((s[0] == 'i' || s[0] == 'I') &&
         (s[1] == 'n' || s[1] == 'N') &&
         (s[2] == 'f' || s[2] == 'F')) {
-        if (endptr) *endptr = (char *)(s + 3);
+        const char *end = s + 3;
+        /* consume optional "inity" to match "infinity" (case-insensitive) */
+        if ((end[0] == 'i' || end[0] == 'I') &&
+            (end[1] == 'n' || end[1] == 'N') &&
+            (end[2] == 'i' || end[2] == 'I') &&
+            (end[3] == 't' || end[3] == 'T') &&
+            (end[4] == 'y' || end[4] == 'Y'))
+            end += 5;
+        if (endptr) *endptr = (char *)end;
         return neg ? -__builtin_inf() : __builtin_inf();
     }
     /* NaN */
@@ -2514,7 +2522,15 @@ static inline float l_strtof(const char *nptr, char **endptr)
     if ((s[0] == 'i' || s[0] == 'I') &&
         (s[1] == 'n' || s[1] == 'N') &&
         (s[2] == 'f' || s[2] == 'F')) {
-        if (endptr) *endptr = (char *)(s + 3);
+        const char *end = s + 3;
+        /* consume optional "inity" to match "infinity" (case-insensitive) */
+        if ((end[0] == 'i' || end[0] == 'I') &&
+            (end[1] == 'n' || end[1] == 'N') &&
+            (end[2] == 'i' || end[2] == 'I') &&
+            (end[3] == 't' || end[3] == 'T') &&
+            (end[4] == 'y' || end[4] == 'Y'))
+            end += 5;
+        if (endptr) *endptr = (char *)end;
         return neg ? -__builtin_inff() : __builtin_inff();
     }
     /* NaN */
