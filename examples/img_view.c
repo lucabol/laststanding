@@ -47,9 +47,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Open canvas sized to the image (capped at 1024x768)
-    int cw = w > 1024 ? 1024 : w;
-    int ch = h > 768 ? 768 : h;
+    // Open canvas — scale image to fit 1024x768 if larger
+    int maxw = 1024, maxh = 768;
+    int cw = w, ch = h;
+    if (cw > maxw || ch > maxh) {
+        // Scale down preserving aspect ratio
+        int sw = (w * maxh) / h;  // width if we fit height
+        int sh = (h * maxw) / w;  // height if we fit width
+        if (sw <= maxw) { cw = sw; ch = maxh; }
+        else            { cw = maxw; ch = sh; }
+    }
 
     L_Canvas c;
     if (l_canvas_open(&c, cw, ch, argv[1]) != 0) {
@@ -58,8 +65,18 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Scale image to canvas using nearest-neighbor
     l_canvas_clear(&c, L_BLACK);
-    l_blit(&c, 0, 0, w, h, pixels, w * 4);
+    {
+        int s = c.stride / 4;
+        for (int dy = 0; dy < ch; dy++) {
+            int sy = (dy * h) / ch;
+            for (int dx = 0; dx < cw; dx++) {
+                int sx = (dx * w) / cw;
+                c.pixels[dy * s + dx] = pixels[sy * w + sx];
+            }
+        }
+    }
 
     // Overlay filename
     l_draw_text(&c, 4, ch - 12, argv[1], L_WHITE);

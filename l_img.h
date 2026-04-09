@@ -23,15 +23,15 @@
 
 #ifdef L_WITHDEFS
 
-#define L_IMG_POOL_SIZE (4 * 1024 * 1024)  /* 4 MB — enough for most images */
+#define L_IMG_POOL_SIZE (64 * 1024 * 1024)  /* 64 MB — handles images up to ~4000x4000 */
 
 /* Pool state — initialized on first use */
 static unsigned char *l_img__pool_base;
 static size_t l_img__pool_used;
 static size_t l_img__pool_cap;
 
-/* Track allocations for free (simple linked list in reserved space) */
-#define L_IMG_MAX_ALLOCS 256
+/* Track allocations for free */
+#define L_IMG_MAX_ALLOCS 1024
 static struct { void *ptr; size_t size; } l_img__allocs[L_IMG_MAX_ALLOCS];
 static int l_img__alloc_count;
 
