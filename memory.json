@@ -1,13 +1,16 @@
 {
-  "last_run": "2026-04-09T13:28:25Z",
-  "last_run_id": "24192713558",
-  "monthly_activity_issue": "new issue (aw_monthly, 2026-04) — previous #112 was closed by lucabol",
+  "last_run": "2026-04-10T01:29:16Z",
+  "last_run_id": "24221744897",
+  "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
-    {"number": 121, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open"}
+    {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open"}
+  ],
+  "pending_local_branches": [
+    {"branch": "repo-assist/eng-coverage-manifest-and-doc-2026-04-10", "commit": "fb116fd", "desc": "Register test_img.c in coverage manifest; fix l_img.h API comment (l_img_free -> l_img_free_pixels). NOT YET PUSHED — auth unavailable. Push next run."}
   ],
   "resolved_issues": [],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed_no_open_human_prs"},
   "checked_off_items": [],
   "comments_made": {},
-  "notes": "Maintainer merged all Repo Assist PRs (#110-120) in one big session on 2026-04-09 and also added l_img.h, X11 backend for l_gfx.h, scaled text/blit ops. Next: l_strtod subnormal/overflow/underflow errno conformance."
+  "notes": "PR #122 (l_memmove backward word-at-a-time) still open. Prepared eng branch eng-coverage-manifest-and-doc-2026-04-10 but couldn't push (no git auth in CI env). safeoutputs MCP tools not available in this run. Next: push pending branch or retry. l_strtod subnormal/overflow/underflow errno conformance still pending."
 }

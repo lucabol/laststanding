@@ -1,12 +1,12 @@
 {
-  "last_run": "2026-04-09T13:28:25Z",
-  "last_run_id": "24192713558",
-  "monthly_activity_issue": "#aw_monthly (open, 2026-04, new — #112 was closed by maintainer)",
+  "last_run": "2026-04-10T01:29:16Z",
+  "last_run_id": "24221744897",
+  "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
-    {"number": 121, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open"}
+    {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open"}
   ],
-  "resolved_issues": [],
-  "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed_no_open_human_prs"},
-  "checked_off_items": [],
-  "notes": "1 open Repo Assist PR: #121 (l_memmove backward word-at-a-time). Maintainer merged all previous PRs (#115-120) in one batch and closed monthly issue #112. Next: l_strtod conformance gaps (subnormal rounding, overflow errno)."
+  "pending_local_branches": [
+    {"branch": "repo-assist/eng-coverage-manifest-and-doc-2026-04-10", "commit": "fb116fd", "desc": "coverage_manifest + l_img.h doc fix. Needs push next run."}
+  ],
+  "notes": "safeoutputs MCP tools not available in this env. PR #122 open. Pending eng branch prepared. l_strtod conformance gaps still backlogged."
 }
