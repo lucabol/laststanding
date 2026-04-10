@@ -1,16 +1,16 @@
 {
-  "last_run": "2026-04-10T01:29:16Z",
-  "last_run_id": "24221744897",
+  "last_run": "2026-04-10T13:26:22Z",
+  "last_run_id": "24245150149",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
     {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open"}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/eng-coverage-manifest-and-doc-2026-04-10", "commit": "fb116fd", "desc": "Register test_img.c in coverage manifest; fix l_img.h API comment (l_img_free -> l_img_free_pixels). NOT YET PUSHED — auth unavailable. Push next run."}
+    {"branch": "repo-assist/fix-strtod-errno-and-eng-2026-04-10", "commit": "4d5be2e", "desc": "fix: l_strtod/l_strtof ERANGE errno on overflow/underflow; add L_ERANGE=34; register test_img.c in coverage manifest. ALL TESTS PASS. Needs PR creation next run."}
   ],
   "resolved_issues": [],
-  "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed_no_open_human_prs"},
+  "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed"},
   "checked_off_items": [],
   "comments_made": {},
-  "notes": "PR #122 (l_memmove backward word-at-a-time) still open. Prepared eng branch eng-coverage-manifest-and-doc-2026-04-10 but couldn't push (no git auth in CI env). safeoutputs MCP tools not available in this run. Next: push pending branch or retry. l_strtod subnormal/overflow/underflow errno conformance still pending."
+  "notes": "safeoutputs MCP tools consistently unavailable (multiple runs). PR #122 (memmove perf) still open. DONE THIS RUN: prepared commit 4d5be2e on branch repo-assist/fix-strtod-errno-and-eng-2026-04-10 fixing l_strtod/l_strtof ERANGE errno conformance + added L_ERANGE constant + coverage manifest update. All 7 test binaries pass. Monthly summary #123 not updated due to tool unavailability. Next run: push branch and create PR, update monthly summary."
 }
