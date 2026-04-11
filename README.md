@@ -904,7 +904,7 @@ Freestanding TLS/HTTPS client. On **Windows**, uses SChannel (built-in OS TLS �
 | `l_tls_close(h)` | Close TLS connection `h`. Sends TLS shutdown notification. Safe with invalid handles. |
 | `l_tls_cleanup()` | Shut down TLS subsystem. Closes all open connections. Call at program exit. |
 
-**Platform availability:** Check `L_TLS_AVAILABLE` (1 on Windows and Linux, 0 on WASI). On Windows, compile with `-lsecur32 -lcrypt32 -lws2_32` (handled automatically by `build_parallel.ps1`). On Linux, BearSSL is compiled from the vendored `bearssl_amalg.c` amalgamation — no external libraries needed. Certificate verification is currently disabled (no-verify mode) — for production use, load CAs from `/etc/ssl/certs/ca-certificates.crt`.
+**Platform availability:** Check `L_TLS_AVAILABLE` (1 on Windows and Linux, 0 on WASI). On Windows, compile with `-lsecur32 -lcrypt32 -lws2_32` (handled automatically by `build_parallel.ps1`). On Linux, BearSSL is compiled from the `bearssl/` git submodule as a static library — run `git submodule update --init` after cloning. Certificate verification is currently disabled (no-verify mode) — for production use, load CAs from `/etc/ssl/certs/ca-certificates.crt`.
 
 ## Function Reference — `l_ui.h`
 
@@ -1344,8 +1344,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_time` | ✅ | test_utils.c |
 | `l_puts` | ✅ | test_fs.c, test.c |
 | `l_exitif` | ✅ | test_fs.c |
-| `l_getenv` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c, test.c |
-| `l_getenv_init` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c, test.c |
+| `l_getenv` | ✅ | gfx_test.c, test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c |
+| `l_getenv_init` | ✅ | gfx_test.c, test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c |
 | `l_env_start` | ✅ | test_fs.c |
 | `l_env_next` | ✅ | test_fs.c |
 | `l_env_end` | ✅ | test_fs.c |
@@ -1598,7 +1598,7 @@ l_img.h        — Image decoding header (PNG, JPEG, BMP, GIF, TGA via stb_image
 l_tls.h        — TLS/HTTPS client header (SChannel on Windows, BearSSL on Linux)
 l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
 stb_image.h    — Vendored image decoder (public domain, from nothings/stb)
-bearssl_amalg.c — Vendored TLS library amalgamation (MIT, from BearSSL v0.6)
+bearssl/         — BearSSL TLS library (git submodule, MIT license)
 compat/         — Freestanding shims (string.h, stdlib.h) for stb_image on Linux
 examples/       — Example programs and utilities (33 programs)
 tests/          — Test suites (test.c, test_strings.c, test_fs.c, test_utils.c, test_img.c, test_net.c, gfx_test.c, ui_test.c)

@@ -32,15 +32,13 @@ files = [
     'int/i15_core.c', 'int/i15_ext1.c', 'int/i15_ext2.c',
     # rsa (client: pub + verify only)
     'rsa/rsa_i31_pkcs1_vrfy.c', 'rsa/rsa_i31_pub.c', 'rsa/rsa_pkcs1_sig_unpad.c',
-    'rsa/rsa_ssl_decrypt.c', 'rsa/rsa_i15_pub.c', 'rsa/rsa_i15_pkcs1_vrfy.c',
-    # ec
+    'rsa/rsa_ssl_decrypt.c',
+    # ec (i31 only — i15 has static name collisions in amalgamation)
     'ec/ec_prime_i31.c', 'ec/ec_prime_i31_secp256r1.c',
     'ec/ec_prime_i31_secp384r1.c', 'ec/ec_prime_i31_secp521r1.c',
     'ec/ec_secp256r1.c', 'ec/ec_secp384r1.c', 'ec/ec_secp521r1.c',
     'ec/ecdsa_i31_vrfy_asn1.c', 'ec/ecdsa_i31_vrfy_raw.c', 'ec/ecdsa_i31_bits.c',
     'ec/ecdsa_atr.c', 'ec/ecdsa_rta.c',
-    'ec/ec_prime_i15.c', 'ec/ec_p256_i15.c',
-    'ec/ecdsa_i15_vrfy_asn1.c', 'ec/ecdsa_i15_vrfy_raw.c', 'ec/ecdsa_i15_bits.c',
     # symcipher (AES constant-time + ChaCha20/Poly1305)
     'symcipher/aes_common.c', 'symcipher/aes_ct.c',
     'symcipher/aes_ct_enc.c', 'symcipher/aes_ct_dec.c', 'symcipher/aes_ct_ctr.c',
@@ -55,7 +53,8 @@ files = [
     'ssl/ssl_hs_client.c', 'ssl/ssl_hashes.c', 'ssl/ssl_io.c',
     'ssl/ssl_rec_gcm.c', 'ssl/ssl_rec_cbc.c', 'ssl/ssl_rec_chapol.c',
     'ssl/ssl_lru.c',
-    'ssl/ssl_ccert_single_rsa.c', 'ssl/ssl_ccert_single_ec.c',
+    'ssl/ssl_ccert_single_rsa.c',
+    # ssl_ccert_single_ec.c removed: shares static names with ssl_ccert_single_rsa.c
 ]
 
 pub_headers = [
@@ -108,6 +107,19 @@ def strip_includes(content):
     content = re.sub(r'#include\s+"config\.h"', '/* (already included) */', content)
     return content
 
+# Static names that conflict across BearSSL source files.
+# These get #define'd to unique names per file, then #undef'd after.
+CONFLICT_NAMES = []  # Disabled — separate compilation handles this
+
+def wrap_with_defines(content, prefix):
+    """Add #define PREFIX_name name / #undef name around content to avoid collisions."""
+    defs = []
+    undefs = []
+    for name in CONFLICT_NAMES:
+        defs.append(f'#define {name} {prefix}{name}')
+        undefs.append(f'#undef {name}')
+    return '\n'.join(defs) + '\n' + content + '\n' + '\n'.join(undefs) + '\n'
+
 # Public headers
 for h in pub_headers:
     path = os.path.join(inc, h)
@@ -135,7 +147,8 @@ out.append('/* ===== src/inner.h ===== */')
 out.append(content)
 out.append('')
 
-# Source files
+# Source files — each wrapped with #define/#undef to avoid static name collisions
+file_idx = 0
 for fname in files:
     path = os.path.join(src, fname)
     if not os.path.exists(path):
@@ -143,9 +156,19 @@ for fname in files:
         continue
     with open(path, 'r', encoding='utf-8', errors='replace') as f:
         content = strip_includes(f.read())
+    # Special handling for SHA K arrays — rename to avoid collision
+    if fname == 'hash/sha2big.c':
+        content = content.replace('static const uint64_t K[', 'static const uint64_t K_sha512[')
+        content = content.replace('K[j]', 'K_sha512[j]')
+    elif fname == 'hash/sha2small.c':
+        content = content.replace('static const uint32_t K[', 'static const uint32_t K_sha256[')
+        content = content.replace('K[j]', 'K_sha256[j]')
+    prefix = f'br_{file_idx}_'
+    content = wrap_with_defines(content, prefix)
     out.append(f'/* ===== src/{fname} ===== */')
     out.append(content)
     out.append('')
+    file_idx += 1
 
 out.append('#ifdef __clang__')
 out.append('#pragma clang diagnostic pop')

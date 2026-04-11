@@ -633,10 +633,10 @@ function Invoke-LinuxBuildWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Build" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile build $CC $OptLevel 2>&1"
+            bash -c "cd '$RepoRoot' && git submodule update --init --quiet 2>/dev/null; ./Taskfile build $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build $CC $OptLevel 2>&1"
+            wsl bash -c "cd '$WslRepoRoot' && git submodule update --init --quiet 2>/dev/null; ./Taskfile build $CC $OptLevel 2>&1"
         }
     }
 }
@@ -672,10 +672,10 @@ function Invoke-ArmBuildWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Build" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile build_arm $CC $OptLevel 2>&1"
+            bash -c "cd '$RepoRoot' && git submodule update --init --quiet 2>/dev/null; ./Taskfile build_arm $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_arm $CC $OptLevel 2>&1"
+            wsl bash -c "cd '$WslRepoRoot' && git submodule update --init --quiet 2>/dev/null; ./Taskfile build_arm $CC $OptLevel 2>&1"
         }
     }
 }
@@ -687,10 +687,10 @@ function Invoke-Aarch64BuildWith {
     param([string]$CC, [string]$Label)
     Invoke-Step $Label "Build" {
         if ($RunningOnLinux) {
-            bash -c "cd '$RepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel 2>&1"
+            bash -c "cd '$RepoRoot' && git submodule update --init --quiet 2>/dev/null; ./Taskfile build_aarch64 $CC $OptLevel 2>&1"
         } else {
             Invoke-CrlfFix
-            wsl bash -c "cd '$WslRepoRoot' && ./Taskfile build_aarch64 $CC $OptLevel 2>&1"
+            wsl bash -c "cd '$WslRepoRoot' && git submodule update --init --quiet 2>/dev/null; ./Taskfile build_aarch64 $CC $OptLevel 2>&1"
         }
     }
 }

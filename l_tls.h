@@ -448,8 +448,9 @@ static inline void l_tls_cleanup(void) {
 // ── Linux: BearSSL implementation ─────────────────────────────────────────
 #elif defined(__unix__)
 
-// Include the BearSSL amalgamation
-#include "bearssl_amalg.c"
+// BearSSL is compiled separately as a static library (git submodule).
+// Only include the public headers here.
+#include "bearssl/inc/bearssl.h"
 
 typedef struct {
     br_ssl_client_context   sc;

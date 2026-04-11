@@ -5,6 +5,40 @@ RM=rm
 function clean {    # Clean binaries
     $RM -rf bin
     $RM -rf test_mkdir_tmpdir
+    $RM -rf bearssl/build
+}
+
+# Build BearSSL as a static library. Args: CC, OPT, CROSS_PREFIX
+function build_bearssl_lib {
+  local BCC="${1:-gcc}"
+  local BOPT="${2:-z}"
+  local SUFFIX="${3}"
+  local OUTDIR="bearssl/build${SUFFIX}"
+  local LIBFILE="$OUTDIR/libbearssl.a"
+
+  # Skip if already built
+  if [ -f "$LIBFILE" ]; then return 0; fi
+
+  mkdir -p "$OUTDIR"
+
+  # Compile all BearSSL .c files as separate objects
+  for f in bearssl/src/*/*.c; do
+    local obj="$OUTDIR/$(basename "${f%.c}.o")"
+    $BCC -c -Ibearssl/inc -Ibearssl/src -O$BOPT -ffreestanding -fno-builtin \
+         -ffunction-sections -fdata-sections -w \
+         "$f" -o "$obj" || return 1
+  done
+
+  # Create static archive
+  local AR_CMD="ar"
+  # For cross-compilation, use the right ar
+  case "$BCC" in
+    arm-linux-gnueabihf-*) AR_CMD="arm-linux-gnueabihf-ar" ;;
+    aarch64-linux-gnu-*)   AR_CMD="aarch64-linux-gnu-ar" ;;
+    riscv64-linux-gnu-*)   AR_CMD="riscv64-linux-gnu-ar" ;;
+  esac
+  $AR_CMD rcs "$LIBFILE" "$OUTDIR"/*.o
+  echo "  Built $LIBFILE ($(du -h "$LIBFILE" | cut -f1))"
 }
 
 function build {    # Build {compiler:gcc} {optimizationchar:0}
@@ -24,12 +58,26 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
       ;;
   esac
 
+  # Build BearSSL static library if submodule is present
+  BEARSSL_LIB=""
+  BEARSSL_INC=""
+  if [ -d bearssl/src ]; then
+    build_bearssl_lib "$CC" "$OPT" ""
+    BEARSSL_LIB="bearssl/build/libbearssl.a"
+    BEARSSL_INC="-Ibearssl/inc"
+  fi
+
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     EXTRA_INC=""
+    EXTRA_LINK=""
     grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
-    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS -o bin/$x  
+    if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
+      EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
+      EXTRA_LINK="$BEARSSL_LIB"
+    fi
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib -lgcc $LDLIBS $EXTRA_LINK -o bin/$x  
   done
 }
 
@@ -54,12 +102,28 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
       ;;
   esac
 
+  # Build BearSSL for ARM if submodule present
+  BEARSSL_LIB=""
+  BEARSSL_INC=""
+  if [ -d bearssl/src ]; then
+    local BEAR_CC="$CC"
+    case $CC in clang) BEAR_CC="arm-linux-gnueabihf-gcc" ;; esac
+    build_bearssl_lib "$BEAR_CC" "z" "_arm"
+    BEARSSL_LIB="bearssl/build_arm/libbearssl.a"
+    BEARSSL_INC="-Ibearssl/inc"
+  fi
+
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     EXTRA_INC=""
+    EXTRA_LINK=""
     grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
-    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.armhf
+    if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
+      EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
+      EXTRA_LINK="$BEARSSL_LIB"
+    fi
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB $EXTRA_LINK -o bin/$x.armhf
   done
 }
 
@@ -81,12 +145,28 @@ function build_aarch64 {    # Build for AArch64 (arm64) {compiler:aarch64-linux-
       ;;
   esac
 
+  # Build BearSSL for AArch64 if submodule present
+  BEARSSL_LIB=""
+  BEARSSL_INC=""
+  if [ -d bearssl/src ]; then
+    local BEAR_CC="$CC"
+    case $CC in clang) BEAR_CC="aarch64-linux-gnu-gcc" ;; esac
+    build_bearssl_lib "$BEAR_CC" "z" "_aarch64"
+    BEARSSL_LIB="bearssl/build_aarch64/libbearssl.a"
+    BEARSSL_INC="-Ibearssl/inc"
+  fi
+
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     EXTRA_INC=""
+    EXTRA_LINK=""
     grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
-    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.aarch64
+    if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
+      EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
+      EXTRA_LINK="$BEARSSL_LIB"
+    fi
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB $EXTRA_LINK -o bin/$x.aarch64
   done
 }
 
@@ -109,12 +189,28 @@ function build_riscv {    # Build for RISC-V (rv64gc) {compiler:riscv64-linux-gn
       ;;
   esac
 
+  # Build BearSSL for RISC-V if submodule present
+  BEARSSL_LIB=""
+  BEARSSL_INC=""
+  if [ -d bearssl/src ]; then
+    local BEAR_CC="$CC"
+    case $CC in clang) BEAR_CC="riscv64-linux-gnu-gcc" ;; esac
+    build_bearssl_lib "$BEAR_CC" "s" "_riscv"
+    BEARSSL_LIB="bearssl/build_riscv/libbearssl.a"
+    BEARSSL_INC="-Ibearssl/inc"
+  fi
+
   for f in tests/*.c examples/*.c; do
     x="${f##*/}"
     x="${x%.*}";
     EXTRA_INC=""
+    EXTRA_LINK=""
     grep -q 'l_img\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
-    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB -o bin/$x.riscv64
+    if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
+      EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
+      EXTRA_LINK="$BEARSSL_LIB"
+    fi
+    $CC -I. $EXTRA_INC -static -fno-builtin -fno-asynchronous-unwind-tables -fomit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections,--build-id=none -s -Wall -Wextra -Wpedantic -O$OPT $LDFLAGS $f -ffreestanding -nostdlib $LINK_LIB $EXTRA_LINK -o bin/$x.riscv64
   done
 }
 
