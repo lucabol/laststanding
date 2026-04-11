@@ -1,16 +1,30 @@
 {
-  "last_run": "2026-04-10T13:26:22Z",
-  "last_run_id": "24245150149",
+  "last_run": "2026-04-11T01:28:31Z",
+  "last_run_id": "24271486174",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
     {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open"}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/fix-strtod-errno-and-eng-2026-04-10", "commit": "4d5be2e", "desc": "fix: l_strtod/l_strtof ERANGE errno on overflow/underflow; add L_ERANGE=34; register test_img.c in coverage manifest. ALL TESTS PASS. Needs PR creation next run."}
+    {"branch": "repo-assist/fix-strtod-erange-2026-04-11", "desc": "fix: l_strtod/l_strtof set errno=ERANGE on overflow/underflow. Add L_ERANGE=34. Register test_img.c in coverage manifest. Add ERANGE tests (save errno before TEST_ASSERT because l_write resets it!). Linux CI PASS."},
+    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-11", "desc": "ci: add actions/cache@v4 apt caching and --no-install-recommends to arm/riscv/wasi CI jobs."}
   ],
   "resolved_issues": [],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed"},
   "checked_off_items": [],
   "comments_made": {},
-  "notes": "safeoutputs MCP tools consistently unavailable (multiple runs). PR #122 (memmove perf) still open. DONE THIS RUN: prepared commit 4d5be2e on branch repo-assist/fix-strtod-errno-and-eng-2026-04-10 fixing l_strtod/l_strtof ERANGE errno conformance + added L_ERANGE constant + coverage manifest update. All 7 test binaries pass. Monthly summary #123 not updated due to tool unavailability. Next run: push branch and create PR, update monthly summary."
+  "notes": "safeoutputs MCP tools consistently unavailable (multiple runs). PR #122 (memmove perf) still open. DONE THIS RUN (run 24271486174): Completed Task 10 (strtod/strtof ERANGE fix) and Task 4 (CI apt caching). Both branches committed locally but cannot be pushed. KEY INSIGHT: When writing errno tests, save errno BEFORE TEST_ASSERT because l_write/l_puts resets l_last_errno=0 on success. Next run: recreate these branches from patches in patches.md and push/create PRs. Monthly summary #123 not updated due to tool unavailability.",
+  "patch_summary": {
+    "fix-strtod-erange": {
+      "l_os.h_l_erange": "After L_ENOTEMPTY  39 add: /// Result out of range\\n#define L_ERANGE     34",
+      "l_os.h_alias": "After #define ENOTEMPTY L_ENOTEMPTY add: #  undef ERANGE\\n#  define ERANGE   L_ERANGE",
+      "l_strtod_fix": "Replace 'if (exp > 308) exp = 308;' + loop with: int ecap=(exp>400)?400:exp; double epow=1.0; for(int i=0;i<ecap;i++)epow*=10.0; double val_before=val; if(eneg)val/=epow; else val*=epow; if(__builtin_isinf(val)||(val==0.0&&val_before!=0.0))l_set_errno(L_ERANGE);",
+      "l_strtof_fix": "Same as strtod but ecap=100, float types, __builtin_isinf(val) for float",
+      "tests": "In test_strtod_atof and test_strtof: l_set_errno(0); double v=l_strtod('1e9999',0); int saved=l_errno(); TEST_ASSERT(__builtin_isinf(v),...); TEST_ASSERT(saved==L_ERANGE,...);",
+      "coverage_manifest": "Add tests/test_img.c to suite_inventory array"
+    },
+    "ci_apt_cache": {
+      "change": "Add 'Cache apt packages (arm/riscv/wasi)' steps using actions/cache@v4 with path=/var/cache/apt/archives/*.deb before install steps. Add --no-install-recommends to all apt-get install commands."
+    }
+  }
 }

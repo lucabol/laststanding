@@ -1,0 +1,61 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index b0a5a15..28e83bf 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -54,8 +54,17 @@ jobs:
+     steps:
+       - uses: actions/checkout@v6
+ 
++      - name: Cache apt packages (arm)
++        uses: actions/cache@v4
++        with:
++          path: /var/cache/apt/archives/*.deb
++          key: apt-${{ runner.os }}-arm-${{ hashFiles('.github/workflows/ci.yml') }}
++          restore-keys: apt-${{ runner.os }}-arm-
++
+       - name: Install cross-compilers
+-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu qemu-user
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu qemu-user
+ 
+       - name: Run CI
+         run: ./ci.ps1 -Target arm
+@@ -66,8 +75,17 @@ jobs:
+     steps:
+       - uses: actions/checkout@v6
+ 
++      - name: Cache apt packages (riscv)
++        uses: actions/cache@v4
++        with:
++          path: /var/cache/apt/archives/*.deb
++          key: apt-${{ runner.os }}-riscv-${{ hashFiles('.github/workflows/ci.yml') }}
++          restore-keys: apt-${{ runner.os }}-riscv-
++
+       - name: Install cross-compilers
+-        run: sudo apt-get update && sudo apt-get install -y gcc-riscv64-linux-gnu qemu-user
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends gcc-riscv64-linux-gnu qemu-user
+ 
+       - name: Run CI
+         run: ./ci.ps1 -Target riscv
+@@ -78,8 +96,17 @@ jobs:
+     steps:
+       - uses: actions/checkout@v6
+ 
++      - name: Cache apt packages (wasi)
++        uses: actions/cache@v4
++        with:
++          path: /var/cache/apt/archives/*.deb
++          key: apt-${{ runner.os }}-wasi-${{ hashFiles('.github/workflows/ci.yml') }}
++          restore-keys: apt-${{ runner.os }}-wasi-
++
+       - name: Install WASI toolchain
+-        run: sudo apt-get update && sudo apt-get install -y clang lld libclang-rt-dev-wasm32 wasi-libc wabt
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y --no-install-recommends clang lld libclang-rt-dev-wasm32 wasi-libc wabt
+ 
+       - name: Install Wasmtime
+         uses: bytecodealliance/actions/wasmtime/setup@v1

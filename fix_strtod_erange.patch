@@ -1,0 +1,100 @@
+diff --git a/l_os.h b/l_os.h
+index 99e9466..62daa19 100644
+--- a/l_os.h
++++ b/l_os.h
+@@ -325,6 +325,8 @@ typedef struct {
+ #define L_EISDIR     21
+ /// Directory not empty
+ #define L_ENOTEMPTY  39
++/// Result out of range (e.g. strtod overflow/underflow)
++#define L_ERANGE     34
+ 
+ // Signal numbers (POSIX values; Windows does not support these)
+ #ifndef _WIN32
+@@ -1604,6 +1606,8 @@ int WINAPI mainCRTStartup(void)
+ #  define EISDIR   L_EISDIR
+ #  undef ENOTEMPTY
+ #  define ENOTEMPTY L_ENOTEMPTY
++#  undef ERANGE
++#  define ERANGE   L_ERANGE
+ 
+ #endif // L_DONT_OVERRIDE
+ 
+@@ -2515,11 +2519,17 @@ static inline double l_strtod(const char *nptr, char **endptr)
+             int exp = 0;
+             while (*s >= '0' && *s <= '9')
+                 exp = exp * 10 + (*s++ - '0');
+-            if (exp > 308) exp = 308; /* avoid infinite-loop for huge exponents */
++            /* Cap the loop so we don't iterate billions of times; IEEE 754
++             * overflow naturally produces +inf (overflow) or 0.0 (underflow) */
++            int ecap = (exp > 400) ? 400 : exp;
+             double epow = 1.0;
+-            for (int i = 0; i < exp; i++) epow *= 10.0;
++            for (int i = 0; i < ecap; i++) epow *= 10.0;
++            double val_before = val;
+             if (eneg) val /= epow;
+             else      val *= epow;
++            /* Set ERANGE on IEEE 754 overflow or underflow */
++            if (__builtin_isinf(val) || (val == 0.0 && val_before != 0.0))
++                l_set_errno(L_ERANGE);
+         }
+     }
+ 
+@@ -2593,11 +2603,16 @@ static inline float l_strtof(const char *nptr, char **endptr)
+             int exp = 0;
+             while (*s >= '0' && *s <= '9')
+                 exp = exp * 10 + (*s++ - '0');
+-            if (exp > 38) exp = 38; /* clamp to float range */
++            /* Cap to avoid huge loops; overflow/underflow handled by ERANGE check */
++            int ecap = (exp > 100) ? 100 : exp;
+             float epow = 1.0f;
+-            for (int i = 0; i < exp; i++) epow *= 10.0f;
++            for (int i = 0; i < ecap; i++) epow *= 10.0f;
++            float val_before = val;
+             if (eneg) val /= epow;
+             else      val *= epow;
++            /* Set ERANGE on IEEE 754 overflow or underflow */
++            if (__builtin_isinf(val) || (val == 0.0f && val_before != 0.0f))
++                l_set_errno(L_ERANGE);
+         }
+     }
+ 
+diff --git a/tests/coverage_manifest.json b/tests/coverage_manifest.json
+index 0987cc6..baa361c 100644
+--- a/tests/coverage_manifest.json
++++ b/tests/coverage_manifest.json
+@@ -7,6 +7,7 @@
+     "tests/test_fs.c",
+     "tests/test_utils.c",
+     "tests/test_net.c",
++    "tests/test_img.c",
+     "tests/gfx_test.c",
+     "tests/ui_test.c",
+     "tests/smoke/showcase_smoke.ps1",
+diff --git a/tests/test_strings.c b/tests/test_strings.c
+index 90cb943..e20c498 100644
+--- a/tests/test_strings.c
++++ b/tests/test_strings.c
+@@ -747,6 +747,25 @@ void test_strtod_atof(void) {
+     TEST_ASSERT(l_atof("Infinity") > DBL_MAX, "atof 'Infinity' is infinity");
+     TEST_ASSERT(l_atof("NaN") != l_atof("NaN"), "atof 'NaN' is NaN");
+ 
++    /* ERANGE: overflow — "1e9999" must produce infinity and set errno = ERANGE */
++    l_set_errno(0);
++    double overflow_val = l_strtod("1e9999", (char **)0);
++    int strtod_errno_overflow = l_errno();  /* save before I/O clobbers it */
++    TEST_ASSERT(__builtin_isinf(overflow_val), "strtod '1e9999' -> infinity");
++    TEST_ASSERT(strtod_errno_overflow == L_ERANGE, "strtod '1e9999' -> errno ERANGE");
++
++    /* ERANGE: underflow — "1e-9999" must produce 0.0 and set errno = ERANGE */
++    l_set_errno(0);
++    double underflow_val = l_strtod("1e-9999", (char **)0);
++    int strtod_errno_underflow = l_errno();
++    TEST_ASSERT(underflow_val == 0.0, "strtod '1e-9999' -> 0.0");
++    TEST_ASSERT(strtod_errno_underflow == L_ERANGE, "strtod '1e-9999' -> errno ERANGE");
++
++    /* No ERANGE for normal values */
++    l_set_errno(0);
++    l_strtod("1e10", (char **)0);
++    TEST_ASSERT(l_errno() == 0, "strtod '1e10' -> no errno");
++
