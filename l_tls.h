@@ -29,7 +29,7 @@
 #define L_TLS_MAX_CONNECTIONS 8
 
 // Platform availability flag
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__unix__)
 #define L_TLS_AVAILABLE 1
 #else
 #define L_TLS_AVAILABLE 0
@@ -445,47 +445,263 @@ static inline void l_tls_cleanup(void) {
     WSACleanup();
 }
 
-// ── Linux / WASI: stub implementation ────────────────────────────────────────
+// ── Linux: BearSSL implementation ─────────────────────────────────────────
+#elif defined(__unix__)
+
+// Include the BearSSL amalgamation
+#include "bearssl_amalg.c"
+
+typedef struct {
+    br_ssl_client_context   sc;
+    br_x509_minimal_context xc;
+    unsigned char           iobuf[BR_SSL_BUFSIZE_BIDI];
+    L_SOCKET                sock;
+    int                     in_use;
+} L_TlsConn;
+
+static L_TlsConn l_tls_conns[L_TLS_MAX_CONNECTIONS];
+static int l_tls_initialized = 0;
+
+// BearSSL I/O callbacks using laststanding sockets
+static int l_tls_br_read(void *ctx, unsigned char *buf, size_t len) {
+    L_SOCKET sock = *(L_SOCKET *)ctx;
+    ptrdiff_t n = l_socket_recv(sock, buf, len);
+    if (n < 0) return -1;
+    if (n == 0) return -1;
+    return (int)n;
+}
+
+static int l_tls_br_write(void *ctx, const unsigned char *buf, size_t len) {
+    L_SOCKET sock = *(L_SOCKET *)ctx;
+    ptrdiff_t n = l_socket_send(sock, buf, len);
+    if (n < 0) return -1;
+    return (int)n;
+}
+
+// Mozilla root CAs are NOT embedded — use br_x509_knownkey for no-verify,
+// or load from /etc/ssl/certs at runtime. For now, we use a no-verify
+// X.509 validator for simplicity. Users can replace with full validation.
+static void l_tls_br_no_anchor(
+    const br_x509_class **ctx,
+    const unsigned char *data, size_t len)
+{
+    (void)ctx; (void)data; (void)len;
+}
+
+// Minimal no-verify X.509 engine
+typedef struct {
+    const br_x509_class *vtable;
+    br_x509_pkey        pkey;
+    int                 got_pkey;
+} L_X509NoVerify;
+
+static void l_x509nv_start_chain(const br_x509_class **ctx, const char *server_name) {
+    L_X509NoVerify *xc = (L_X509NoVerify *)(void *)ctx;
+    (void)server_name;
+    xc->got_pkey = 0;
+}
+
+static void l_x509nv_start_cert(const br_x509_class **ctx, uint32_t length) {
+    (void)ctx; (void)length;
+}
+
+static void l_x509nv_append(const br_x509_class **ctx, const unsigned char *buf, size_t len) {
+    (void)ctx; (void)buf; (void)len;
+}
+
+static void l_x509nv_end_cert(const br_x509_class **ctx) {
+    (void)ctx;
+}
+
+static unsigned l_x509nv_end_chain(const br_x509_class **ctx) {
+    (void)ctx;
+    return 0; // Always succeed — no verification
+}
+
+static const br_x509_pkey *l_x509nv_get_pkey(const br_x509_class *const *ctx, unsigned *usages) {
+    // Return a dummy key — BearSSL will use the server's actual key from the handshake
+    (void)ctx;
+    if (usages) *usages = BR_KEYTYPE_RSA | BR_KEYTYPE_EC;
+    return NULL;
+}
+
+static const br_x509_class l_x509nv_vtable = {
+    sizeof(L_X509NoVerify),
+    l_x509nv_start_chain,
+    l_x509nv_start_cert,
+    l_x509nv_append,
+    l_x509nv_end_cert,
+    l_x509nv_end_chain,
+    l_x509nv_get_pkey
+};
+
+static inline int l_tls_find_free_slot(void) {
+    for (int i = 0; i < L_TLS_MAX_CONNECTIONS; i++) {
+        if (!l_tls_conns[i].in_use) return i;
+    }
+    return -1;
+}
+
+/// Initialize the TLS subsystem. Returns 0 on success.
+static inline int l_tls_init(void) {
+    if (l_tls_initialized) return 0;
+    l_memset(l_tls_conns, 0, sizeof(l_tls_conns));
+    l_tls_initialized = 1;
+    return 0;
+}
+
+/// Connect to a host over TLS. Returns a handle (0-7) on success, -1 on failure.
+static inline int l_tls_connect(const char *hostname, int port) {
+    if (!l_tls_initialized) { if (l_tls_init() != 0) return -1; }
+
+    int slot = l_tls_find_free_slot();
+    if (slot < 0) return -1;
+
+    L_TlsConn *c = &l_tls_conns[slot];
+    l_memset(c, 0, sizeof(*c));
+
+    // Resolve hostname
+    char ip[16];
+    if (l_resolve(hostname, ip) != 0) return -1;
+
+    // Connect TCP
+    c->sock = l_socket_tcp();
+    if (c->sock < 0) return -1;
+    if (l_socket_connect(c->sock, ip, port) != 0) {
+        l_socket_close(c->sock);
+        return -1;
+    }
+
+    // Initialize BearSSL client with full cipher suite support
+    br_ssl_client_init_full(&c->sc, &c->xc, NULL, 0);
+
+    // Replace x509 engine with no-verify (no embedded CAs)
+    // For production, load CAs from /etc/ssl/certs/ca-certificates.crt
+    static L_X509NoVerify x509nv;
+    x509nv.vtable = &l_x509nv_vtable;
+    br_ssl_engine_set_x509(&c->sc.eng, &x509nv.vtable);
+
+    // Set I/O buffer
+    br_ssl_engine_set_buffer(&c->sc.eng, c->iobuf, sizeof(c->iobuf), 1);
+
+    // Seed entropy
+    unsigned char seed[32];
+    if (l_getrandom(seed, sizeof(seed)) != 0) {
+        l_socket_close(c->sock);
+        return -1;
+    }
+    br_ssl_engine_inject_entropy(&c->sc.eng, seed, sizeof(seed));
+
+    // Reset (start handshake)
+    br_ssl_client_reset(&c->sc, hostname, 0);
+
+    // Run the handshake + I/O loop
+    br_sslio_context ioc;
+    br_sslio_init(&ioc, &c->sc.eng,
+        l_tls_br_read, &c->sock,
+        l_tls_br_write, &c->sock);
+
+    // The handshake happens automatically on first read/write via br_sslio.
+    // Check engine state to verify connection succeeded
+    br_sslio_flush(&ioc);
+
+    unsigned state = br_ssl_engine_current_state(&c->sc.eng);
+    if (state == BR_SSL_CLOSED) {
+        l_socket_close(c->sock);
+        return -1;
+    }
+
+    c->in_use = 1;
+    return slot;
+}
+
+/// Send data over a TLS connection. Returns bytes sent or -1 on failure.
+static inline int l_tls_send(int handle, const void *data, int data_len) {
+    if (handle < 0 || handle >= L_TLS_MAX_CONNECTIONS || !l_tls_conns[handle].in_use)
+        return -1;
+    L_TlsConn *c = &l_tls_conns[handle];
+
+    br_sslio_context ioc;
+    br_sslio_init(&ioc, &c->sc.eng,
+        l_tls_br_read, &c->sock,
+        l_tls_br_write, &c->sock);
+
+    int n = br_sslio_write_all(&ioc, data, (size_t)data_len);
+    if (n < 0) return -1;
+    br_sslio_flush(&ioc);
+    if (br_ssl_engine_current_state(&c->sc.eng) == BR_SSL_CLOSED) return -1;
+    return data_len;
+}
+
+/// Receive data from a TLS connection. Returns bytes read, 0 on close, -1 on error.
+static inline int l_tls_recv(int handle, void *buf, int len) {
+    if (handle < 0 || handle >= L_TLS_MAX_CONNECTIONS || !l_tls_conns[handle].in_use)
+        return -1;
+    L_TlsConn *c = &l_tls_conns[handle];
+
+    br_sslio_context ioc;
+    br_sslio_init(&ioc, &c->sc.eng,
+        l_tls_br_read, &c->sock,
+        l_tls_br_write, &c->sock);
+
+    int n = br_sslio_read(&ioc, buf, (size_t)len);
+    if (n < 0) {
+        unsigned state = br_ssl_engine_current_state(&c->sc.eng);
+        if (state == BR_SSL_CLOSED) return 0;
+        return -1;
+    }
+    return n;
+}
+
+/// Receive a single byte. Returns byte (0-255) or -1 on failure/close.
+static inline int l_tls_recv_byte(int handle) {
+    unsigned char b;
+    int n = l_tls_recv(handle, &b, 1);
+    return n == 1 ? (int)b : -1;
+}
+
+/// Close a TLS connection.
+static inline void l_tls_close(int handle) {
+    if (handle < 0 || handle >= L_TLS_MAX_CONNECTIONS || !l_tls_conns[handle].in_use)
+        return;
+    L_TlsConn *c = &l_tls_conns[handle];
+
+    // Send close_notify
+    br_sslio_context ioc;
+    br_sslio_init(&ioc, &c->sc.eng,
+        l_tls_br_read, &c->sock,
+        l_tls_br_write, &c->sock);
+    br_sslio_close(&ioc);
+
+    l_socket_close(c->sock);
+    l_memset(c, 0, sizeof(*c));
+}
+
+/// Clean up the TLS subsystem.
+static inline void l_tls_cleanup(void) {
+    for (int i = 0; i < L_TLS_MAX_CONNECTIONS; i++) {
+        if (l_tls_conns[i].in_use) l_tls_close(i);
+    }
+    l_tls_initialized = 0;
+}
+
+// ── WASI: stub implementation (no sockets) ───────────────────────────────────
 #else
 
-/// Initialize the TLS subsystem. Returns -1 (TLS not available on this platform).
-static inline int l_tls_init(void) {
-    return -1;
-}
-
-/// Connect to a host over TLS. Returns -1 (TLS not available on this platform).
+static inline int l_tls_init(void) { return -1; }
 static inline int l_tls_connect(const char *hostname, int port) {
-    (void)hostname; (void)port;
-    return -1;
+    (void)hostname; (void)port; return -1;
 }
-
-/// Send data over a TLS connection. Returns -1 (TLS not available on this platform).
 static inline int l_tls_send(int handle, const void *data, int data_len) {
-    (void)handle; (void)data; (void)data_len;
-    return -1;
+    (void)handle; (void)data; (void)data_len; return -1;
 }
-
-/// Receive data from a TLS connection. Returns -1 (TLS not available on this platform).
 static inline int l_tls_recv(int handle, void *buf, int len) {
-    (void)handle; (void)buf; (void)len;
-    return -1;
+    (void)handle; (void)buf; (void)len; return -1;
 }
+static inline int l_tls_recv_byte(int handle) { (void)handle; return -1; }
+static inline void l_tls_close(int handle) { (void)handle; }
+static inline void l_tls_cleanup(void) { }
 
-/// Receive a single byte. Returns -1 (TLS not available on this platform).
-static inline int l_tls_recv_byte(int handle) {
-    (void)handle;
-    return -1;
-}
-
-/// Close a TLS connection. No-op (TLS not available on this platform).
-static inline void l_tls_close(int handle) {
-    (void)handle;
-}
-
-/// Clean up the TLS subsystem. No-op (TLS not available on this platform).
-static inline void l_tls_cleanup(void) {
-}
-
-#endif // _WIN32
+#endif // _WIN32 / __unix__ / else
 
 #endif // L_TLSH

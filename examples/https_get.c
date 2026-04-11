@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     const char *path = argc > 2 ? argv[2] : "/";
 
 #if !L_TLS_AVAILABLE
-    puts("TLS not available on this platform (Windows only).\n");
+    puts("TLS not available on this platform.\n");
     (void)host; (void)path;
     return 0;
 #else

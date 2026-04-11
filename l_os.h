@@ -841,6 +841,9 @@ static inline void *l_mmap(void *addr, size_t length, int prot, int flags, L_FD 
 /// Unmaps a previously mapped region
 static inline int l_munmap(void *addr, size_t length);
 
+/// Fill buf with len bytes of cryptographic-quality random data (getrandom(2) on Linux, BCryptGenRandom on Windows). Returns 0 on success, -1 on error.
+static inline int l_getrandom(void *buf, size_t len);
+
 // Arena function declarations
 /// Allocate an arena of `size` bytes via mmap. On failure, base=NULL.
 static inline L_Arena l_arena_init(size_t size);
@@ -5719,6 +5722,23 @@ static inline long long l_time(long long *t) {
     return val;
 }
 
+/// Fill buf with len bytes of cryptographic-quality random data. Returns 0 on success, -1 on error.
+static inline int l_getrandom(void *buf, size_t len) {
+    // getrandom(2) syscall numbers by architecture
+#if defined(__x86_64__)
+    long ret = my_syscall3(318 /*__NR_getrandom*/, (long)buf, (long)len, 0);
+#elif defined(__aarch64__)
+    long ret = my_syscall3(278 /*__NR_getrandom*/, (long)buf, (long)len, 0);
+#elif defined(__arm__)
+    long ret = my_syscall3(384 /*__NR_getrandom*/, (long)buf, (long)len, 0);
+#elif defined(__riscv)
+    long ret = my_syscall3(278 /*__NR_getrandom*/, (long)buf, (long)len, 0);
+#else
+    long ret = -1;
+#endif
+    return ret >= 0 ? 0 : -1;
+}
+
 // termios constants for raw mode
 #define L_TCGETS   0x5401
 #define L_TCSETS   0x5402
@@ -7062,6 +7082,20 @@ static inline long long l_time(long long *t) {
     long long val = (long long)((ticks - 116444736000000000ULL) / 10000000ULL);
     if (t) *t = val;
     return val;
+}
+
+static inline int l_getrandom(void *buf, size_t len) {
+    // Use RtlGenRandom (SystemFunction036) — available since Windows XP, no extra libs needed
+    // Declared in ntsecapi.h but we avoid that header; prototype manually
+    typedef unsigned char (WINAPI *RtlGenRandomFn)(void *, unsigned long);
+    static RtlGenRandomFn fn = NULL;
+    if (!fn) {
+        HMODULE advapi = LoadLibraryA("advapi32.dll");
+        if (!advapi) return -1;
+        fn = (RtlGenRandomFn)(void *)GetProcAddress(advapi, "SystemFunction036");
+        if (!fn) return -1;
+    }
+    return fn(buf, (unsigned long)len) ? 0 : -1;
 }
 
 static DWORD l_saved_console_mode;

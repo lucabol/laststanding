@@ -7,7 +7,7 @@ A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. 
 | `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access, hash maps, SHA-256, glob matching, time formatting |
 | `l_gfx.h` | Pixel graphics — drawing primitives, scaled bitmap font, pixel blitting, alpha blending, keyboard/mouse input (X11 / Linux framebuffer / Windows GDI) |
 | `l_img.h` | Image decoding — PNG, JPEG, BMP, GIF, TGA from memory buffers via vendored stb_image (freestanding, no libc) |
-| `l_tls.h` | TLS/HTTPS client — SChannel on Windows (zero deps), stubs on Linux (future: BearSSL). Up to 8 simultaneous connections |
+| `l_tls.h` | TLS/HTTPS client — SChannel on Windows, BearSSL on Linux (zero deps on both). Up to 8 simultaneous connections |
 | `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
 Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 13 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 7 graphical demos, an image viewer, an HTTPS client, and 2 UI demos — all built without a single line of libc.
@@ -710,10 +710,11 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_closedir` | Closes a directory handle. | All |
 | `l_mmap` | Maps a file or anonymous memory into the process address space | All |
 | `l_munmap` | Unmaps a previously mapped region | All |
+| `l_getrandom` | Fill buf with len bytes of cryptographic-quality random data (getrandom(2) on Linux, BCryptGenRandom on Windows). Returns 0 on success, -1 on error. | All |
 | **Arena function declarations** | | |
 | `l_arena_init` | Allocate an arena of `size` bytes via mmap. On failure, base=NULL. | All |
 | `l_arena_alloc` | Bump-allocate n bytes (8-byte aligned). Returns NULL if arena is full. | All |
-| `l_arena_reset` | Reset used to 0. Memory is NOT freed — arena can be reused. | All |
+| `l_arena_reset` | Reset used to 0. Memory is NOT freed â€” arena can be reused. | All |
 | `l_arena_free` | Free the backing memory. Sets base=NULL. | All |
 | **Buffer function declarations** | | |
 | `l_buf_init` | Zero-initialize a buffer. | All |
@@ -721,7 +722,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_buf_printf` | Formatted append using l_vsnprintf. Returns bytes written or -1. | All |
 | `l_buf_clear` | Set len=0 (keep allocated memory). | All |
 | `l_buf_free` | Free backing memory and zero the struct. | All |
-| **L_Str — fat string (pointer + length) function declarations** | | |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
 | `l_str` | Wrap a C string (computes strlen). | All |
 | `l_str_from` | Wrap pointer+length. | All |
 | `l_str_null` | Return null string {NULL, 0}. | All |
@@ -891,7 +892,7 @@ Freestanding image decoding powered by vendored `stb_image.h`. Decodes PNG, JPEG
 
 ## Function Reference — `l_tls.h`
 
-Freestanding TLS/HTTPS client. On **Windows**, uses SChannel (built-in OS TLS — zero external dependencies). On **Linux/WASI**, returns -1 (stub — future BearSSL integration). Supports up to 8 simultaneous TLS connections.
+Freestanding TLS/HTTPS client. On **Windows**, uses SChannel (built-in OS TLS — zero external dependencies). On **Linux**, uses a vendored BearSSL amalgamation (zero external dependencies — constant-time AES, ECDHE+RSA, i31 bignum engine). On **WASI**, returns -1 (no sockets). Supports up to 8 simultaneous TLS connections.
 
 | Function | Description |
 |----------|-------------|
@@ -903,7 +904,7 @@ Freestanding TLS/HTTPS client. On **Windows**, uses SChannel (built-in OS TLS �
 | `l_tls_close(h)` | Close TLS connection `h`. Sends TLS shutdown notification. Safe with invalid handles. |
 | `l_tls_cleanup()` | Shut down TLS subsystem. Closes all open connections. Call at program exit. |
 
-**Platform availability:** Check `L_TLS_AVAILABLE` (1 on Windows, 0 elsewhere). On Windows, compile with `-lsecur32 -lcrypt32 -lws2_32` (handled automatically by `build_parallel.ps1`).
+**Platform availability:** Check `L_TLS_AVAILABLE` (1 on Windows and Linux, 0 on WASI). On Windows, compile with `-lsecur32 -lcrypt32 -lws2_32` (handled automatically by `build_parallel.ps1`). On Linux, BearSSL is compiled from the vendored `bearssl_amalg.c` amalgamation — no external libraries needed. Certificate verification is currently disabled (no-verify mode) — for production use, load CAs from `/etc/ssl/certs/ca-certificates.crt`.
 
 ## Function Reference — `l_ui.h`
 
@@ -1103,6 +1104,7 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_closedir`` | ✅ | ✅ | ✅ |
 | ``l_mmap`` | ✅ | ✅ | ✅ |
 | ``l_munmap`` | ✅ | ✅ | ✅ |
+| ``l_getrandom`` | ✅ | ✅ | ✅ |
 | **Arena function declarations** | | | |
 | ``l_arena_init`` | ✅ | ✅ | ✅ |
 | ``l_arena_alloc`` | ✅ | ✅ | ✅ |
@@ -1114,7 +1116,7 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_buf_printf`` | ✅ | ✅ | ✅ |
 | ``l_buf_clear`` | ✅ | ✅ | ✅ |
 | ``l_buf_free`` | ✅ | ✅ | ✅ |
-| **L_Str — fat string (pointer + length) function declarations** | | | |
+| **L_Str â€” fat string (pointer + length) function declarations** | | | |
 | ``l_str`` | ✅ | ✅ | ✅ |
 | ``l_str_from`` | ✅ | ✅ | ✅ |
 | ``l_str_null`` | ✅ | ✅ | ✅ |
@@ -1236,15 +1238,15 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 |----------|--------|-----------|
 | **String functions** | | |
 | `l_wcslen` | ✅ | test_strings.c |
-| `l_strlen` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
-| `l_strcpy` | ✅ | test_strings.c, test.c |
+| `l_strlen` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_strcpy` | ✅ | test.c, test_strings.c |
 | `l_strncpy` | ✅ | test_strings.c |
-| `l_strcat` | ✅ | test_strings.c, test.c |
+| `l_strcat` | ✅ | test.c, test_strings.c |
 | `l_strncat` | ✅ | test_strings.c |
 | `l_strchr` | ✅ | test_fs.c, test_strings.c |
 | `l_strrchr` | ✅ | test_strings.c |
-| `l_strstr` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_strcmp` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| `l_strstr` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_strcmp` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_strncmp` | ✅ | test_strings.c |
 | `l_strcasecmp` | ✅ | test_strings.c |
 | `l_strncasecmp` | ✅ | test_fs.c, test_strings.c |
@@ -1277,7 +1279,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_labs` | ✅ | test_strings.c |
 | `l_llabs` | ✅ | test.c |
 | `l_atol` | ✅ | test_strings.c |
-| `l_atoi` | ✅ | test_strings.c, test.c |
+| `l_atoi` | ✅ | test.c, test_strings.c |
 | `l_strtoul` | ✅ | test_strings.c |
 | `l_strtol` | ✅ | test_strings.c |
 | `l_strtoull` | ✅ | test_strings.c |
@@ -1309,8 +1311,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_itoa` | ✅ | test_strings.c |
 | **Memory functions** | | |
 | `l_memmove` | ✅ | test_strings.c |
-| `l_memset` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
-| `l_memcmp` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| `l_memset` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_memcmp` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_memcpy` | ✅ | test_strings.c, test_utils.c |
 | `l_memchr` | ✅ | test_strings.c |
 | `l_memrchr` | ✅ | test_strings.c |
@@ -1331,16 +1333,16 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_vprintf` | ✅ | test_strings.c |
 | `l_fprintf` | ✅ | test_strings.c |
 | **System functions** | | |
-| `l_exit` | ✅ | test_fs.c, test.c |
-| `l_open` | ✅ | test_fs.c, test.c |
-| `l_close` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_read` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_write` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_exit` | ✅ | test.c, test_fs.c |
+| `l_open` | ✅ | test.c, test_fs.c |
+| `l_close` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_read` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_write` | ✅ | test.c, test_fs.c, test_strings.c |
 | `l_read_line` | ✅ | test.c |
 | `l_linebuf_init` | ✅ | test_strings.c |
 | `l_linebuf_read` | ✅ | test_strings.c |
 | `l_time` | ✅ | test_utils.c |
-| `l_puts` | ✅ | test_fs.c, test.c |
+| `l_puts` | ✅ | test.c, test_fs.c |
 | `l_exitif` | ✅ | test_fs.c |
 | `l_getenv` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c, test.c |
 | `l_getenv_init` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c, test.c |
@@ -1349,12 +1351,12 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_env_end` | ✅ | test_fs.c |
 | `l_find_executable` | ✅ | test.c |
 | **Option parsing (single-threaded; state in static variables)** | | |
-| `l_getopt` | ✅ | test_utils.c, test.c |
+| `l_getopt` | ✅ | test.c, test_utils.c |
 | `l_getopt_ctx_init` | ✅ | test_utils.c |
 | `l_getopt_ctx` | ✅ | test_utils.c |
 | **Convenience file openers** | | |
-| `l_open_read` | ✅ | test_fs.c, test.c |
-| `l_open_write` | ✅ | test_fs.c, test.c |
+| `l_open_read` | ✅ | test.c, test_fs.c |
+| `l_open_write` | ✅ | test.c, test_fs.c |
 | `l_open_readwrite` | ✅ | test_fs.c |
 | `l_open_append` | ✅ | test_fs.c |
 | `l_open_trunc` | ✅ | test_fs.c |
@@ -1371,10 +1373,10 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_ansi_move` | ✅ | test_utils.c |
 | `l_ansi_color` | ✅ | test_utils.c |
 | **File system functions (cross-platform)** | | |
-| `l_unlink` | ✅ | test_fs.c, test.c |
+| `l_unlink` | ✅ | test.c, test_fs.c |
 | `l_rmdir` | ✅ | test_fs.c |
 | `l_rename` | ✅ | test_fs.c |
-| `l_access` | ✅ | test_fs.c, test.c |
+| `l_access` | ✅ | test.c, test_fs.c |
 | `l_chmod` | ✅ | test_fs.c |
 | `l_symlink` | ✅ | test_fs.c |
 | `l_readlink` | ✅ | test_fs.c |
@@ -1391,6 +1393,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_closedir` | ✅ | test_fs.c |
 | `l_mmap` | ✅ | test_fs.c, test_utils.c |
 | `l_munmap` | ✅ | test_fs.c, test_utils.c |
+| ``l_getrandom`` | — | |
 | **Arena function declarations** | | |
 | `l_arena_init` | ✅ | test_fs.c, test_utils.c |
 | `l_arena_alloc` | ✅ | test_utils.c |
@@ -1402,8 +1405,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_buf_printf` | ✅ | test_utils.c |
 | `l_buf_clear` | ✅ | test_utils.c |
 | `l_buf_free` | ✅ | test_utils.c |
-| **L_Str — fat string (pointer + length) function declarations** | | |
-| `l_str` | ✅ | test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
+| `l_str` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_str_from` | ✅ | test_utils.c |
 | `l_str_null` | ✅ | test_utils.c |
 | `l_str_eq` | ✅ | test_utils.c |
@@ -1465,7 +1468,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_base64_decode` | ✅ | test_utils.c |
 | `l_getcwd` | ✅ | test_fs.c |
 | `l_chdir` | ✅ | test_fs.c |
-| `l_pipe` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_pipe` | ✅ | test.c, test_fs.c, test_strings.c |
 | `l_dup` | ✅ | test.c |
 | `l_dup2` | ✅ | test.c |
 | `l_getpid` | ✅ | test.c |
@@ -1512,7 +1515,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | ``l_socket_recvfrom_addr`` | — | |
 | ``l_socket_unix_connect`` | — | |
 
-**Coverage: 243 / 247 functions referenced in tests** (98%)
+**Coverage: 243 / 248 functions referenced in tests** (98%)
 
 <!-- END COVERAGE MATRIX -->
 
@@ -1563,7 +1566,7 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | **scaled_text** | Scaled text at 1×–6× plus stretch modes | [scaled_text.c](examples/scaled_text.c) |
 | **blit_demo** | Opaque and alpha-blended sprite blitting | [blit_demo.c](examples/blit_demo.c) |
 | **img_view** | Image viewer — load PNG/JPEG/BMP, aspect-ratio scaling | [img_view.c](examples/img_view.c) |
-| **https_get** | HTTPS client — fetch a page over TLS (Windows only) | [https_get.c](examples/https_get.c) |
+| **https_get** | HTTPS client — fetch a page over TLS (Windows + Linux) | [https_get.c](examples/https_get.c) |
 
 ### UI Demos (`l_ui.h`)
 
@@ -1592,9 +1595,10 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 l_os.h          — Core runtime header (strings, I/O, processes, terminal)
 l_gfx.h        — Pixel graphics header (drawing, font, canvas)
 l_img.h        — Image decoding header (PNG, JPEG, BMP, GIF, TGA via stb_image)
-l_tls.h        — TLS/HTTPS client header (SChannel on Windows, stubs on Linux)
+l_tls.h        — TLS/HTTPS client header (SChannel on Windows, BearSSL on Linux)
 l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
 stb_image.h    — Vendored image decoder (public domain, from nothings/stb)
+bearssl_amalg.c — Vendored TLS library amalgamation (MIT, from BearSSL v0.6)
 compat/         — Freestanding shims (string.h, stdlib.h) for stb_image on Linux
 examples/       — Example programs and utilities (33 programs)
 tests/          — Test suites (test.c, test_strings.c, test_fs.c, test_utils.c, test_img.c, test_net.c, gfx_test.c, ui_test.c)

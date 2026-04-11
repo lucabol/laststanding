@@ -52,10 +52,10 @@ static void test_connect_without_init(void) {
 
 static void test_availability_macro(void) {
     TEST_FUNCTION("L_TLS_AVAILABLE macro");
-#ifdef _WIN32
-    TEST_ASSERT(L_TLS_AVAILABLE == 1, "L_TLS_AVAILABLE is 1 on Windows");
+#if defined(_WIN32) || defined(__unix__)
+    TEST_ASSERT(L_TLS_AVAILABLE == 1, "L_TLS_AVAILABLE is 1 on Windows/Linux");
 #else
-    TEST_ASSERT(L_TLS_AVAILABLE == 0, "L_TLS_AVAILABLE is 0 on non-Windows");
+    TEST_ASSERT(L_TLS_AVAILABLE == 0, "L_TLS_AVAILABLE is 0 on WASI");
 #endif
 }
 
