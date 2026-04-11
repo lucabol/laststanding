@@ -1,15 +1,16 @@
 # laststanding
 
-A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Four header files give you everything from `strlen` to pixel graphics to image decoding to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V), **Windows**, and **WASI (WebAssembly)** (experimental), with no libc at all.
+A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Five header files give you everything from `strlen` to pixel graphics to image decoding to TLS/HTTPS to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V), **Windows**, and **WASI (WebAssembly)** (experimental), with no libc at all.
 
 | Header | What it provides |
 |--------|-----------------|
 | `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access, hash maps, SHA-256, glob matching, time formatting |
 | `l_gfx.h` | Pixel graphics — drawing primitives, scaled bitmap font, pixel blitting, alpha blending, keyboard/mouse input (X11 / Linux framebuffer / Windows GDI) |
 | `l_img.h` | Image decoding — PNG, JPEG, BMP, GIF, TGA from memory buffers via vendored stb_image (freestanding, no libc) |
+| `l_tls.h` | TLS/HTTPS client — SChannel on Windows (zero deps), stubs on Linux (future: BearSSL). Up to 8 simultaneous connections |
 | `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
-Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 13 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 7 graphical demos, an image viewer, and 2 UI demos — all built without a single line of libc.
+Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 13 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 7 graphical demos, an image viewer, an HTTPS client, and 2 UI demos — all built without a single line of libc.
 
 ## Quick Start
 
@@ -150,6 +151,35 @@ int main(int argc, char *argv[]) {
     while (l_canvas_alive(&c) && l_canvas_key(&c) != 27) l_sleep_ms(16);
     l_canvas_close(&c);
     l_img_free_pixels(pixels, w, h);
+    return 0;
+}
+```
+
+### HTTPS Client (`l_tls.h`)
+
+```c
+#define L_MAINFILE
+#include "l_tls.h"       // pulls in l_os.h automatically
+
+int main(int argc, char *argv[]) {
+    l_getenv_init(argc, argv);
+    if (l_tls_init() != 0) return 1;
+
+    int h = l_tls_connect("example.com", 443);
+    if (h < 0) return 1;
+
+    const char *req = "GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n";
+    l_tls_send(h, req, l_strlen(req));
+
+    char buf[4096];
+    int n;
+    while ((n = l_tls_recv(h, buf, sizeof(buf) - 1)) > 0) {
+        buf[n] = '\0';
+        puts(buf);
+    }
+
+    l_tls_close(h);
+    l_tls_cleanup();
     return 0;
 }
 ```
@@ -859,6 +889,22 @@ Freestanding image decoding powered by vendored `stb_image.h`. Decodes PNG, JPEG
 - The internal allocator reserves 256 MB virtual memory via `mmap`/`VirtualAlloc` (demand-paged — only touched pages use physical RAM).
 - `#include "l_img.h"` automatically includes `stb_image.h` and `l_os.h`. On Linux, compile with `-Icompat` to provide freestanding shims for headers stb_image expects.
 
+## Function Reference — `l_tls.h`
+
+Freestanding TLS/HTTPS client. On **Windows**, uses SChannel (built-in OS TLS — zero external dependencies). On **Linux/WASI**, returns -1 (stub — future BearSSL integration). Supports up to 8 simultaneous TLS connections.
+
+| Function | Description |
+|----------|-------------|
+| `l_tls_init()` | Initialize the TLS subsystem. Call once before other `l_tls_*` functions. Returns 0 on success, -1 on failure. |
+| `l_tls_connect(host, port)` | Connect to `host` (null-terminated hostname) on `port` over TLS. Returns a handle (0–7) on success, -1 on failure. DNS resolution uses `l_resolve`. |
+| `l_tls_send(h, data, len)` | Send `len` bytes from `data` over TLS connection `h`. Returns bytes sent, -1 on failure. |
+| `l_tls_recv(h, buf, len)` | Receive up to `len` bytes into `buf` from TLS connection `h`. Returns bytes read, 0 on connection close, -1 on error. |
+| `l_tls_recv_byte(h)` | Receive a single byte. Returns byte value (0–255), or -1 on failure/close. |
+| `l_tls_close(h)` | Close TLS connection `h`. Sends TLS shutdown notification. Safe with invalid handles. |
+| `l_tls_cleanup()` | Shut down TLS subsystem. Closes all open connections. Call at program exit. |
+
+**Platform availability:** Check `L_TLS_AVAILABLE` (1 on Windows, 0 elsewhere). On Windows, compile with `-lsecur32 -lcrypt32 -lws2_32` (handled automatically by `build_parallel.ps1`).
+
 ## Function Reference — `l_ui.h`
 
 Immediate-mode UI library built on `l_gfx.h`. No heap allocation, no widget tree — declare widgets every frame between `l_ui_begin`/`l_ui_end`. Widget functions return action state (e.g. `l_ui_button` returns 1 if clicked). Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
@@ -1296,8 +1342,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_time` | ✅ | test_utils.c |
 | `l_puts` | ✅ | test_fs.c, test.c |
 | `l_exitif` | ✅ | test_fs.c |
-| `l_getenv` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_utils.c, test.c |
-| `l_getenv_init` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| `l_getenv` | ✅ | gfx_test.c, test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c |
+| `l_getenv_init` | ✅ | gfx_test.c, test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c |
 | `l_env_start` | ✅ | test_fs.c |
 | `l_env_next` | ✅ | test_fs.c |
 | `l_env_end` | ✅ | test_fs.c |
@@ -1517,6 +1563,7 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | **scaled_text** | Scaled text at 1×–6× plus stretch modes | [scaled_text.c](examples/scaled_text.c) |
 | **blit_demo** | Opaque and alpha-blended sprite blitting | [blit_demo.c](examples/blit_demo.c) |
 | **img_view** | Image viewer — load PNG/JPEG/BMP, aspect-ratio scaling | [img_view.c](examples/img_view.c) |
+| **https_get** | HTTPS client — fetch a page over TLS (Windows only) | [https_get.c](examples/https_get.c) |
 
 ### UI Demos (`l_ui.h`)
 
@@ -1534,6 +1581,7 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | **test_fs** | Filesystem, environment, and low-level I/O shard | [test_fs.c](tests/test_fs.c) |
 | **test_utils** | Utility, data-structure, time, and math shard | [test_utils.c](tests/test_utils.c) |
 | **test_img** | Image decoding tests (BMP, PNG, invalid data) | [test_img.c](tests/test_img.c) |
+| **test_tls** | TLS init/cleanup, invalid handles, platform availability | [test_tls.c](tests/test_tls.c) |
 | **test_net** | Manual socket/runtime shard (`l_poll` stays in default `test_fs`) | [test_net.c](tests/test_net.c) |
 | **gfx_test** | 28 (in-memory pixel buffer tests) | [gfx_test.c](tests/gfx_test.c) |
 | **ui_test** | UI widget logic tests (simulated canvas) | [ui_test.c](tests/ui_test.c) |
@@ -1544,6 +1592,7 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 l_os.h          — Core runtime header (strings, I/O, processes, terminal)
 l_gfx.h        — Pixel graphics header (drawing, font, canvas)
 l_img.h        — Image decoding header (PNG, JPEG, BMP, GIF, TGA via stb_image)
+l_tls.h        — TLS/HTTPS client header (SChannel on Windows, stubs on Linux)
 l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
 stb_image.h    — Vendored image decoder (public domain, from nothings/stb)
 compat/         — Freestanding shims (string.h, stdlib.h) for stb_image on Linux

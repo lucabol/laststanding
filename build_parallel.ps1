@@ -27,6 +27,11 @@ foreach ($f in $files) {
         $extraLibs = "-lws2_32"
     }
 
+    # Detect if source uses l_tls.h (needs ws2_32 + secur32 + crypt32)
+    if ($content -match 'l_tls\.h') {
+        $extraLibs = "-lws2_32 -lsecur32 -lcrypt32"
+    }
+
     # Detect if source uses l_img.h (needs compat headers for stb_image on non-Windows)
     $extraInc = ""
     if ($content -match 'l_img\.h') {
