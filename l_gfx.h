@@ -455,6 +455,10 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             int nw = (int)LOWORD(lp);
             int nh = (int)HIWORD(lp);
             if (nw > 0 && nh > 0 && (nw != c->width || nh != c->height)) {
+                /* Save old dimensions and pixels for scaling */
+                int ow = c->width, oh = c->height;
+                uint32_t *old_px = c->pixels;
+
                 /* Reallocate the DIB at the new size */
                 HDC hdc_win = GetDC(hwnd);
                 if (c->hdc_mem) {
@@ -473,6 +477,19 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 HDC hdc_mem = CreateCompatibleDC(hdc_win);
                 HGDIOBJ old = SelectObject(hdc_mem, hbmp);
                 ReleaseDC(hwnd, hdc_win);
+
+                /* Scale old content into new buffer (nearest-neighbor) */
+                if (old_px && bits && ow > 0 && oh > 0) {
+                    uint32_t *dst = (uint32_t *)bits;
+                    for (int y = 0; y < nh; y++) {
+                        int sy = y * oh / nh;
+                        for (int x = 0; x < nw; x++) {
+                            int sx = x * ow / nw;
+                            dst[y * nw + x] = old_px[sy * ow + sx];
+                        }
+                    }
+                }
+
                 c->hdc_mem  = hdc_mem;
                 c->hbmp_old = old;
                 c->pixels   = (uint32_t *)bits;
@@ -1095,12 +1112,23 @@ static inline void l_x11_pump_events(L_Canvas *c) {
             l_memcpy(&nh, ev + 22, 2); /* height */
             int new_w = (int)nw, new_h = (int)nh;
             if (new_w > 0 && new_h > 0 && (new_w != c->width || new_h != c->height)) {
+                int ow = c->width, oh = c->height;
                 int old_size = c->stride * c->height;
                 int new_stride = new_w * 4;
                 int new_size = new_stride * new_h;
                 uint32_t *new_pixels = (uint32_t *)l_mmap(0, (size_t)new_size,
                     L_PROT_READ | L_PROT_WRITE, L_MAP_PRIVATE | L_MAP_ANONYMOUS, -1, 0);
                 if (new_pixels != (uint32_t *)L_MAP_FAILED) {
+                    /* Scale old content into new buffer (nearest-neighbor) */
+                    if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED && ow > 0 && oh > 0) {
+                        for (int y = 0; y < new_h; y++) {
+                            int sy = y * oh / new_h;
+                            for (int x = 0; x < new_w; x++) {
+                                int sx = x * ow / new_w;
+                                new_pixels[y * new_w + x] = c->pixels[sy * ow + sx];
+                            }
+                        }
+                    }
                     if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
                         l_munmap(c->pixels, (size_t)old_size);
                     c->pixels  = new_pixels;

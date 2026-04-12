@@ -1345,8 +1345,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_time` | ✅ | test_utils.c |
 | `l_puts` | ✅ | test_fs.c, test.c |
 | `l_exitif` | ✅ | test_fs.c |
-| `l_getenv` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c, test.c |
-| `l_getenv_init` | ✅ | gfx_test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c, test.c |
+| `l_getenv` | ✅ | gfx_test.c, test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c |
+| `l_getenv_init` | ✅ | gfx_test.c, test.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_tls.c, test_utils.c |
 | `l_env_start` | ✅ | test_fs.c |
 | `l_env_next` | ✅ | test_fs.c |
 | `l_env_end` | ✅ | test_fs.c |
