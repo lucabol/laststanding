@@ -670,7 +670,12 @@ static inline int l_canvas_resized(L_Canvas *c) {
 static inline int l_clipboard_set(L_Canvas *c, const char *text, int len) {
     (void)c;
     if (!text || len <= 0) return -1;
-    if (!OpenClipboard(NULL)) return -1;
+    int opened = 0;
+    for (int i = 0; i < 10 && !opened; i++) {
+        if (OpenClipboard(NULL)) { opened = 1; break; }
+        l_sleep_ms(10);
+    }
+    if (!opened) return -1;
     EmptyClipboard();
     void *hMem = GlobalAlloc(2 /* GMEM_MOVEABLE */, (size_t)(len + 1));
     if (!hMem) { CloseClipboard(); return -1; }
@@ -688,7 +693,12 @@ static inline int l_clipboard_get(L_Canvas *c, char *buf, int max) {
     (void)c;
     if (!buf || max <= 0) return -1;
     buf[0] = '\0';
-    if (!OpenClipboard(NULL)) return -1;
+    int opened = 0;
+    for (int i = 0; i < 10 && !opened; i++) {
+        if (OpenClipboard(NULL)) { opened = 1; break; }
+        l_sleep_ms(10);
+    }
+    if (!opened) return -1;
     void *hData = GetClipboardData(1 /* CF_TEXT */);
     if (!hData) { CloseClipboard(); return 0; }
     const char *p = (const char *)GlobalLock(hData);
