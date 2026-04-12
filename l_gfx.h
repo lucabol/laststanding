@@ -51,6 +51,7 @@ typedef struct {
     int       mouse_x;     // current mouse x position
     int       mouse_y;     // current mouse y position
     int       mouse_btn;   // button bitmask: 1=left, 2=right, 4=middle
+    int       resized;     // set to 1 when window was resized; cleared by l_canvas_resized()
 
 #ifdef _WIN32
     // Windows GDI internals
@@ -204,6 +205,10 @@ static inline void l_canvas_clear(L_Canvas *c, uint32_t color);
 static inline int  l_canvas_key(L_Canvas *c);
 /// Returns mouse button bitmask (1=left, 2=right, 4=middle) and writes position to *x, *y.
 static inline int  l_canvas_mouse(L_Canvas *c, int *x, int *y);
+/// Returns 1 if the window was resized since the last call, 0 otherwise. Clears the flag.
+/// When resized, c->width, c->height, c->stride, and c->pixels are already updated.
+/// Not supported on Linux framebuffer backend (always returns 0).
+static inline int  l_canvas_resized(L_Canvas *c);
 
 // ── Drawing primitives (platform-independent, operate on pixels[]) ───────────
 
@@ -445,6 +450,39 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_RBUTTONUP:   if (c) c->mouse_btn &= ~2; return 0;
     case WM_MBUTTONDOWN: if (c) c->mouse_btn |=  4; return 0;
     case WM_MBUTTONUP:   if (c) c->mouse_btn &= ~4; return 0;
+    case WM_SIZE:
+        if (c && wp != 1 /* SIZE_MINIMIZED */) {
+            int nw = (int)LOWORD(lp);
+            int nh = (int)HIWORD(lp);
+            if (nw > 0 && nh > 0 && (nw != c->width || nh != c->height)) {
+                /* Reallocate the DIB at the new size */
+                HDC hdc_win = GetDC(hwnd);
+                if (c->hdc_mem) {
+                    SelectObject((HDC)c->hdc_mem, (HGDIOBJ)c->hbmp_old);
+                    DeleteDC((HDC)c->hdc_mem);
+                }
+                BITMAPINFO bmi;
+                l_memset(&bmi, 0, sizeof(bmi));
+                bmi.bmiHeader.biSize     = sizeof(BITMAPINFOHEADER);
+                bmi.bmiHeader.biWidth    = nw;
+                bmi.bmiHeader.biHeight   = -nh;
+                bmi.bmiHeader.biPlanes   = 1;
+                bmi.bmiHeader.biBitCount = 32;
+                void *bits = 0;
+                HBITMAP hbmp = CreateDIBSection(hdc_win, &bmi, DIB_RGB_COLORS, &bits, 0, 0);
+                HDC hdc_mem = CreateCompatibleDC(hdc_win);
+                HGDIOBJ old = SelectObject(hdc_mem, hbmp);
+                ReleaseDC(hwnd, hdc_win);
+                c->hdc_mem  = hdc_mem;
+                c->hbmp_old = old;
+                c->pixels   = (uint32_t *)bits;
+                c->width    = nw;
+                c->height   = nh;
+                c->stride   = nw * 4;
+                c->resized  = 1;
+            }
+        }
+        return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -484,7 +522,7 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
 
     DWORD style = fullscreen
         ? (DWORD)WS_POPUP
-        : (DWORD)(WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX));
+        : (DWORD)WS_OVERLAPPEDWINDOW;
 
     // Calculate window size to fit client area exactly
     RECT rect = {0, 0, width, height};
@@ -591,6 +629,12 @@ static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
     if (x) *x = c->mouse_x;
     if (y) *y = c->mouse_y;
     return c->mouse_btn;
+}
+
+static inline int l_canvas_resized(L_Canvas *c) {
+    int r = c->resized;
+    c->resized = 0;
+    return r;
 }
 
 #else
@@ -1045,6 +1089,29 @@ static inline void l_x11_pump_events(L_Canvas *c) {
             break;
         case 12: /* Expose — we always redraw on flush, ignore */
             break;
+        case 22: /* ConfigureNotify — window resized or moved */ {
+            uint16_t nw, nh;
+            l_memcpy(&nw, ev + 20, 2); /* width */
+            l_memcpy(&nh, ev + 22, 2); /* height */
+            int new_w = (int)nw, new_h = (int)nh;
+            if (new_w > 0 && new_h > 0 && (new_w != c->width || new_h != c->height)) {
+                int old_size = c->stride * c->height;
+                int new_stride = new_w * 4;
+                int new_size = new_stride * new_h;
+                uint32_t *new_pixels = (uint32_t *)l_mmap(0, (size_t)new_size,
+                    L_PROT_READ | L_PROT_WRITE, L_MAP_PRIVATE | L_MAP_ANONYMOUS, -1, 0);
+                if (new_pixels != (uint32_t *)L_MAP_FAILED) {
+                    if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
+                        l_munmap(c->pixels, (size_t)old_size);
+                    c->pixels  = new_pixels;
+                    c->width   = new_w;
+                    c->height  = new_h;
+                    c->stride  = new_stride;
+                    c->resized = 1;
+                }
+            }
+            break;
+        }
         default:
             break;
         }
@@ -1323,6 +1390,12 @@ static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
     if (x) *x = c->mouse_x;
     if (y) *y = c->mouse_y;
     return c->mouse_btn;
+}
+
+static inline int l_canvas_resized(L_Canvas *c) {
+    int r = c->resized;
+    c->resized = 0;
+    return r;
 }
 
 #endif // _WIN32 / __unix__
