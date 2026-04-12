@@ -497,6 +497,7 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 c->height   = nh;
                 c->stride   = nw * 4;
                 c->resized  = 1;
+                InvalidateRect(hwnd, NULL, FALSE); /* repaint with scaled content */
             }
         }
         return 0;
