@@ -81,6 +81,12 @@ typedef struct {
     uint32_t  x11_gc;       // graphics context ID
     uint32_t  x11_root;     // root window ID
     int       x11_depth;    // screen depth
+    uint32_t  x11_clipboard_atom;  // CLIPBOARD atom
+    uint32_t  x11_utf8_atom;       // UTF8_STRING atom
+    uint32_t  x11_targets_atom;    // TARGETS atom
+    uint32_t  x11_string_atom;     // STRING atom (= 31, predefined)
+    uint32_t  x11_prop_atom;       // custom property for paste receive
+    int       x11_clipboard_ready; // flag: SelectionNotify received
     int       closed;       // set when window is destroyed
     int       keys[16];     // small ring buffer for key events
     int       key_head;
@@ -209,6 +215,12 @@ static inline int  l_canvas_mouse(L_Canvas *c, int *x, int *y);
 /// When resized, c->width, c->height, c->stride, and c->pixels are already updated.
 /// Not supported on Linux framebuffer backend (always returns 0).
 static inline int  l_canvas_resized(L_Canvas *c);
+/// Copy text to clipboard. Returns 0 on success, -1 on failure.
+/// On framebuffer/WASI: internal-only buffer (works within same process).
+static inline int  l_clipboard_set(L_Canvas *c, const char *text, int len);
+/// Get text from clipboard. Returns bytes read (excluding NUL), 0 if empty, -1 on failure.
+/// buf is NUL-terminated on success.
+static inline int  l_clipboard_get(L_Canvas *c, char *buf, int max);
 
 // ── Drawing primitives (platform-independent, operate on pixels[]) ───────────
 
@@ -655,6 +667,41 @@ static inline int l_canvas_resized(L_Canvas *c) {
     return r;
 }
 
+static inline int l_clipboard_set(L_Canvas *c, const char *text, int len) {
+    (void)c;
+    if (!text || len <= 0) return -1;
+    if (!OpenClipboard(NULL)) return -1;
+    EmptyClipboard();
+    void *hMem = GlobalAlloc(2 /* GMEM_MOVEABLE */, (size_t)(len + 1));
+    if (!hMem) { CloseClipboard(); return -1; }
+    char *p = (char *)GlobalLock(hMem);
+    if (!p) { GlobalFree(hMem); CloseClipboard(); return -1; }
+    l_memcpy(p, text, (size_t)len);
+    p[len] = '\0';
+    GlobalUnlock(hMem);
+    SetClipboardData(1 /* CF_TEXT */, hMem);
+    CloseClipboard();
+    return 0;
+}
+
+static inline int l_clipboard_get(L_Canvas *c, char *buf, int max) {
+    (void)c;
+    if (!buf || max <= 0) return -1;
+    buf[0] = '\0';
+    if (!OpenClipboard(NULL)) return -1;
+    void *hData = GetClipboardData(1 /* CF_TEXT */);
+    if (!hData) { CloseClipboard(); return 0; }
+    const char *p = (const char *)GlobalLock(hData);
+    if (!p) { CloseClipboard(); return -1; }
+    int len = (int)l_strlen(p);
+    int copy = len < max - 1 ? len : max - 1;
+    l_memcpy(buf, p, (size_t)copy);
+    buf[copy] = '\0';
+    GlobalUnlock(hData);
+    CloseClipboard();
+    return copy;
+}
+
 #else
 // ═══════════════════════════════════════════════════════════════════════════════
 // Linux backend — X11 wire protocol or framebuffer
@@ -713,6 +760,10 @@ static inline int l_x11_write_full(int fd, const void *buf, int n) {
     }
     return 0;
 }
+
+/* Internal clipboard buffer shared by framebuffer and X11 backends */
+static char l_clipboard_internal[4096];
+static int  l_clipboard_internal_len = 0;
 
 /* Parse $DISPLAY to extract display number; returns -1 if not local Unix */
 static inline int l_x11_parse_display(const char *disp, char *sockpath, int pathsz) {
@@ -929,6 +980,34 @@ static inline int l_x11_connect(L_Canvas *c, int width, int height, const char *
 
     l_munmap(reply, (size_t)extra_bytes);
 
+    /* Intern clipboard atoms — done before CreateWindow so no events can interleave */
+    c->x11_string_atom = 31; /* STRING is predefined */
+    {
+        static const char *atom_names[] = { "CLIPBOARD", "UTF8_STRING", "TARGETS", "L_CLIP_PROP" };
+        uint32_t *atom_dests[] = { &c->x11_clipboard_atom, &c->x11_utf8_atom,
+                                   &c->x11_targets_atom, &c->x11_prop_atom };
+        for (int ai = 0; ai < 4; ai++) {
+            int nlen = (int)l_strlen(atom_names[ai]);
+            int npad = (4 - (nlen % 4)) % 4;
+            int areqlen = 8 + nlen + npad;
+            uint8_t areq[32];
+            l_memset(areq, 0, (size_t)areqlen);
+            areq[0] = 16; /* InternAtom */
+            areq[1] = 0;  /* only_if_exists = false */
+            uint16_t awlen = (uint16_t)(areqlen / 4);
+            l_memcpy(areq + 2, &awlen, 2);
+            uint16_t anlen = (uint16_t)nlen;
+            l_memcpy(areq + 4, &anlen, 2);
+            /* bytes 6-7 are padding (already 0) */
+            l_memcpy(areq + 8, atom_names[ai], (size_t)nlen);
+            if (l_x11_write_full(fd, areq, areqlen) < 0) goto fail;
+            uint8_t areply[32];
+            if (l_x11_read_full(fd, areply, 32) < 0) goto fail;
+            if (areply[0] != 1) goto fail; /* must be a reply */
+            l_memcpy(atom_dests[ai], areply + 8, 4);
+        }
+    }
+
     /* CreateWindow: opcode 1 */
     {
         uint32_t vals[2];
@@ -1141,6 +1220,90 @@ static inline void l_x11_pump_events(L_Canvas *c) {
             }
             break;
         }
+        case 29: /* SelectionClear — we lost clipboard ownership */
+            l_clipboard_internal_len = 0;
+            break;
+        case 30: /* SelectionRequest — another app wants our clipboard data */ {
+            uint32_t req_time, req_requestor, req_selection, req_target, req_property;
+            l_memcpy(&req_time, ev + 4, 4);
+            l_memcpy(&req_requestor, ev + 12, 4);
+            l_memcpy(&req_selection, ev + 16, 4);
+            l_memcpy(&req_target, ev + 20, 4);
+            l_memcpy(&req_property, ev + 24, 4);
+            /* If property is None, use target as property (ICCCM) */
+            if (req_property == 0) req_property = req_target;
+            uint32_t notify_prop = 0; /* None = conversion failed */
+            if (req_target == c->x11_targets_atom) {
+                /* Respond with supported targets */
+                uint32_t targets[3];
+                targets[0] = c->x11_targets_atom;
+                targets[1] = c->x11_utf8_atom;
+                targets[2] = c->x11_string_atom;
+                int dlen = 12;
+                int dpad = (4 - (dlen % 4)) % 4;
+                int cplen = 24 + dlen + dpad;
+                uint8_t cpreq[40];
+                l_memset(cpreq, 0, sizeof(cpreq));
+                cpreq[0] = 18; /* ChangeProperty */
+                cpreq[1] = 0;  /* Replace */
+                uint16_t cpwlen = (uint16_t)(cplen / 4);
+                l_memcpy(cpreq + 2, &cpwlen, 2);
+                l_memcpy(cpreq + 4, &req_requestor, 4);
+                l_memcpy(cpreq + 8, &req_property, 4);
+                uint32_t atom_type = 4; /* ATOM */
+                l_memcpy(cpreq + 12, &atom_type, 4);
+                cpreq[16] = 32; /* format = 32 */
+                uint32_t ndata = 3;
+                l_memcpy(cpreq + 20, &ndata, 4);
+                l_memcpy(cpreq + 24, targets, 12);
+                l_x11_write_full(c->x11_fd, cpreq, cplen);
+                notify_prop = req_property;
+            } else if ((req_target == c->x11_utf8_atom || req_target == c->x11_string_atom)
+                       && l_clipboard_internal_len > 0) {
+                /* Respond with clipboard text */
+                int dlen = l_clipboard_internal_len;
+                int dpad = (4 - (dlen % 4)) % 4;
+                int cplen = 24 + dlen + dpad;
+                uint8_t cpreq[4120]; /* 24 + 4096 max */
+                l_memset(cpreq, 0, (size_t)cplen);
+                cpreq[0] = 18; /* ChangeProperty */
+                cpreq[1] = 0;  /* Replace */
+                uint16_t cpwlen = (uint16_t)(cplen / 4);
+                l_memcpy(cpreq + 2, &cpwlen, 2);
+                l_memcpy(cpreq + 4, &req_requestor, 4);
+                l_memcpy(cpreq + 8, &req_property, 4);
+                l_memcpy(cpreq + 12, &req_target, 4); /* type = requested target */
+                cpreq[16] = 8; /* format = 8 (bytes) */
+                uint32_t ndata = (uint32_t)dlen;
+                l_memcpy(cpreq + 20, &ndata, 4);
+                l_memcpy(cpreq + 24, l_clipboard_internal, (size_t)dlen);
+                l_x11_write_full(c->x11_fd, cpreq, cplen);
+                notify_prop = req_property;
+            }
+            /* Send SelectionNotify back to requestor */
+            {
+                uint8_t sev[44];
+                l_memset(sev, 0, sizeof(sev));
+                sev[0] = 25; /* SendEvent opcode */
+                sev[1] = 0;  /* propagate = false */
+                uint16_t sewlen = 11;
+                l_memcpy(sev + 2, &sewlen, 2);
+                l_memcpy(sev + 4, &req_requestor, 4); /* destination */
+                /* event mask = 0 (bytes 8-11 already 0) */
+                /* Inline SelectionNotify event (32 bytes starting at sev+12) */
+                sev[12] = 31; /* SelectionNotify */
+                l_memcpy(sev + 16, &req_time, 4);
+                l_memcpy(sev + 20, &req_requestor, 4);
+                l_memcpy(sev + 24, &req_selection, 4);
+                l_memcpy(sev + 28, &req_target, 4);
+                l_memcpy(sev + 32, &notify_prop, 4);
+                l_x11_write_full(c->x11_fd, sev, 44);
+            }
+            break;
+        }
+        case 31: /* SelectionNotify — response to our ConvertSelection */
+            c->x11_clipboard_ready = 1;
+            break;
         default:
             break;
         }
@@ -1425,6 +1588,146 @@ static inline int l_canvas_resized(L_Canvas *c) {
     int r = c->resized;
     c->resized = 0;
     return r;
+}
+
+/* Read a single X11 reply, processing interleaved events. Returns 0 on success.
+   reply_hdr receives the 32-byte reply header. extra_out receives extra data.
+   extra_max is the max bytes for extra data. */
+static inline int l_x11_read_reply(L_Canvas *c, uint8_t *reply_hdr,
+                                    uint8_t *extra_out, int extra_max) {
+    for (int attempts = 0; attempts < 200; attempts++) {
+        uint8_t msg[32];
+        if (l_x11_read_full(c->x11_fd, msg, 32) < 0) return -1;
+        if (msg[0] == 0) return -1; /* X11 error */
+        if (msg[0] == 1) {
+            l_memcpy(reply_hdr, msg, 32);
+            uint32_t extra_words;
+            l_memcpy(&extra_words, msg + 4, 4);
+            int extra_bytes = (int)extra_words * 4;
+            if (extra_bytes > 0) {
+                if (extra_bytes <= extra_max) {
+                    if (l_x11_read_full(c->x11_fd, extra_out, extra_bytes) < 0) return -1;
+                } else {
+                    /* Read and discard excess */
+                    int got = 0;
+                    uint8_t discard[256];
+                    while (got < extra_bytes) {
+                        int chunk = extra_bytes - got;
+                        if (chunk > (int)sizeof(discard)) chunk = (int)sizeof(discard);
+                        if (l_x11_read_full(c->x11_fd, discard, chunk) < 0) return -1;
+                        if (got < extra_max) {
+                            int cp = chunk;
+                            if (got + cp > extra_max) cp = extra_max - got;
+                            l_memcpy(extra_out + got, discard, (size_t)cp);
+                        }
+                        got += chunk;
+                    }
+                }
+            }
+            return 0;
+        }
+        /* It's an event — re-inject into pump_events processing */
+        /* We handle the critical ones inline to avoid losing them */
+        uint8_t ecode = msg[0] & 0x7F;
+        if (ecode == 31) c->x11_clipboard_ready = 1;
+        else if (ecode == 29) l_clipboard_internal_len = 0;
+        /* Other events are dropped during reply wait (rare, brief window) */
+    }
+    return -1;
+}
+
+static inline int l_clipboard_set(L_Canvas *c, const char *text, int len) {
+    if (!text || len <= 0) return -1;
+    if (len > (int)sizeof(l_clipboard_internal)) return -1;
+    l_memcpy(l_clipboard_internal, text, (size_t)len);
+    l_clipboard_internal_len = len;
+    if (c->backend == 1 && c->x11_fd > 0) {
+        /* SetSelectionOwner: opcode 22 */
+        uint8_t req[16];
+        l_memset(req, 0, sizeof(req));
+        req[0] = 22;
+        uint16_t wlen = 4;
+        l_memcpy(req + 2, &wlen, 2);
+        l_memcpy(req + 4, &c->x11_wid, 4);
+        l_memcpy(req + 8, &c->x11_clipboard_atom, 4);
+        /* timestamp = 0 (CurrentTime), bytes 12-15 already 0 */
+        if (l_x11_write_full(c->x11_fd, req, 16) < 0) return -1;
+    }
+    return 0;
+}
+
+static inline int l_clipboard_get(L_Canvas *c, char *buf, int max) {
+    if (!buf || max <= 0) return -1;
+    buf[0] = '\0';
+    if (c->backend == 1 && c->x11_fd > 0) {
+        /* Self-owned shortcut: if we have data in the internal buffer, return it */
+        if (l_clipboard_internal_len > 0) {
+            int copy = l_clipboard_internal_len < max - 1 ? l_clipboard_internal_len : max - 1;
+            l_memcpy(buf, l_clipboard_internal, (size_t)copy);
+            buf[copy] = '\0';
+            return copy;
+        }
+        /* ConvertSelection: opcode 24 */
+        c->x11_clipboard_ready = 0;
+        {
+            uint8_t req[24];
+            l_memset(req, 0, sizeof(req));
+            req[0] = 24;
+            uint16_t wlen = 6;
+            l_memcpy(req + 2, &wlen, 2);
+            l_memcpy(req + 4, &c->x11_wid, 4);
+            l_memcpy(req + 8, &c->x11_clipboard_atom, 4);
+            l_memcpy(req + 12, &c->x11_utf8_atom, 4);
+            l_memcpy(req + 16, &c->x11_prop_atom, 4);
+            /* timestamp = 0, bytes 20-23 already 0 */
+            if (l_x11_write_full(c->x11_fd, req, 24) < 0) return -1;
+        }
+        /* Poll for SelectionNotify with ~200ms timeout */
+        for (int attempt = 0; attempt < 20 && !c->x11_clipboard_ready; attempt++) {
+            L_PollFd pfd;
+            pfd.fd = c->x11_fd;
+            pfd.events = L_POLLIN;
+            pfd.revents = 0;
+            if (l_poll(&pfd, 1, 10) <= 0) continue;
+            l_x11_pump_events(c);
+        }
+        if (!c->x11_clipboard_ready) return 0; /* timeout — clipboard empty or unavailable */
+        /* GetProperty: opcode 20 */
+        {
+            uint8_t req[24];
+            l_memset(req, 0, sizeof(req));
+            req[0] = 20;
+            req[1] = 1; /* delete = true */
+            uint16_t wlen = 6;
+            l_memcpy(req + 2, &wlen, 2);
+            l_memcpy(req + 4, &c->x11_wid, 4);
+            l_memcpy(req + 8, &c->x11_prop_atom, 4);
+            /* type = 0 (AnyPropertyType), bytes 12-15 already 0 */
+            /* offset = 0, bytes 16-19 already 0 */
+            uint32_t maxlen = 1024; /* in 4-byte units = 4096 bytes */
+            l_memcpy(req + 20, &maxlen, 4);
+            if (l_x11_write_full(c->x11_fd, req, 24) < 0) return -1;
+        }
+        /* Read GetProperty reply */
+        {
+            uint8_t rhdr[32];
+            uint8_t rdata[4096];
+            if (l_x11_read_reply(c, rhdr, rdata, (int)sizeof(rdata)) < 0) return -1;
+            uint32_t value_len;
+            l_memcpy(&value_len, rhdr + 16, 4);
+            if (value_len == 0) return 0;
+            int copy = (int)value_len < max - 1 ? (int)value_len : max - 1;
+            l_memcpy(buf, rdata, (size_t)copy);
+            buf[copy] = '\0';
+            return copy;
+        }
+    }
+    /* Framebuffer / WASI fallback: internal buffer */
+    if (l_clipboard_internal_len == 0) return 0;
+    int copy = l_clipboard_internal_len < max - 1 ? l_clipboard_internal_len : max - 1;
+    l_memcpy(buf, l_clipboard_internal, (size_t)copy);
+    buf[copy] = '\0';
+    return copy;
 }
 
 #endif // _WIN32 / __unix__
