@@ -1,13 +1,13 @@
 {
-  "last_run": "2026-04-11T01:28:31Z",
-  "last_run_id": "24271486174",
+  "last_run": "2026-04-12T13:23:32Z",
+  "last_run_id": "24307719693",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
-    {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09", "status": "open"}
+    {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "status": "open"}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/fix-strtod-erange-2026-04-11", "desc": "strtod ERANGE fix + L_ERANGE + tests + test_img.c in coverage manifest"},
-    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-11", "desc": "CI apt caching + --no-install-recommends"}
+    {"branch": "repo-assist/fix-strtod-erange-2026-04-12", "desc": "fix: L_ERANGE + strtod/strtof errno ERANGE on overflow/underflow. TESTED gcc+clang."},
+    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-12", "desc": "ci: apt cache + --no-install-recommends for arm/riscv/wasi"}
   ],
-  "notes": "safeoutputs consistently unavailable. Branches committed locally (not pushed). Key: save errno before TEST_ASSERT due to l_write resetting l_last_errno=0. Next: recreate branches + push + create PRs + update issue #123."
+  "notes": "safeoutputs unavailable consistently. Branches committed locally. Next: apply patches, push, create PRs, update issue #123."
 }

@@ -1,3 +1,19 @@
+From 3f71202df733ba2d5f53ed25754b1842c8d55be3 Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Sun, 12 Apr 2026 13:29:21 +0000
+Subject: [PATCH] ci: cache apt packages and add --no-install-recommends for
+ arm/riscv/wasi jobs
+
+Add actions/cache@v4 steps to cache /var/cache/apt/archives/*.deb for the
+arm, riscv, and wasi CI jobs. This avoids re-downloading packages on every
+run when nothing has changed. Also add --no-install-recommends to trim
+unnecessary packages and speed up fresh installs when the cache is cold.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ .github/workflows/ci.yml | 33 ++++++++++++++++++++++++++++++---
+ 1 file changed, 30 insertions(+), 3 deletions(-)
+
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
 index b0a5a15..28e83bf 100644
 --- a/.github/workflows/ci.yml
@@ -59,3 +75,6 @@ index b0a5a15..28e83bf 100644
  
        - name: Install Wasmtime
          uses: bytecodealliance/actions/wasmtime/setup@v1
+-- 
+2.53.0
+
