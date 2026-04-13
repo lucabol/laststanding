@@ -1,18 +1,22 @@
 {
-  "last_run": "2026-04-12T13:23:32Z",
-  "last_run_id": "24307719693",
+  "last_run": "2026-04-13T01:29:08Z",
+  "last_run_id": "24321479721",
   "monthly_activity_issue": "#123 (open, 2026-04)",
-  "mcp_issue": "MCP registry policy check fails 401 Bad credentials -> safeoutputs MCP server filtered/blocked. See /tmp/gh-aw/sandbox/agent/logs for details. Infrastructure issue, not fixable by this agent.",
+  "mcp_issue": "safeoutputs MCP tools (create_pull_request, update_issue, noop, etc.) are NOT available in Copilot CLI - consistent across multiple runs. Tools listed in instructions but not in function schema. Infrastructure issue.",
   "open_prs": [
     {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open", "conflicts": false}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/fix-strtod-erange-2026-04-12", "desc": "fix: L_ERANGE=34, strtod/strtof set errno ERANGE on overflow/underflow. TESTED gcc+clang Linux.", "patch_file": "fix_strtod_erange.patch"},
-    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-12", "desc": "ci: apt caching + --no-install-recommends for arm/riscv/wasi jobs.", "patch_file": "eng_ci_apt_cache.patch"}
+    {"branch": "repo-assist/fix-strtod-erange-2026-04-13", "desc": "fix: L_ERANGE=34, strtod/strtof set errno ERANGE on overflow/underflow. TESTED gcc+clang Linux (1476/1474 assertions).", "patch_file": "fix_strtod_erange.patch"},
+    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-13", "desc": "ci: apt cache + --no-install-recommends for arm/riscv/wasi. Not testable locally.", "patch_file": "eng_ci_apt_cache.patch"}
   ],
   "resolved_issues": [],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed"},
   "checked_off_items": [],
   "comments_made": {},
-  "notes": "safeoutputs MCP filtered due to 401 on MCP registry policy check. DONE THIS RUN: Task 8 (L_ERANGE fix tested), Task 6 (PR #122 no conflicts), CI apt cache branch. Patches saved to memory. KEY: save errno BEFORE TEST_ASSERT because l_write resets l_last_errno=0 on success."
+  "open_workflow_failure_issues": [
+    {"number": 124, "title": "[aw] Repo Assist failed", "cause": "no safe outputs - safeoutputs MCP unavailable"},
+    {"number": 125, "title": "[aw] Daily Repo Status failed", "cause": "no safe outputs - safeoutputs MCP unavailable"}
+  ],
+  "notes": "PERSISTENT ISSUE: safeoutputs MCP tools unavailable in Copilot CLI. Cannot create PRs or update issues. Patches saved in repo memory. KEY: save errno BEFORE TEST_ASSERT because l_write resets l_last_errno=0 on success. THIS RUN: Applied strtod ERANGE patch (tested OK) + CI apt cache patch. Both in local branches but cannot push without safeoutputs. Issue #123 body references PR #121 (closed) - should reference PR #122 instead."
 }

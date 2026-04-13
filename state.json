@@ -1,13 +1,13 @@
 {
-  "last_run": "2026-04-12T13:23:32Z",
-  "last_run_id": "24307719693",
+  "last_run": "2026-04-13T01:29:08Z",
+  "last_run_id": "24321479721",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
     {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "status": "open"}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/fix-strtod-erange-2026-04-12", "desc": "fix: L_ERANGE + strtod/strtof errno ERANGE on overflow/underflow. TESTED gcc+clang."},
-    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-12", "desc": "ci: apt cache + --no-install-recommends for arm/riscv/wasi"}
+    {"branch": "repo-assist/fix-strtod-erange-2026-04-13", "desc": "fix: L_ERANGE + strtod/strtof errno ERANGE on overflow/underflow. TESTED gcc+clang."},
+    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-13", "desc": "ci: apt cache + --no-install-recommends for arm/riscv/wasi"}
   ],
-  "notes": "safeoutputs unavailable consistently. Branches committed locally. Next: apply patches, push, create PRs, update issue #123."
+  "notes": "safeoutputs unavailable consistently. Branches committed locally. Need to push and create PRs when safeoutputs available. Issue #123 body has stale PR #121 ref - needs updating to PR #122."
 }
