@@ -450,7 +450,60 @@ static inline void l_tls_cleanup(void) {
 
 // BearSSL is compiled separately as a static library (git submodule).
 // Only include the public headers here.
+// BearSSL headers include system <string.h> and <limits.h> which conflict
+// with l_os.h macro overrides. Temporarily undef them.
+#ifdef memcpy
+#  define L_TLS_HAD_OVERRIDES
+#  undef memcpy
+#  undef memmove
+#  undef memset
+#  undef memcmp
+#  undef strlen
+#  undef strcpy
+#  undef strncpy
+#  undef strcmp
+#  undef strncmp
+#  undef strcat
+#  undef strncat
+#  undef strerror
+#endif
 #include "bearssl/inc/bearssl.h"
+#ifdef L_TLS_HAD_OVERRIDES
+#  undef L_TLS_HAD_OVERRIDES
+#  define memcpy l_memcpy
+#  define memmove l_memmove
+#  define memset l_memset
+#  define memcmp l_memcmp
+#  define strlen l_strlen
+#  define strcpy l_strcpy
+#  define strncpy l_strncpy
+#  define strcmp l_strcmp
+#  define strncmp l_strncmp
+#  define strcat l_strcat
+#  define strncat l_strncat
+#  define strerror l_strerror
+#endif
+
+/* Shims for libc functions referenced by BearSSL internals (sysrng.o,
+   x509_minimal.o). In our freestanding build these map to l_os.h equivalents.
+   Must be non-static to satisfy linker references from .a objects. */
+#ifdef L_WITHSTART
+int    getentropy(void *buf, unsigned long len) { return l_getrandom(buf, len) == (ssize_t)len ? 0 : -1; }
+long   time(long *t)           { long long v; long long *p = t ? &v : 0; long r = (long)l_time(p); if (t) *t = (long)v; return r; }
+int   *__errno_location(void)  { static int _e; return &_e; }
+/* open/read/close may be macro'd to l_open/l_read/l_close — undef first */
+#undef open
+#undef read
+#undef close
+int    open(const char *p, int f, ...) { return (int)l_open(p, f, 0); }
+long   read(int fd, void *b, unsigned long n) { return (long)l_read(fd, b, n); }
+int    close(int fd)           { return (int)l_close(fd); }
+#ifndef L_DONTOVERRIDE
+#define open l_open
+#define read l_read
+#define close l_close
+#endif
+#endif
 
 typedef struct {
     br_ssl_client_context   sc;

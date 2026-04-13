@@ -25,7 +25,7 @@ function build_bearssl_lib {
   for f in bearssl/src/*/*.c; do
     local obj="$OUTDIR/$(basename "${f%.c}.o")"
     $BCC -c -Ibearssl/inc -Ibearssl/src -O$BOPT -ffreestanding -fno-builtin \
-         -ffunction-sections -fdata-sections -w \
+         -ffunction-sections -fdata-sections -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -w \
          "$f" -o "$obj" || return 1
   done
 
