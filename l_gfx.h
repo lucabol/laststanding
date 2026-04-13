@@ -429,7 +429,12 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             case VK_ESCAPE: key = 27;   break;
             case VK_BACK:   key = 8;    break;
             case VK_TAB:    key = 9;    break;
-            default: break;  // printable chars handled by WM_CHAR
+            default:
+                // Ctrl+letter: generate control codes 1-26 (Ctrl+A=1 .. Ctrl+Z=26)
+                if ((GetKeyState(VK_CONTROL) & 0x8000) && wp >= 'A' && wp <= 'Z') {
+                    key = (int)(wp - 'A' + 1);
+                }
+                break;
             }
             if (key) {
                 int next = (c->key_head + 1) % 16;
@@ -1116,6 +1121,9 @@ static inline void l_x11_pump_events(L_Canvas *c) {
         switch (code) {
         case 2: /* KeyPress */ {
             uint8_t keycode = ev[1];
+            uint16_t state;
+            l_memcpy(&state, ev + 28, 2); /* modifier state */
+            int ctrl = (state & 4); /* ControlMask = 0x04 */
             /* Minimal keycode→keysym mapping (X11 keycodes: key = keycode - 8 for US layout) */
             int key = 0;
             if (keycode == 9) key = 27; /* Escape */
@@ -1130,17 +1138,17 @@ static inline void l_x11_pump_events(L_Canvas *c) {
             /* Letters: keycodes 24-33 = q,w,e,r,t,y,u,i,o,p */
             else if (keycode >= 24 && keycode <= 33) {
                 static const char row1[] = "qwertyuiop";
-                key = row1[keycode - 24];
+                key = ctrl ? (row1[keycode - 24] - 'a' + 1) : row1[keycode - 24];
             }
             /* keycodes 38-46 = a,s,d,f,g,h,j,k,l */
             else if (keycode >= 38 && keycode <= 46) {
                 static const char row2[] = "asdfghjkl";
-                key = row2[keycode - 38];
+                key = ctrl ? (row2[keycode - 38] - 'a' + 1) : row2[keycode - 38];
             }
             /* keycodes 52-58 = z,x,c,v,b,n,m */
             else if (keycode >= 52 && keycode <= 58) {
                 static const char row3[] = "zxcvbnm";
-                key = row3[keycode - 52];
+                key = ctrl ? (row3[keycode - 52] - 'a' + 1) : row3[keycode - 52];
             }
             /* Numbers: keycodes 10-19 = 1,2,...,9,0 */
             else if (keycode >= 10 && keycode <= 18) key = '0' + (keycode - 9);
