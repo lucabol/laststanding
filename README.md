@@ -5,12 +5,12 @@ A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. 
 | Header | What it provides |
 |--------|-----------------|
 | `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access, hash maps, SHA-256, glob matching, time formatting |
-| `l_gfx.h` | Pixel graphics — drawing primitives, scaled bitmap font, pixel blitting, alpha blending, keyboard/mouse input, clipboard (X11 / Linux framebuffer / Windows GDI) |
+| `l_gfx.h` | Pixel graphics — drawing primitives, scaled bitmap font, pixel blitting, alpha blending, keyboard/mouse input, clipboard, and window/framebuffer/terminal backends |
 | `l_img.h` | Image decoding — PNG, JPEG, BMP, GIF, TGA from memory buffers via vendored stb_image (freestanding, no libc) |
 | `l_tls.h` | TLS/HTTPS client — SChannel on Windows, BearSSL on Linux (zero deps on both). Up to 8 simultaneous connections |
 | `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
-Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes 13 Unix-style utilities, 4 interactive programs (text editor, shell, snake, fractal renderer), 7 graphical demos, an image viewer, an HTTPS client, and 2 UI demos — all built without a single line of libc.
+Binaries are statically linked, stripped, and typically **2–10 KB**. The project includes Unix-style utilities, interactive programs, graphics demos, a terminal pixel demo, an image viewer, an HTTPS client, and UI demos — all built without a single line of libc.
 
 ## Quick Start
 
@@ -521,7 +521,7 @@ In multi-file projects, only one `.c` file defines `L_MAINFILE`:
 | `L_Str` | Fat string — pointer+length pair (16 bytes, by value). Zero-copy views or arena-backed. |
 | `L_Arena` | Bump allocator. Init with `l_arena_init(size)`, allocate with `l_arena_alloc`. |
 | `L_Buf` | Growable byte buffer (heap-backed via `realloc`). |
-| `L_Canvas` | Pixel graphics context (framebuffer on Linux, GDI window on Windows). |
+| `L_Canvas` | Pixel graphics context (X11 / framebuffer / terminal on Linux, GDI window or terminal on Windows). |
 | `L_PollFd` | Poll descriptor — fd, events, revents for `l_poll`. |
 | `L_IoVec` | I/O vector — base pointer + length for scatter-gather I/O. |
 | `L_Map` | Arena-backed hash map — FNV-1a, open addressing, linear probing. |
@@ -881,7 +881,14 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 
 <!-- END GFX REFERENCE -->
 
-Platform backends: **Linux** renders to `/dev/fb0` (framebuffer console — no X11 or Wayland). You may need to grant access first: `sudo chmod 666 /dev/fb0`. **Windows** opens a native GDI window (`user32.dll` + `gdi32.dll`). All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
+Platform backends:
+
+- **Linux:** tries X11 first when `$DISPLAY` is set, falls back to `/dev/fb0` (framebuffer console), then falls back to the terminal when both stdin and stdout are TTYs.
+- **Windows:** opens a native GDI window (`user32.dll` + `gdi32.dll`) by default. Set `L_GFX_TERM=1` to force the terminal backend when stdin and stdout are TTYs.
+- **Terminal backend:** renders the pixel buffer as Unicode half-block characters (`▀`, U+2580) with 24-bit ANSI truecolor; each terminal cell represents 1x2 pixels.
+- **Examples/tests:** see `examples/term_demo.c` for a live demo and `tests/test_term_gfx.c` for ANSI/color/math coverage.
+
+For framebuffer access on Linux, you may need to grant access first: `sudo chmod 666 /dev/fb0`. All graphical demos use **integer-only math** (no floats) for full ARM compatibility.
 
 ## Function Reference — `l_img.h`
 
@@ -900,7 +907,7 @@ Freestanding image decoding powered by vendored `stb_image.h`. Decodes PNG, JPEG
 
 ## Function Reference — `l_tls.h`
 
-Freestanding TLS/HTTPS client. On **Windows**, uses SChannel (built-in OS TLS — zero external dependencies). On **Linux**, uses a vendored BearSSL amalgamation (zero external dependencies — constant-time AES, ECDHE+RSA, i31 bignum engine). On **WASI**, returns -1 (no sockets). Supports up to 8 simultaneous TLS connections.
+Freestanding TLS/HTTPS client. On **Windows**, uses SChannel (built-in OS TLS — zero external dependencies). On **Linux**, uses BearSSL built from the vendored `bearssl/` submodule as a static library (constant-time AES, ECDHE+RSA, i31 bignum engine). On **WASI**, returns -1 (no sockets). Supports up to 8 simultaneous TLS connections.
 
 | Function | Description |
 |----------|-------------|
@@ -1562,11 +1569,12 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | **sh** | Shell — builtins (cd, pwd, echo, export), L_Map lookup, PATH search, quotes, I/O redirection, pipes | [sh.c](examples/sh.c) |
 | **snake** | Terminal Snake game with WASD controls | [snake.c](examples/snake.c) |
 
-### Graphical Demos (`l_gfx.h`)
+### Graphics + Terminal Demos (`l_gfx.h`)
 
 | Program | Description | Source |
 |---------|-------------|--------|
 | **gfx_demo** | Static drawing — rectangles, circles, text (README example) | [gfx_demo.c](examples/gfx_demo.c) |
+| **term_demo** | Terminal pixel graphics via ANSI truecolor half-block rendering (`L_GFX_TERM=1` on Windows) | [term_demo.c](examples/term_demo.c) |
 | **bounce** | Bouncing ball animation — run with `-f` for fullscreen (README example) | [bounce.c](examples/bounce.c) |
 | **life** | Conway's Game of Life — 80×60 grid, pause/randomize/clear | [life.c](examples/life.c) |
 | **plasma** | Rainbow plasma — animated sine-wave color cycling | [plasma.c](examples/plasma.c) |
@@ -1587,8 +1595,8 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 
 ### Test Suite
 
-| Program | Assertions | Source |
-|---------|-----------|--------|
+| Program | Coverage | Source |
+|---------|----------|--------|
 | **test** | Process/self-spawn regression shard | [test.c](tests/test.c) |
 | **test_strings** | String, conversion, memory, and formatting shard | [test_strings.c](tests/test_strings.c) |
 | **test_fs** | Filesystem, environment, and low-level I/O shard | [test_fs.c](tests/test_fs.c) |
@@ -1596,6 +1604,8 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | **test_img** | Image decoding tests (BMP, PNG, invalid data) | [test_img.c](tests/test_img.c) |
 | **test_tls** | TLS init/cleanup, invalid handles, platform availability | [test_tls.c](tests/test_tls.c) |
 | **test_net** | Manual socket/runtime shard (`l_poll` stays in default `test_fs`) | [test_net.c](tests/test_net.c) |
+| **test_clipboard** | Clipboard set/get coverage across gfx backends | [test_clipboard.c](tests/test_clipboard.c) |
+| **test_term_gfx** | Terminal backend math, ANSI color output, and UTF-8 half-block encoding | [test_term_gfx.c](tests/test_term_gfx.c) |
 | **gfx_test** | 28 (in-memory pixel buffer tests) | [gfx_test.c](tests/gfx_test.c) |
 | **ui_test** | UI widget logic tests (simulated canvas) | [ui_test.c](tests/ui_test.c) |
 
@@ -1603,15 +1613,15 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 
 ```
 l_os.h          — Core runtime header (strings, I/O, processes, terminal)
-l_gfx.h        — Pixel graphics header (drawing, font, canvas)
+l_gfx.h         — Pixel graphics header (drawing, font, window/framebuffer/terminal canvas)
 l_img.h        — Image decoding header (PNG, JPEG, BMP, GIF, TGA via stb_image)
 l_tls.h        — TLS/HTTPS client header (SChannel on Windows, BearSSL on Linux)
 l_ui.h         — Immediate-mode UI header (widgets, layout, theme)
 stb_image.h    — Vendored image decoder (public domain, from nothings/stb)
 bearssl/         — BearSSL TLS library (git submodule, MIT license)
 compat/         — Freestanding shims (string.h, stdlib.h) for stb_image on Linux
-examples/       — Example programs and utilities (33 programs)
-tests/          — Test suites (test.c, test_strings.c, test_fs.c, test_utils.c, test_img.c, test_net.c, gfx_test.c, ui_test.c)
+examples/       — Example programs and utilities (37 programs)
+tests/          — Test suites (11 .c files, including test_clipboard.c and test_term_gfx.c)
 tests/fixtures/ — Test data files (binaries, expected outputs)
 tests/smoke/    — Smoke test scripts (showcase_smoke.sh, showcase_smoke.ps1)
 bin/            — Compiled binaries (generated)
