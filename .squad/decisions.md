@@ -799,6 +799,60 @@ On Linux, l_localtime parses simple TZ env var formats (e.g., "UTC+5", "EST5") o
 
 **Rationale:** Reading /etc/localtime (Olson TZ database binary format) is complex. Simple TZ parsing covers the common case. Users needing precise timezone handling can use l_gmtime and apply their own offset.
 
+---
+
+### 2026-04-13: Console Graphics — Terminal Pixel Backend (backend=2)
+
+**By:** Ripley (Lead), Dallas (Implementation), Lambert (Testing)  
+**Date:** 2026-04-13T09:40:00Z  
+**Status:** Implemented
+
+**What:** Added terminal graphics backend (backend=2) to l_gfx.h. Renders pixel buffers using Unicode half-block characters (▀ U+2580) with 24-bit ANSI truecolor escape sequences. All existing drawing primitives, l_ui.h, and l_img.h work unchanged.
+
+**Design:**
+- **Linux:** Auto-fallback chain: X11 → framebuffer → terminal (if stdin/stdout are TTYs)
+- **Windows:** Opt-in via `L_GFX_TERM=1` environment variable (GDI remains default)
+- **Rendering:** Half-block characters + ANSI escape sequences (24-bit RGB)
+- **Optimization:** Skip redundant ANSI sequences per-cell (5-15KB typical frame vs. 48KB naive)
+- **L_Canvas Windows:** Added `backend`, `saved_tty`, `term_buf`, `term_buf_size` fields
+- **L_Canvas Linux:** Added `term_buf`, `term_buf_size` fields
+- **Platform helpers:** `l_ansi_color_rgb()` in l_os.h; `l_term_flush_pixels()`, `l_term_canvas_init()`, `l_term_canvas_cleanup()` in l_gfx.h
+
+**Why:** Existing architecture cleanly separates pixel buffer operations from display backend. Terminal rendering enables graphics and UI widgets in terminal contexts (SSH, tmux, CI logs) with minimal effort. All drawing code works unchanged.
+
+**Cross-Platform:** Supports all modern terminals (Windows Terminal, ConEmu, cmd.exe on Windows; gnome-terminal, kitty, alacritty, xterm on Linux). ANSI 24-bit color widely supported.
+
+**Impact:**
+- Zero changes to existing drawing code or l_ui.h
+- All tests pass unchanged
+- Terminal backend fully functional and tested (30 assertions, test_term_gfx.c)
+- `examples/term_demo.c` demonstrates capability
+
+---
+
+### 2026-04-01: Windows Cross-Target Compiler Aliasing
+
+**By:** Dallas  
+**Date:** 2026-04-01  
+**Status:** Implemented
+
+**What:** Normalize symbolic `gcc` inputs in `Taskfile` cross-build functions. `build_arm` maps `gcc` → `arm-linux-gnueabihf-gcc`, `build_aarch64` maps `gcc` → `aarch64-linux-gnu-gcc`. Also tighten `verify_arm` to require `ELF 32-bit` verification.
+
+**Why:** Windows CI and ad-hoc WSL invocations use high-level compiler selectors. Host `gcc` compiling to `bin/*.armhf` produced mislabeled host binaries that later failed under `qemu-arm` with `Invalid ELF image for this architecture`.
+
+**Impact:** All ARM/AArch64 cross-compilation now produces correct ELF bitness. CI catches architecture mismatches.
+
+---
+
+### 2026-04-01T12:53:03.936Z: User Directive
+
+**By:** Luca Bolognese (via Copilot)  
+**Status:** Directive
+
+Fix everything; don't leave anything local. (Captured for team memory.)
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
