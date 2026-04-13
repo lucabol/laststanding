@@ -56,3 +56,24 @@ Reviewed the full socket API surface and designed the DNS resolution API. Decisi
 - **DNS composes from existing UDP primitives on Linux:** `l_socket_udp` + `l_socket_sendto` + `l_socket_recvfrom` + `l_poll` provide everything needed for raw DNS queries. No new syscalls.
 - **`l_inet_addr` returns 0 for both error and `0.0.0.0`:** Any code that uses `l_inet_addr` return value as an error indicator has a bug for `0.0.0.0`. This affects `l_socket_connect`, `l_socket_sendto`, and the proposed `l_resolve` passthrough check.
 - **http_get.c is the reference socket client:** Located at `test/http_get.c`, demonstrates TCP connect → send → poll-recv loop. Will need updating once DNS lands to accept hostnames.
+
+## Work Session — 2026-07-25 (Console Graphics Feasibility Analysis)
+
+Performed a thorough architecture analysis of `l_gfx.h` to assess whether it can support console/terminal rendering in addition to graphical displays.
+
+**Key findings:**
+- `l_gfx.h` has a clean 3-backend architecture: Windows GDI, X11 wire protocol, Linux framebuffer. Backend selected at `l_canvas_open` time via `c->backend` field (0=fb, 1=X11).
+- The core abstraction (`L_Canvas`) is a **pixel buffer** (`uint32_t *pixels`, ARGB). All drawing primitives (`l_pixel`, `l_fill_rect`, `l_circle`, `l_draw_text`, `l_blit`) operate purely on this buffer — they are platform-independent.
+- The backend only matters for: (1) `l_canvas_open` — allocating the buffer + connecting to display, (2) `l_canvas_flush` — copying pixels to screen, (3) `l_canvas_key`/`l_canvas_mouse` — input, (4) `l_canvas_close` — cleanup.
+- `l_os.h` already provides: `l_term_raw`, `l_term_restore`, `l_term_size`, `l_read_nonblock`, `l_ansi_move`, `l_ansi_color`, `L_ANSI_CLEAR`, `L_ANSI_HOME`, `L_ANSI_HIDE_CUR`, `L_ANSI_SHOW_CUR` — all cross-platform (Linux+Windows+WASI stubs).
+- Windows `l_term_raw` already enables `ENABLE_VIRTUAL_TERMINAL_PROCESSING` for ANSI escape support.
+- A terminal backend (backend=2) could be added by: allocating an in-memory pixel buffer, and in `l_canvas_flush`, converting pixels to terminal output using Unicode half-block characters (▀▄█) with 24-bit ANSI color sequences (`\033[38;2;R;G;Bm` / `\033[48;2;R;G;Bm`).
+- Resolution: each terminal cell = 1 char wide × 2 pixels tall (using ▀/▄). An 80×24 terminal → 80×48 pixel canvas. A 160-col terminal → 160×96 pixels — enough for simple UI.
+- `l_ui.h` would work unchanged because it operates entirely on `L_Canvas` via drawing primitives. No modifications needed.
+
+## Learnings
+
+- **l_gfx.h backend architecture:** Backend dispatch is via `c->backend` integer field. Currently: 0=framebuffer, 1=X11 (Linux); Windows has no backend field (separate `#ifdef _WIN32` compile-time split). Adding backend=2 (terminal) on Linux is straightforward. On Windows, would need a runtime backend field added to the `#ifdef _WIN32` struct.
+- **Drawing primitives are backend-agnostic:** All `l_pixel`, `l_fill_rect`, `l_circle`, `l_line`, `l_draw_text`, `l_blit`, `l_blit_alpha` operate purely on the `uint32_t *pixels` buffer. No backend-specific code. This means any new backend only needs to implement the 5 platform functions (open/close/alive/flush/key/mouse).
+- **ANSI 24-bit color is already half-supported:** `l_ansi_color` in l_os.h only does 8-color (0-7). For terminal pixel rendering, we'd need `\033[38;2;R;G;Bm` (truecolor) — a new `l_ansi_color_rgb` helper.
+- **Terminal backend has zero new syscall requirements:** All needed primitives (`l_write` to stdout, `l_term_raw`, `l_term_size`, `l_read_nonblock`, `l_ansi_move`) already exist in l_os.h across all platforms.

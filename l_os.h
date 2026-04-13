@@ -797,6 +797,8 @@ static inline void l_term_size(int *rows, int *cols);
 static inline int l_ansi_move(char *buf, size_t bufsz, int row, int col);
 /// Writes color sequence into buf; fg/bg are 0-7 ANSI colors, -1 for default
 static inline int l_ansi_color(char *buf, size_t bufsz, int fg, int bg);
+/// Writes 24-bit truecolor ANSI sequence into buf; is_bg=0 for foreground, 1 for background
+static inline int l_ansi_color_rgb(char *buf, size_t bufsz, int r, int g, int b, int is_bg);
 
 // File system functions (cross-platform)
 /// Deletes a file, returns 0 on success, -1 on error
@@ -3803,6 +3805,25 @@ static inline int l_ansi_color(char *buf, size_t bufsz, int fg, int bg) {
     } else {
         pos = l__buf_append(buf, bufsz, pos, "0");
     }
+    pos = l__buf_append(buf, bufsz, pos, "m");
+    buf[pos] = '\0';
+    return (int)pos;
+}
+
+static inline int l_ansi_color_rgb(char *buf, size_t bufsz, int r, int g, int b, int is_bg) {
+    if (!buf || bufsz < 2) return 0;
+    char tmp[12];
+    size_t pos = 0;
+    pos = l__buf_append(buf, bufsz, pos, "\033[");
+    pos = l__buf_append(buf, bufsz, pos, is_bg ? "48;2;" : "38;2;");
+    l_itoa(r, tmp, 10);
+    pos = l__buf_append(buf, bufsz, pos, tmp);
+    pos = l__buf_append(buf, bufsz, pos, ";");
+    l_itoa(g, tmp, 10);
+    pos = l__buf_append(buf, bufsz, pos, tmp);
+    pos = l__buf_append(buf, bufsz, pos, ";");
+    l_itoa(b, tmp, 10);
+    pos = l__buf_append(buf, bufsz, pos, tmp);
     pos = l__buf_append(buf, bufsz, pos, "m");
     buf[pos] = '\0';
     return (int)pos;

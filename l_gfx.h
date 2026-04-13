@@ -55,16 +55,20 @@ typedef struct {
 
 #ifdef _WIN32
     // Windows GDI internals
+    int       backend;      // 0=GDI, 2=terminal
     void     *hwnd;         // HWND
     void     *hdc_mem;      // memory DC for the DIB
     void     *hbmp_old;     // previous bitmap in hdc_mem
     int       closed;       // set when WM_CLOSE received
+    unsigned long saved_tty; // saved console mode for terminal restore
+    char     *term_buf;     // mmap'd buffer for terminal frame rendering
+    int       term_buf_size;// size of term_buf
     int       keys[16];     // small ring buffer for key events
     int       key_head;
     int       key_tail;
 #else
-    // Linux internals — X11 or framebuffer
-    int       backend;      // 0=framebuffer, 1=X11
+    // Linux internals — X11, framebuffer, or terminal
+    int       backend;      // 0=framebuffer, 1=X11, 2=terminal
     // Framebuffer fields
     int       fb_fd;        // fd to /dev/fb0
     uint8_t  *fb_mem;       // mmap'd framebuffer
@@ -75,6 +79,8 @@ typedef struct {
     int       fb_yoff;      // y offset in virtual framebuffer
     unsigned long saved_tty; // saved terminal mode for restore
     int       mouse_fd;    // fd to /dev/input/mice (-1 if unavailable)
+    char     *term_buf;     // mmap'd buffer for terminal frame rendering
+    int       term_buf_size;// size of term_buf
     // X11 fields
     int       x11_fd;       // socket to X server
     uint32_t  x11_wid;      // window resource ID
@@ -400,6 +406,117 @@ static inline void l_blit_alpha(L_Canvas *c, int dx, int dy, int w, int h,
 
 // ── Platform implementations ─────────────────────────────────────────────────
 
+// ── Shared terminal flush (used by both Windows and Linux backend=2) ─────────
+
+/// Renders the pixel buffer as half-block characters with ANSI truecolor.
+/// Each terminal row represents 2 pixel rows. Upper pixel = foreground, lower = background.
+/// Returns number of bytes written to out, or 0 on error.
+static inline int l_term_flush_pixels(uint32_t *pixels, int width, int height,
+                                      char *out, int out_size) {
+    if (!pixels || !out || out_size < 16) return 0;
+    int cols = width;
+    int term_rows = height / 2;
+    int pos = 0;
+    int cap = out_size - 1;
+
+    // Move cursor to home position
+    if (pos + 4 <= cap) { out[pos++] = '\033'; out[pos++] = '['; out[pos++] = 'H'; }
+
+    int prev_fr = -1, prev_fg = -1, prev_fb = -1;
+    int prev_br = -1, prev_bg = -1, prev_bb = -1;
+
+    for (int y = 0; y < term_rows; y++) {
+        for (int x = 0; x < cols; x++) {
+            uint32_t top = pixels[(y * 2) * width + x];
+            uint32_t bot = (y * 2 + 1 < height) ? pixels[(y * 2 + 1) * width + x] : 0;
+            int tr = (int)((top >> 16) & 0xFF), tg = (int)((top >> 8) & 0xFF), tb = (int)(top & 0xFF);
+            int br = (int)((bot >> 16) & 0xFF), bga = (int)((bot >> 8) & 0xFF), bb = (int)(bot & 0xFF);
+
+            // Emit fg color only if changed
+            if (tr != prev_fr || tg != prev_fg || tb != prev_fb) {
+                int n = l_ansi_color_rgb(out + pos, (size_t)(cap - pos), tr, tg, tb, 0);
+                pos += n;
+                prev_fr = tr; prev_fg = tg; prev_fb = tb;
+            }
+            // Emit bg color only if changed
+            if (br != prev_br || bga != prev_bg || bb != prev_bb) {
+                int n = l_ansi_color_rgb(out + pos, (size_t)(cap - pos), br, bga, bb, 1);
+                pos += n;
+                prev_br = br; prev_bg = bga; prev_bb = bb;
+            }
+            // Emit half-block: U+2580 = UTF-8 0xE2 0x96 0x80
+            if (pos + 3 <= cap) {
+                out[pos++] = (char)0xE2;
+                out[pos++] = (char)0x96;
+                out[pos++] = (char)0x80;
+            }
+        }
+        // Reset colors and move to next line
+        if (pos + 5 <= cap) {
+            out[pos++] = '\033'; out[pos++] = '['; out[pos++] = '0'; out[pos++] = 'm';
+            out[pos++] = '\n';
+        }
+        prev_fr = prev_fg = prev_fb = -1;
+        prev_br = prev_bg = prev_bb = -1;
+    }
+    out[pos] = '\0';
+    return pos;
+}
+
+/// Opens a terminal canvas: enters raw mode, gets terminal size, allocates buffers.
+/// Returns 0 on success, -1 on failure.
+static inline int l_term_canvas_init(L_Canvas *c, int width, int height) {
+    c->backend = 2;
+    c->saved_tty = l_term_raw();
+    int rows, cols;
+    l_term_size(&rows, &cols);
+
+    // Pixel dimensions: each terminal cell is 1 wide, 2 pixels tall
+    int pw = (width > 0 && width <= cols) ? width : cols;
+    int ph = (height > 0 && height <= rows * 2) ? height : rows * 2;
+    c->width  = pw;
+    c->height = ph;
+    c->stride = pw * 4;
+
+    int pix_size = c->stride * c->height;
+    c->pixels = (uint32_t *)l_mmap(0, (size_t)pix_size, L_PROT_READ | L_PROT_WRITE,
+                                    L_MAP_PRIVATE | L_MAP_ANONYMOUS, -1, 0);
+    if (c->pixels == (uint32_t *)L_MAP_FAILED) {
+        l_term_restore(c->saved_tty);
+        return -1;
+    }
+
+    // Allocate frame output buffer: ~45 bytes per cell + overhead
+    c->term_buf_size = pw * (ph / 2 + 1) * 48 + 256;
+    c->term_buf = (char *)l_mmap(0, (size_t)c->term_buf_size, L_PROT_READ | L_PROT_WRITE,
+                                  L_MAP_PRIVATE | L_MAP_ANONYMOUS, -1, 0);
+    if (c->term_buf == (char *)L_MAP_FAILED) {
+        l_munmap(c->pixels, (size_t)pix_size);
+        l_term_restore(c->saved_tty);
+        return -1;
+    }
+
+#ifndef _WIN32
+    c->mouse_fd = -1;
+#endif
+    c->closed = 0;
+
+    // Hide cursor + clear screen
+    l_write_all(L_STDOUT, "\033[?25l\033[2J\033[H", 14);
+    return 0;
+}
+
+/// Closes a terminal canvas: shows cursor, resets colors, restores terminal.
+static inline void l_term_canvas_cleanup(L_Canvas *c) {
+    // Show cursor + reset colors + clear screen
+    l_write_all(L_STDOUT, "\033[?25h\033[0m\033[2J\033[H", 18);
+    l_term_restore(c->saved_tty);
+    if (c->term_buf && c->term_buf != (char *)L_MAP_FAILED)
+        l_munmap(c->term_buf, (size_t)c->term_buf_size);
+    if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
+        l_munmap(c->pixels, (size_t)(c->stride * c->height));
+}
+
 #ifdef L_WITHDEFS
 
 #ifdef _WIN32
@@ -534,7 +651,16 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 }
 
 static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *title) {
+    (void)title;
     l_memset(c, 0, sizeof(*c));
+
+    // Check for terminal mode via environment variable
+    const char *term_env = l_getenv("L_GFX_TERM");
+    if (term_env && term_env[0] && l_isatty(L_STDIN) && l_isatty(L_STDOUT)) {
+        l_gfx_active_canvas = c;
+        return l_term_canvas_init(c, width, height);
+    }
+
     l_gfx_active_canvas = c;
 
     int fullscreen = (width <= 0 && height <= 0);
@@ -609,12 +735,16 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
 }
 
 static inline void l_canvas_close(L_Canvas *c) {
-    if (c->hdc_mem) {
-        HBITMAP hbmp = (HBITMAP)SelectObject((HDC)c->hdc_mem, (HGDIOBJ)c->hbmp_old);
-        DeleteObject(hbmp);
-        DeleteDC((HDC)c->hdc_mem);
+    if (c->backend == 2) {
+        l_term_canvas_cleanup(c);
+    } else {
+        if (c->hdc_mem) {
+            HBITMAP hbmp = (HBITMAP)SelectObject((HDC)c->hdc_mem, (HGDIOBJ)c->hbmp_old);
+            DeleteObject(hbmp);
+            DeleteDC((HDC)c->hdc_mem);
+        }
+        if (c->hwnd) DestroyWindow((HWND)c->hwnd);
     }
-    if (c->hwnd) DestroyWindow((HWND)c->hwnd);
     if (l_gfx_active_canvas == c) l_gfx_active_canvas = 0;
     l_memset(c, 0, sizeof(*c));
 }
@@ -624,6 +754,12 @@ static inline int l_canvas_alive(L_Canvas *c) {
 }
 
 static inline void l_canvas_flush(L_Canvas *c) {
+    if (c->backend == 2) {
+        int n = l_term_flush_pixels(c->pixels, c->width, c->height,
+                                     c->term_buf, c->term_buf_size);
+        if (n > 0) l_write_all(L_STDOUT, c->term_buf, (size_t)n);
+        return;
+    }
     // Pump messages
     MSG msg;
     while (PeekMessageW(&msg, (HWND)c->hwnd, 0, 0, PM_REMOVE)) {
@@ -643,6 +779,21 @@ static inline void l_canvas_clear(L_Canvas *c, uint32_t color) {
 }
 
 static inline int l_canvas_key(L_Canvas *c) {
+    if (c->backend == 2) {
+        char buf[8];
+        ssize_t n = l_read_nonblock(L_STDIN, buf, sizeof(buf));
+        if (n <= 0) return 0;
+        if (n == 1) return (unsigned char)buf[0];
+        if (n >= 3 && buf[0] == '\033' && buf[1] == '[') {
+            switch (buf[2]) {
+            case 'A': return 1003;
+            case 'B': return 1004;
+            case 'C': return 1002;
+            case 'D': return 1001;
+            }
+        }
+        return (unsigned char)buf[0];
+    }
     // Pump messages first
     MSG msg;
     while (PeekMessageW(&msg, (HWND)c->hwnd, 0, 0, PM_REMOVE)) {
@@ -656,6 +807,11 @@ static inline int l_canvas_key(L_Canvas *c) {
 }
 
 static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
+    if (c->backend == 2) {
+        if (x) *x = 0;
+        if (y) *y = 0;
+        return 0;
+    }
     MSG msg;
     while (PeekMessageW(&msg, (HWND)c->hwnd, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
@@ -1492,11 +1648,21 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
 
     /* Fall back to framebuffer */
     c->backend = 0;
-    return l_fb_canvas_open(c, width, height);
+    if (l_fb_canvas_open(c, width, height) == 0)
+        return 0;
+
+    /* Fall back to terminal if both stdin and stdout are ttys */
+    if (l_isatty(L_STDIN) && l_isatty(L_STDOUT))
+        return l_term_canvas_init(c, width, height);
+
+    (void)title;
+    return -1;
 }
 
 static inline void l_canvas_close(L_Canvas *c) {
-    if (c->backend == 1) {
+    if (c->backend == 2) {
+        l_term_canvas_cleanup(c);
+    } else if (c->backend == 1) {
         /* X11 cleanup */
         if (c->x11_fd > 0) l_close(c->x11_fd);
         if (c->pixels && c->pixels != (uint32_t *)L_MAP_FAILED)
@@ -1515,12 +1681,20 @@ static inline void l_canvas_close(L_Canvas *c) {
 }
 
 static inline int l_canvas_alive(L_Canvas *c) {
+    if (c->backend == 2)
+        return !c->closed;
     if (c->backend == 1)
         return !c->closed && c->x11_fd > 0;
     return c->fb_mem != 0 && c->fb_mem != (uint8_t *)L_MAP_FAILED;
 }
 
 static inline void l_canvas_flush(L_Canvas *c) {
+    if (c->backend == 2) {
+        int n = l_term_flush_pixels(c->pixels, c->width, c->height,
+                                     c->term_buf, c->term_buf_size);
+        if (n > 0) l_write_all(L_STDOUT, c->term_buf, (size_t)n);
+        return;
+    }
     if (c->backend == 1) {
         l_x11_pump_events(c);
         l_x11_put_image(c);

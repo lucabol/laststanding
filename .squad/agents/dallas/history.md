@@ -726,3 +726,21 @@ Fixed RISC-V clang CI failure: `-Wstatic-in-inline` warnings treated as errors v
 ## Learnings
 
 - When adding a new cross-compile target, `l_test_build_bin_path()` in `tests/test_support.h` must be updated with the new binary extension — otherwise self-spawn tests will silently exec the wrong binary and fail with exit code 127.
+
+## Work Session — Terminal Pixel Backend
+
+Implemented backend=2 (terminal) for l_gfx.h. Renders graphics in any terminal using Unicode half-block characters (U+2580) with 24-bit ANSI truecolor.
+
+**Changes:**
+- Added `backend`, `saved_tty`, `term_buf`, `term_buf_size` fields to Windows L_Canvas struct
+- Added `term_buf`, `term_buf_size` fields to Linux L_Canvas struct
+- Added shared `l_term_flush_pixels()` — renders pixel buffer as half-block characters with per-cell color-change deduplication
+- Added shared `l_term_canvas_init()` — enters raw mode, allocates pixel + frame buffers via l_mmap
+- Added shared `l_term_canvas_cleanup()` — restores terminal, frees buffers
+- Windows: `L_GFX_TERM=1` env var triggers terminal mode instead of GDI
+- Linux: auto-fallback after X11 and framebuffer both fail (requires both stdin+stdout are TTYs)
+- All platform functions (open/close/alive/flush/key/mouse) dispatch on backend==2
+- Created `examples/term_demo.c`
+- `l_ansi_color_rgb` already existed (implemented by Lambert) — no changes to l_os.h needed
+
+**Windows CI:** 48 binaries build clean, 1492 assertions pass, verify PASS.
