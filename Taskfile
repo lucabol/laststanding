@@ -61,6 +61,10 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
   # Build BearSSL static library if submodule is present
   BEARSSL_LIB=""
   BEARSSL_INC=""
+  # Auto-init submodule if needed (fresh clone won't have bearssl/src)
+  if [ -f .gitmodules ] && [ ! -d bearssl/src ]; then
+    git submodule update --init 2>/dev/null || true
+  fi
   if [ -d bearssl/src ]; then
     build_bearssl_lib "$CC" "$OPT" ""
     BEARSSL_LIB="bearssl/build/libbearssl.a"
@@ -105,6 +109,9 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
   # Build BearSSL for ARM if submodule present
   BEARSSL_LIB=""
   BEARSSL_INC=""
+  if [ -f .gitmodules ] && [ ! -d bearssl/src ]; then
+    git submodule update --init 2>/dev/null || true
+  fi
   if [ -d bearssl/src ]; then
     local BEAR_CC="$CC"
     case $CC in clang) BEAR_CC="arm-linux-gnueabihf-gcc" ;; esac
@@ -148,6 +155,9 @@ function build_aarch64 {    # Build for AArch64 (arm64) {compiler:aarch64-linux-
   # Build BearSSL for AArch64 if submodule present
   BEARSSL_LIB=""
   BEARSSL_INC=""
+  if [ -f .gitmodules ] && [ ! -d bearssl/src ]; then
+    git submodule update --init 2>/dev/null || true
+  fi
   if [ -d bearssl/src ]; then
     local BEAR_CC="$CC"
     case $CC in clang) BEAR_CC="aarch64-linux-gnu-gcc" ;; esac
@@ -192,6 +202,9 @@ function build_riscv {    # Build for RISC-V (rv64gc) {compiler:riscv64-linux-gn
   # Build BearSSL for RISC-V if submodule present
   BEARSSL_LIB=""
   BEARSSL_INC=""
+  if [ -f .gitmodules ] && [ ! -d bearssl/src ]; then
+    git submodule update --init 2>/dev/null || true
+  fi
   if [ -d bearssl/src ]; then
     local BEAR_CC="$CC"
     case $CC in clang) BEAR_CC="riscv64-linux-gnu-gcc" ;; esac
