@@ -1,18 +1,16 @@
-From 7b12a64b65a015e0f668d1c56d1fd93cd4b28741 Mon Sep 17 00:00:00 2001
+From 78578680a9f778c4b5873a57dddc695135e74945 Mon Sep 17 00:00:00 2001
 From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
-Date: Sun, 12 Apr 2026 13:28:58 +0000
+Date: Mon, 13 Apr 2026 13:31:39 +0000
 Subject: [PATCH] fix: add L_ERANGE and set errno on strtod/strtof
  overflow/underflow
 
 - Add L_ERANGE (34) error code with #define alias for ERANGE
-- l_strtod: cap exp loop at 400 iterations (was 308), detect
-  IEEE 754 overflow (+inf) and underflow (0.0 from non-zero) and
-  call l_set_errno(L_ERANGE) to match POSIX strtod behaviour
-- l_strtof: same fix; cap at 100 iterations (was 38)
-- Add ERANGE overflow/underflow tests to test_strtod_atof and
-  test_strtof; save errno before TEST_ASSERT to avoid l_write
-  clobbering l_last_errno
-- Register tests/test_img.c in coverage_manifest.json
+- l_strtod: cap exp loop at 400 iterations, detect IEEE 754 overflow
+  (+inf) and underflow (0.0 from non-zero) and call l_set_errno(L_ERANGE)
+  to match POSIX strtod behaviour
+- l_strtof: same fix; cap at 100 iterations
+- Add ERANGE overflow/underflow tests to test_strings.c
+- Save errno before TEST_ASSERT to avoid l_write clobbering l_last_errno
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ---
@@ -23,10 +21,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  4 files changed, 54 insertions(+), 5 deletions(-)
 
 diff --git a/README.md b/README.md
-index e235f3e..9e9bbb4 100644
+index 941a3a6..5e73f79 100644
 --- a/README.md
 +++ b/README.md
-@@ -1362,7 +1362,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
+@@ -1377,7 +1377,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
  | `l_open_append` | ✅ | test_fs.c |
  | `l_open_trunc` | ✅ | test_fs.c |
  | **Error reporting** | | |
@@ -36,7 +34,7 @@ index e235f3e..9e9bbb4 100644
  | **Terminal and timing functions (cross-platform)** | | |
  | `l_sleep_ms` | ✅ | test_fs.c |
 diff --git a/l_os.h b/l_os.h
-index cc64f25..76e9d98 100644
+index 595f60e..ebecf59 100644
 --- a/l_os.h
 +++ b/l_os.h
 @@ -325,6 +325,8 @@ typedef struct {
@@ -48,7 +46,7 @@ index cc64f25..76e9d98 100644
  
  // Signal numbers (POSIX values; Windows does not support these)
  #ifndef _WIN32
-@@ -1607,6 +1609,8 @@ int WINAPI mainCRTStartup(void)
+@@ -1609,6 +1611,8 @@ int WINAPI mainCRTStartup(void)
  #  define EISDIR   L_EISDIR
  #  undef ENOTEMPTY
  #  define ENOTEMPTY L_ENOTEMPTY
@@ -57,7 +55,7 @@ index cc64f25..76e9d98 100644
  
  #endif // L_DONT_OVERRIDE
  
-@@ -2518,11 +2522,17 @@ static inline double l_strtod(const char *nptr, char **endptr)
+@@ -2520,11 +2524,17 @@ static inline double l_strtod(const char *nptr, char **endptr)
              int exp = 0;
              while (*s >= '0' && *s <= '9')
                  exp = exp * 10 + (*s++ - '0');
@@ -77,7 +75,7 @@ index cc64f25..76e9d98 100644
          }
      }
  
-@@ -2596,11 +2606,16 @@ static inline float l_strtof(const char *nptr, char **endptr)
+@@ -2598,11 +2608,16 @@ static inline float l_strtof(const char *nptr, char **endptr)
              int exp = 0;
              while (*s >= '0' && *s <= '9')
                  exp = exp * 10 + (*s++ - '0');

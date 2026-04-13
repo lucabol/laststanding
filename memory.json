@@ -1,14 +1,14 @@
 {
-  "last_run": "2026-04-13T01:29:08Z",
-  "last_run_id": "24321479721",
+  "last_run": "2026-04-13T13:27:46Z",
+  "last_run_id": "24345874340",
   "monthly_activity_issue": "#123 (open, 2026-04)",
-  "mcp_issue": "safeoutputs MCP tools (create_pull_request, update_issue, noop, etc.) are NOT available in Copilot CLI - consistent across multiple runs. Tools listed in instructions but not in function schema. Infrastructure issue.",
+  "mcp_issue": "safeoutputs MCP tools unavailable in Copilot CLI - consistent across ALL runs. Cannot create PRs or update issues via safeoutputs. Branches committed locally but cannot be pushed.",
   "open_prs": [
     {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "title": "[Repo Assist] perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09", "status": "open", "conflicts": false}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/fix-strtod-erange-2026-04-13", "desc": "fix: L_ERANGE=34, strtod/strtof set errno ERANGE on overflow/underflow. TESTED gcc+clang Linux (1476/1474 assertions).", "patch_file": "fix_strtod_erange.patch"},
-    {"branch": "repo-assist/eng-ci-apt-cache-2026-04-13", "desc": "ci: apt cache + --no-install-recommends for arm/riscv/wasi. Not testable locally.", "patch_file": "eng_ci_apt_cache.patch"}
+    {"branch": "repo-assist/fix-strtod-erange-2026-04-13", "desc": "fix: L_ERANGE=34, strtod/strtof set errno ERANGE on overflow/underflow. TESTED gcc+clang Linux. All tests pass.", "patch_file": "fix_strtod_erange.patch"},
+    {"branch": "repo-assist/perf-strcat-strncat-2026-04-13", "desc": "perf: l_strcat uses l_strcpy (word-at-a-time). l_strncat uses l_strlen (word-at-a-time) for dst scan. TESTED gcc+clang Linux. All tests pass.", "patch_file": "perf_strcat_strncat.patch"}
   ],
   "resolved_issues": [],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed"},
@@ -18,5 +18,5 @@
     {"number": 124, "title": "[aw] Repo Assist failed", "cause": "no safe outputs - safeoutputs MCP unavailable"},
     {"number": 125, "title": "[aw] Daily Repo Status failed", "cause": "no safe outputs - safeoutputs MCP unavailable"}
   ],
-  "notes": "PERSISTENT ISSUE: safeoutputs MCP tools unavailable in Copilot CLI. Cannot create PRs or update issues. Patches saved in repo memory. KEY: save errno BEFORE TEST_ASSERT because l_write resets l_last_errno=0 on success. THIS RUN: Applied strtod ERANGE patch (tested OK) + CI apt cache patch. Both in local branches but cannot push without safeoutputs. Issue #123 body references PR #121 (closed) - should reference PR #122 instead."
+  "notes": "PERSISTENT ISSUE: safeoutputs MCP tools unavailable in Copilot CLI. Cannot create PRs or update issues. Patches saved in repo memory. THIS RUN (24345874340): Task 3 - fix strtod/strtof ERANGE. Task 8 - perf strcat/strncat. Both tested, committed locally, patches saved. Cannot push without safeoutputs. Issue #123 body references PR #121 (closed) - should reference PR #122 instead."
 }
