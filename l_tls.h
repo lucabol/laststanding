@@ -24,6 +24,16 @@
 #define L_WITHSOCKETS
 #endif
 
+// BearSSL's public headers pull in glibc <string.h> on Linux. In freestanding
+// builds, distro default fortify wrappers can collide in that path, so disable
+// them before l_os.h includes any libc headers.
+#if defined(__unix__)
+#ifdef _FORTIFY_SOURCE
+#undef _FORTIFY_SOURCE
+#endif
+#define _FORTIFY_SOURCE 0
+#endif
+
 #include "l_os.h"
 
 #define L_TLS_MAX_CONNECTIONS 8
@@ -469,19 +479,41 @@ static inline void l_tls_cleanup(void) {
 #endif
 #include "bearssl/inc/bearssl.h"
 
-/* Shims for libc functions referenced by BearSSL internals (sysrng.o,
-   x509_minimal.o). In our freestanding build these map to l_os.h equivalents.
-   Must be non-static to satisfy linker references from .a objects. */
+/* Shims for libc functions referenced by BearSSL internals. In our
+   freestanding build these map to l_os.h equivalents. Keep them externally
+   visible and emitted even under -fwhole-program: the references come from the
+   separate BearSSL archive, not this translation unit. */
+#if defined(__GNUC__) || defined(__clang__)
+#define L_TLS_BEARSSL_SHIM __attribute__((used, externally_visible))
+#else
+#define L_TLS_BEARSSL_SHIM
+#endif
 #ifdef L_WITHSTART
-int    getentropy(void *buf, unsigned long len) { return l_getrandom(buf, len) == (ssize_t)len ? 0 : -1; }
-long   time(long *t)           { long long v; long long *p = t ? &v : 0; long r = (long)l_time(p); if (t) *t = (long)v; return r; }
-int   *__errno_location(void)  { static int _e; return &_e; }
+L_TLS_BEARSSL_SHIM void  *l_tls_bearssl_memcpy(void *dst, const void *src, size_t len) __asm__("memcpy");
+L_TLS_BEARSSL_SHIM void  *l_tls_bearssl_memmove(void *dst, const void *src, size_t len) __asm__("memmove");
+L_TLS_BEARSSL_SHIM void  *l_tls_bearssl_memset(void *dst, int b, size_t len) __asm__("memset");
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_memcmp(const void *a, const void *b, size_t len) __asm__("memcmp");
+L_TLS_BEARSSL_SHIM size_t l_tls_bearssl_strlen(const char *s) __asm__("strlen");
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_getentropy(void *buf, unsigned long len) __asm__("getentropy");
+L_TLS_BEARSSL_SHIM long   l_tls_bearssl_time(long *t) __asm__("time");
+L_TLS_BEARSSL_SHIM int   *l_tls_bearssl_errno_location(void) __asm__("__errno_location");
+L_TLS_BEARSSL_SHIM void  *l_tls_bearssl_memcpy(void *dst, const void *src, size_t len) { return l_memcpy(dst, src, len); }
+L_TLS_BEARSSL_SHIM void  *l_tls_bearssl_memmove(void *dst, const void *src, size_t len) { return l_memmove(dst, src, len); }
+L_TLS_BEARSSL_SHIM void  *l_tls_bearssl_memset(void *dst, int b, size_t len) { return l_memset(dst, b, len); }
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_memcmp(const void *a, const void *b, size_t len) { return l_memcmp(a, b, len); }
+L_TLS_BEARSSL_SHIM size_t l_tls_bearssl_strlen(const char *s) { return l_strlen(s); }
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_getentropy(void *buf, unsigned long len) { return l_getrandom(buf, len) == (ssize_t)len ? 0 : -1; }
+L_TLS_BEARSSL_SHIM long   l_tls_bearssl_time(long *t) { long long v; long long *p = t ? &v : 0; long r = (long)l_time(p); if (t) *t = (long)v; return r; }
+L_TLS_BEARSSL_SHIM int   *l_tls_bearssl_errno_location(void) { static int _e; return &_e; }
 #undef open
 #undef read
 #undef close
-int    open(const char *p, int f, ...) { return (int)l_open(p, f, 0); }
-long   read(int fd, void *b, unsigned long n) { return (long)l_read(fd, b, n); }
-int    close(int fd)           { return (int)l_close(fd); }
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_open(const char *p, int f, ...) __asm__("open");
+L_TLS_BEARSSL_SHIM long   l_tls_bearssl_read(int fd, void *b, unsigned long n) __asm__("read");
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_close(int fd) __asm__("close");
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_open(const char *p, int f, ...) { return (int)l_open(p, f, 0); }
+L_TLS_BEARSSL_SHIM long   l_tls_bearssl_read(int fd, void *b, unsigned long n) { return (long)l_read(fd, b, n); }
+L_TLS_BEARSSL_SHIM int    l_tls_bearssl_close(int fd) { return (int)l_close(fd); }
 #endif
 
 typedef struct {
@@ -511,17 +543,8 @@ static int l_tls_br_write(void *ctx, const unsigned char *buf, size_t len) {
     return (int)n;
 }
 
-// Mozilla root CAs are NOT embedded — use br_x509_knownkey for no-verify,
-// or load from /etc/ssl/certs at runtime. For now, we use a no-verify
-// X.509 validator for simplicity. Users can replace with full validation.
-static void l_tls_br_no_anchor(
-    const br_x509_class **ctx,
-    const unsigned char *data, size_t len)
-{
-    (void)ctx; (void)data; (void)len;
-}
-
-// Minimal no-verify X.509 engine
+// Mozilla root CAs are NOT embedded. For now we use a minimal no-verify X.509
+// engine; users can replace this with full validation or load CAs at runtime.
 typedef struct {
     const br_x509_class *vtable;
     br_x509_pkey        pkey;
