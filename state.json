@@ -1,13 +1,14 @@
 {
-  "last_run": "2026-04-13T13:27:46Z",
-  "last_run_id": "24345874340",
+  "last_run": "2026-04-14T01:28:59Z",
+  "last_run_id": "24375925713",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
-    {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "status": "open"}
+    {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "status": "open"},
+    {"number": 126, "branch": "repo-assist/fix-strtod-erange-2026-04-13-6ecdac872e2f8f93", "status": "open"},
+    {"number": 127, "branch": "repo-assist/perf-strcat-strncat-2026-04-13-3b38cd54f6a1f4d7", "status": "open"}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/fix-strtod-erange-2026-04-13", "desc": "fix: L_ERANGE + strtod/strtof errno ERANGE on overflow/underflow. TESTED gcc+clang."},
-    {"branch": "repo-assist/perf-strcat-strncat-2026-04-13", "desc": "perf: l_strcat/l_strncat word-at-a-time. TESTED gcc+clang."}
+    {"branch": "repo-assist/improve-snprintf-octal-hash-2026-04-14", "desc": "feat: %o and # flag in l_vsnprintf. TESTED gcc+clang."}
   ],
-  "notes": "safeoutputs unavailable consistently. Branches committed locally. Need to push and create PRs when safeoutputs available. Issue #123 needs PR ref updated to #122."
+  "notes": "safeoutputs unavailable consistently. Patches in repo memory. PRs #122, #126, #127 open and clean."
 }
