@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-04-14T01:28:59Z",
-  "last_run_id": "24375925713",
+  "last_run": "2026-04-14T13:27:28Z",
+  "last_run_id": "24401554458",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "mcp_issue": "safeoutputs MCP tools unavailable in Copilot CLI - consistent across ALL runs. Cannot create PRs or update issues via safeoutputs. Branches committed locally but cannot be pushed.",
   "open_prs": [
@@ -9,11 +9,12 @@
     {"number": 127, "branch": "repo-assist/perf-strcat-strncat-2026-04-13-3b38cd54f6a1f4d7", "title": "[Repo Assist] perf: word-at-a-time copy in l_strcat and l_strncat", "created": "2026-04-13", "status": "open", "conflicts": false}
   ],
   "pending_local_branches": [
-    {"branch": "repo-assist/improve-snprintf-octal-hash-2026-04-14", "desc": "feat: add %o octal format and # flag to l_vsnprintf. TESTED gcc+clang Linux. All tests pass.", "patch_file": "feat_snprintf_octal_hash.patch"}
+    {"branch": "repo-assist/improve-snprintf-octal-hash-2026-04-14-d98c46104630f648", "desc": "feat: add %o octal format and # flag to l_vsnprintf. TESTED gcc+clang Linux. All tests pass.", "patch_file": "feat_snprintf_octal_hash_v2.patch"},
+    {"branch": "repo-assist/perf-vsnprintf-bulk-str-2026-04-14-d98c46104630f648", "desc": "perf: bulk-copy %s path in l_vsnprintf via l_memcpy/l_memset. TESTED gcc+clang Linux. All tests pass.", "patch_file": "perf_vsnprintf_bulk_str.patch"}
   ],
   "resolved_issues": [],
   "backlog_cursor": {"issues": "all_processed_no_human_issues", "prs": "all_processed"},
   "checked_off_items": [],
   "comments_made": {},
-  "notes": "PERSISTENT ISSUE: safeoutputs MCP tools unavailable in Copilot CLI. Cannot create PRs or update issues. Branches committed locally but not pushed. THIS RUN (24375925713): Task 6 - all 3 PRs #122, #126, #127 clean/mergeable, no CI failures. Task 10 - added %o and # flag to l_vsnprintf. Patch saved. Previous run patches (fix_strtod_erange, perf_strcat_strncat) are now PRs #126 and #127 on origin."
+  "notes": "PERSISTENT ISSUE: safeoutputs MCP tools unavailable in Copilot CLI. Cannot create PRs or update issues. Branches committed locally but not pushed. THIS RUN (24401554458): Task 5 (Coding) - applied snprintf %o + # flag patch (carried from prev run). Task 8 (Perf) - new: bulk-copy %s path in l_vsnprintf using l_memcpy/l_memset (word-at-a-time instead of char-at-a-time). Both patches saved in repo-memory. PRs #122, #126, #127 still open."
 }
