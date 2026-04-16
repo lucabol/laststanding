@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     // Display the rasterized SVG
     l_canvas_clear(&c, L_WHITE);
     l_blit_alpha(&c, 0, 0, w, h, pixels, w * 4);
-    l_draw_text(&c, 4, h - 12, argv[1], L_WHITE);
+    l_draw_text(&c, 4, h - 12, argv[1], L_BLACK);
     l_canvas_flush(&c);
 
     while (l_canvas_alive(&c) && l_canvas_key(&c) != 27)
