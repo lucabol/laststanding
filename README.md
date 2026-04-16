@@ -1,12 +1,13 @@
 # laststanding
 
-A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Five header files give you everything from `strlen` to pixel graphics to image decoding to TLS/HTTPS to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V), **Windows**, and **WASI (WebAssembly)** (experimental), with no libc at all.
+A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. Six header files give you everything from `strlen` to pixel graphics to image decoding to SVG rasterization to TLS/HTTPS to interactive UI widgets, across **Linux** (x86_64, ARM, AArch64, RISC-V), **Windows**, and **WASI (WebAssembly)** (experimental), with no libc at all.
 
 | Header | What it provides |
 |--------|-----------------|
 | `l_os.h` | String/memory functions, file I/O, processes, pipes, terminal control, environment access, hash maps, SHA-256, glob matching, time formatting |
 | `l_gfx.h` | Pixel graphics — drawing primitives, scaled bitmap font, pixel blitting, alpha blending, keyboard/mouse input, clipboard, and window/framebuffer/terminal backends |
 | `l_img.h` | Image decoding — PNG, JPEG, BMP, GIF, TGA from memory buffers via vendored stb_image (freestanding, no libc) |
+| `l_svg.h` | SVG rasterization — icons, diagrams, and vector assets from memory buffers. Subset renderer (paths, shapes, gradients); no text, images, clipping, or masks. ARGB output compatible with `l_gfx.h` |
 | `l_tls.h` | TLS/HTTPS client — SChannel on Windows, BearSSL on Linux (zero deps on both). Up to 8 simultaneous connections |
 | `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
@@ -151,6 +152,48 @@ int main(int argc, char *argv[]) {
     while (l_canvas_alive(&c) && l_canvas_key(&c) != 27) l_sleep_ms(16);
     l_canvas_close(&c);
     l_img_free_pixels(pixels, w, h);
+    return 0;
+}
+```
+
+### SVG Rasterization (`l_svg.h`)
+
+```c
+#define L_MAINFILE
+#include "l_gfx.h"
+#include "l_svg.h"       // pulls in l_os.h automatically
+
+int main(int argc, char *argv[]) {
+    l_getenv_init(argc, argv);
+
+    if (argc < 2) {
+        l_puts("Usage: svg_view <svg_file> [width] [height]\n");
+        return 0;
+    }
+
+    // Read file into memory, decode SVG
+    L_FD fd = l_open(argv[1], 0, 0);
+    long long sz = l_lseek(fd, 0, 2); l_lseek(fd, 0, 0);
+    unsigned char *buf = (unsigned char *)l_mmap(0, sz, L_PROT_READ, L_MAP_PRIVATE, fd, 0);
+    l_close(fd);
+
+    int w = argc > 2 ? l_atoi(argv[2]) : 512;
+    int h = argc > 3 ? l_atoi(argv[3]) : 512;
+    
+    L_SvgOptions opt = {w, h, 96.0f};
+    uint32_t *pixels = l_svg_load_mem(buf, (int)sz, &opt, &w, &h);
+    l_munmap(buf, sz);
+    if (!pixels) return 1;
+
+    // Display in a window
+    L_Canvas c;
+    l_canvas_open(&c, w, h, argv[1]);
+    l_blit(&c, 0, 0, w, h, pixels, w * 4);
+    l_canvas_flush(&c);
+
+    while (l_canvas_alive(&c) && l_canvas_key(&c) != 27) l_sleep_ms(16);
+    l_canvas_close(&c);
+    l_svg_free_pixels(pixels, w, h);
     return 0;
 }
 ```
@@ -715,7 +758,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | **Arena function declarations** | | |
 | `l_arena_init` | Allocate an arena of `size` bytes via mmap. On failure, base=NULL. | All |
 | `l_arena_alloc` | Bump-allocate n bytes (8-byte aligned). Returns NULL if arena is full. | All |
-| `l_arena_reset` | Reset used to 0. Memory is NOT freed — arena can be reused. | All |
+| `l_arena_reset` | Reset used to 0. Memory is NOT freed â€” arena can be reused. | All |
 | `l_arena_free` | Free the backing memory. Sets base=NULL. | All |
 | **Buffer function declarations** | | |
 | `l_buf_init` | Zero-initialize a buffer. | All |
@@ -723,7 +766,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_buf_printf` | Formatted append using l_vsnprintf. Returns bytes written or -1. | All |
 | `l_buf_clear` | Set len=0 (keep allocated memory). | All |
 | `l_buf_free` | Free backing memory and zero the struct. | All |
-| **L_Str — fat string (pointer + length) function declarations** | | |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
 | `l_str` | Wrap a C string (computes strlen). | All |
 | `l_str_from` | Wrap pointer+length. | All |
 | `l_str_null` | Return null string {NULL, 0}. | All |
@@ -904,6 +947,49 @@ Freestanding image decoding powered by vendored `stb_image.h`. Decodes PNG, JPEG
 - Pixels are 32-bit ARGB (compatible with `l_blit` and `l_blit_alpha` in `l_gfx.h`).
 - The internal allocator reserves 256 MB virtual memory via `mmap`/`VirtualAlloc` (demand-paged — only touched pages use physical RAM).
 - `#include "l_img.h"` automatically includes `stb_image.h` and `l_os.h`. On Linux, compile with `-Icompat` to provide freestanding shims for headers stb_image expects.
+
+## Function Reference — `l_svg.h`
+
+Freestanding SVG rasterization powered by a vendored NanoSVG-derived fork. Parses SVG from memory buffers and rasterizes to ARGB pixels. Subset renderer optimized for icons, diagrams, and controlled vector assets. Uses a 256 MB demand-paged bump allocator (same as `l_img.h`).
+
+**Supported elements:** `<svg>`, `<g>` (groups), `<path>`, `<rect>`, `<circle>`, `<ellipse>`, `<line>`, `<polyline>`, `<polygon>`, `<defs>`, `<linearGradient>` (basic), `<radialGradient>` (basic).
+
+**Unsupported elements (intentional subset):** `<text>`, `<image>`, `<symbol>`, `<use>`, `<clipPath>`, `<mask>`, `<filter>`, CSS stylesheets, advanced color spaces (ICC profiles), complex gradients with pattern fills.
+
+**Sizing behavior:**
+- If `width` and `height` are both 0 in `L_SvgOptions`, uses the SVG's intrinsic dimensions from `viewBox` or `width`/`height` attributes. If none exist, returns NULL.
+- If one dimension is 0 and the other is nonzero, scales preserving aspect ratio.
+- If both dimensions are nonzero, rasterizes at that size (may distort).
+
+<!-- BEGIN SVG REFERENCE -->
+
+| Function | Description |
+|----------|-------------|
+| **-- Public API ---------------------------------------------------------------** | |
+| `l_svg_load_mem` | Rasterize SVG from a memory buffer. Returns ARGB pixel data or NULL. |
+| `l_svg_free_pixels` | Free pixel data returned by l_svg_load_mem(). w and h must match the decode. |
+
+<!-- END SVG REFERENCE -->
+
+**Type:** `L_SvgOptions`
+
+```c
+typedef struct {
+    int width;        // requested raster width (0 = use intrinsic/viewBox)
+    int height;       // requested raster height (0 = use intrinsic/viewBox)
+    float dpi;        // default 96.0f
+} L_SvgOptions;
+```
+
+**Usage notes:**
+- Pixels are 32-bit ARGB, compatible with `l_blit` in `l_gfx.h`.
+- Read SVG file into memory first, then pass the buffer to `l_svg_load_mem`.
+- The internal allocator reserves 256 MB virtual memory (demand-paged).
+- `#include "l_svg.h"` automatically pulls in `l_os.h`.
+- Default DPI is 96; multiply by scale factor (e.g., 144 for 1.5x resolution) as needed.
+- Transforms (`translate`, `scale`, `rotate`, `skewX`, `skewY`, `matrix`) are supported; nested transforms accumulate.
+- CSS color names are supported; `currentColor` uses fallback rules; RGB/RGBA hex notation is standard.
+- Opacity and `stroke`/`fill` attributes follow SVG spec (default fill: black, no stroke).
 
 ## Function Reference — `l_tls.h`
 
@@ -1132,7 +1218,7 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_buf_printf`` | ✅ | ✅ | ✅ |
 | ``l_buf_clear`` | ✅ | ✅ | ✅ |
 | ``l_buf_free`` | ✅ | ✅ | ✅ |
-| **L_Str — fat string (pointer + length) function declarations** | | | |
+| **L_Str â€” fat string (pointer + length) function declarations** | | | |
 | ``l_str`` | ✅ | ✅ | ✅ |
 | ``l_str_from`` | ✅ | ✅ | ✅ |
 | ``l_str_null`` | ✅ | ✅ | ✅ |
@@ -1254,15 +1340,15 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 |----------|--------|-----------|
 | **String functions** | | |
 | `l_wcslen` | ✅ | test_strings.c |
-| `l_strlen` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
-| `l_strcpy` | ✅ | test_strings.c, test.c |
+| `l_strlen` | ✅ | test.c, test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c |
+| `l_strcpy` | ✅ | test.c, test_strings.c |
 | `l_strncpy` | ✅ | test_strings.c |
-| `l_strcat` | ✅ | test_strings.c, test.c |
+| `l_strcat` | ✅ | test.c, test_strings.c |
 | `l_strncat` | ✅ | test_strings.c |
 | `l_strchr` | ✅ | test_fs.c, test_strings.c |
 | `l_strrchr` | ✅ | test_strings.c |
-| `l_strstr` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_strcmp` | ✅ | test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
+| `l_strstr` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_strcmp` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c |
 | `l_strncmp` | ✅ | test_strings.c |
 | `l_strcasecmp` | ✅ | test_strings.c |
 | `l_strncasecmp` | ✅ | test_fs.c, test_strings.c |
@@ -1295,7 +1381,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_labs` | ✅ | test_strings.c |
 | `l_llabs` | ✅ | test.c |
 | `l_atol` | ✅ | test_strings.c |
-| `l_atoi` | ✅ | test_strings.c, test.c |
+| `l_atoi` | ✅ | test.c, test_strings.c |
 | `l_strtoul` | ✅ | test_strings.c |
 | `l_strtol` | ✅ | test_strings.c |
 | `l_strtoull` | ✅ | test_strings.c |
@@ -1327,8 +1413,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_itoa` | ✅ | test_strings.c |
 | **Memory functions** | | |
 | `l_memmove` | ✅ | test_strings.c |
-| `l_memset` | ✅ | test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
-| `l_memcmp` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
+| `l_memset` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c |
+| `l_memcmp` | ✅ | test.c, test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
 | `l_memcpy` | ✅ | test_strings.c, test_utils.c |
 | `l_memchr` | ✅ | test_strings.c |
 | `l_memrchr` | ✅ | test_strings.c |
@@ -1349,30 +1435,30 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_vprintf` | ✅ | test_strings.c |
 | `l_fprintf` | ✅ | test_strings.c |
 | **System functions** | | |
-| `l_exit` | ✅ | test_fs.c, test.c |
-| `l_open` | ✅ | test_fs.c, test.c |
-| `l_close` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_read` | ✅ | test_fs.c, test_strings.c, test.c |
-| `l_write` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_exit` | ✅ | test.c, test_fs.c |
+| `l_open` | ✅ | test.c, test_fs.c |
+| `l_close` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_read` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_write` | ✅ | test.c, test_fs.c, test_strings.c |
 | `l_read_line` | ✅ | test.c |
 | `l_linebuf_init` | ✅ | test_strings.c |
 | `l_linebuf_read` | ✅ | test_strings.c |
 | `l_time` | ✅ | test_utils.c |
-| `l_puts` | ✅ | test_fs.c, test.c |
+| `l_puts` | ✅ | test.c, test_fs.c |
 | `l_exitif` | ✅ | test_fs.c |
-| `l_getenv` | ✅ | gfx_test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_term_gfx.c, test_tls.c, test_utils.c, test.c |
-| `l_getenv_init` | ✅ | gfx_test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_term_gfx.c, test_tls.c, test_utils.c, test.c |
+| `l_getenv` | ✅ | gfx_test.c, test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_svg.c, test_term_gfx.c, test_tls.c, test_utils.c |
+| `l_getenv_init` | ✅ | gfx_test.c, test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_svg.c, test_term_gfx.c, test_tls.c, test_utils.c |
 | `l_env_start` | ✅ | test_fs.c |
 | `l_env_next` | ✅ | test_fs.c |
 | `l_env_end` | ✅ | test_fs.c |
 | `l_find_executable` | ✅ | test.c |
 | **Option parsing (single-threaded; state in static variables)** | | |
-| `l_getopt` | ✅ | test_utils.c, test.c |
+| `l_getopt` | ✅ | test.c, test_utils.c |
 | `l_getopt_ctx_init` | ✅ | test_utils.c |
 | `l_getopt_ctx` | ✅ | test_utils.c |
 | **Convenience file openers** | | |
-| `l_open_read` | ✅ | test_fs.c, test.c |
-| `l_open_write` | ✅ | test_fs.c, test.c |
+| `l_open_read` | ✅ | test.c, test_fs.c |
+| `l_open_write` | ✅ | test.c, test_fs.c |
 | `l_open_readwrite` | ✅ | test_fs.c |
 | `l_open_append` | ✅ | test_fs.c |
 | `l_open_trunc` | ✅ | test_fs.c |
@@ -1390,10 +1476,10 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_ansi_color` | ✅ | test_term_gfx.c, test_utils.c |
 | `l_ansi_color_rgb` | ✅ | test_term_gfx.c |
 | **File system functions (cross-platform)** | | |
-| `l_unlink` | ✅ | test_fs.c, test.c |
+| `l_unlink` | ✅ | test.c, test_fs.c |
 | `l_rmdir` | ✅ | test_fs.c |
 | `l_rename` | ✅ | test_fs.c |
-| `l_access` | ✅ | test_fs.c, test.c |
+| `l_access` | ✅ | test.c, test_fs.c |
 | `l_chmod` | ✅ | test_fs.c |
 | `l_symlink` | ✅ | test_fs.c |
 | `l_readlink` | ✅ | test_fs.c |
@@ -1422,8 +1508,8 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_buf_printf` | ✅ | test_utils.c |
 | `l_buf_clear` | ✅ | test_utils.c |
 | `l_buf_free` | ✅ | test_utils.c |
-| **L_Str — fat string (pointer + length) function declarations** | | |
-| `l_str` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
+| **L_Str â€” fat string (pointer + length) function declarations** | | |
+| `l_str` | ✅ | test.c, test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c |
 | `l_str_from` | ✅ | test_utils.c |
 | `l_str_null` | ✅ | test_utils.c |
 | `l_str_eq` | ✅ | test_utils.c |
@@ -1485,7 +1571,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_base64_decode` | ✅ | test_utils.c |
 | `l_getcwd` | ✅ | test_fs.c |
 | `l_chdir` | ✅ | test_fs.c |
-| `l_pipe` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_pipe` | ✅ | test.c, test_fs.c, test_strings.c |
 | `l_dup` | ✅ | test.c |
 | `l_dup2` | ✅ | test.c |
 | `l_getpid` | ✅ | test.c |

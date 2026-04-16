@@ -1,32 +1,23 @@
 # Squad Team
 
-> laststanding
+## Project Context
 
-## Coordinator
-
-| Name | Role | Notes |
-|------|------|-------|
-| Squad | Coordinator | Routes work, enforces handoffs and reviewer gates. |
+- **Requested by:** Luca Bolognese
+- **Project:** `laststanding`
+- **Language:** C
+- **Stack:** Freestanding single-header runtime/library, static builds, Windows/Linux/ARM/AArch64/RISC-V, stb_image, BearSSL
+- **What it does:** A cross-platform freestanding C runtime/library with graphics, UI, image loading, TLS, and examples/tests.
+- **Casting universe:** Alien
+- **Team root strategy:** worktree-local
 
 ## Members
 
-| Name | Role | Charter | Status |
-|------|------|---------|--------|
-| Ripley | Lead | .squad/agents/ripley/charter.md | 🏗️ Lead |
-| Dallas | Systems Dev | .squad/agents/dallas/charter.md | 🔧 Systems Dev |
-| Lambert | Tester | .squad/agents/lambert/charter.md | 🧪 Tester |
-| Scribe | Session Logger | .squad/agents/scribe/charter.md | 📋 Scribe |
-| Ralph | Work Monitor | — | 🔄 Monitor |
-
-## Issue Source
-
-- **Repository:** lucabol/laststanding
-- **Connected:** 2026-03-11
-- **Filters:** Exclude `report`, `daily-status` labels
-
-## Project Context
-
-- **Owner:** Luca Bolognese
-- **Project:** laststanding — A freestanding C runtime. Minimal reimplementations of libc functions with direct syscall wrappers. No libc/glibc dependency. Statically linked, stripped, stdlib-free.
-- **Stack:** C, inline assembly, cross-platform (Linux x86_64, ARM, AArch64, Windows)
-- **Created:** 2026-03-11
+| Name | Role | Scope | Badge |
+| --- | --- | --- | --- |
+| Ripley | Lead | Scope, architecture, reviewer gate, multi-agent coordination | 🏗️ Lead |
+| Parker | Runtime Dev | Core C implementation, image/runtime surfaces, low-level code | 🔧 Runtime |
+| Dallas | Platform Dev | Build integration, compat shims, third-party wiring, CI surfaces | ⚙️ Platform |
+| Lambert | Tester | Tests, regression coverage, review gate, failure analysis | 🧪 Tester |
+| Brett | Docs Dev | README, examples, user-facing docs | 📝 Docs |
+| Scribe | Session Logger | Decisions, orchestration log, cross-agent memory | 📋 Scribe |
+| Ralph | Work Monitor | Backlog, PR/status checks, keep-alive monitoring | 🔄 Monitor |

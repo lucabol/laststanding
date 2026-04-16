@@ -5061,6 +5061,38 @@ void __aeabi_ldivmod(void) {
    pcs("aapcs") forces base AAPCS (soft-float): doubles travel in r0:r1,
    matching the ARM EABI calling convention even on hard-float targets. */
 __attribute__((used, pcs("aapcs")))
+unsigned long long __aeabi_f2ulz(float v)
+{
+    union { float f; unsigned u; } conv;
+    conv.f = v;
+    unsigned bits = conv.u;
+    if (bits >> 31) return 0;                           /* negative or -0 */
+    int exp = (int)((bits >> 23) & 0xFF) - 127;
+    if (exp < 0) return 0;
+    if (exp >= 64) return 0xFFFFFFFFFFFFFFFFULL;       /* overflow / NaN */
+    unsigned long long mantissa = (unsigned long long)((bits & 0x007FFFFFu) | 0x00800000u);
+    if (exp >= 23) return mantissa << (exp - 23);
+    return mantissa >> (23 - exp);
+}
+
+__attribute__((used, pcs("aapcs")))
+long long __aeabi_f2lz(float v)
+{
+    union { float f; unsigned u; } conv;
+    conv.f = v;
+    unsigned bits = conv.u;
+    int sign = (int)(bits >> 31);
+    int exp = (int)((bits >> 23) & 0xFF) - 127;
+    if (exp < 0) return 0;
+    if (exp >= 63) return sign ? (-9223372036854775807LL - 1) : 9223372036854775807LL;
+    unsigned long long mantissa = (unsigned long long)((bits & 0x007FFFFFu) | 0x00800000u);
+    unsigned long long result;
+    if (exp >= 23) result = mantissa << (exp - 23);
+    else result = mantissa >> (23 - exp);
+    return sign ? -(long long)result : (long long)result;
+}
+
+__attribute__((used, pcs("aapcs")))
 unsigned long long __aeabi_d2ulz(double v)
 {
     union { double d; unsigned long long u; } conv;

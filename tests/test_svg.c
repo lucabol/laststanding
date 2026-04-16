@@ -4,12 +4,12 @@
 
 TEST_DECLARE_COUNTERS();
 
-static const unsigned char svg_red_rect[] =
+static const unsigned char svg_center_red_rect[] =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\">"
-    "<rect x=\"0\" y=\"0\" width=\"4\" height=\"4\" fill=\"red\"/>"
+    "<rect x=\"1\" y=\"1\" width=\"2\" height=\"2\" fill=\"red\"/>"
     "</svg>";
 
-static const unsigned char svg_viewbox_rect[] =
+static const unsigned char svg_viewbox_red_rect[] =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 20\">"
     "<rect x=\"0\" y=\"0\" width=\"10\" height=\"20\" fill=\"#ff0000\"/>"
     "</svg>";
@@ -29,49 +29,8 @@ static inline unsigned int test_svg_red(uint32_t pixel) { return (pixel >> 16) &
 static inline unsigned int test_svg_green(uint32_t pixel) { return (pixel >> 8) & 0xFFu; }
 static inline unsigned int test_svg_blue(uint32_t pixel) { return pixel & 0xFFu; }
 
-static void test_svg_explicit_size(void) {
-    L_SvgOptions opts = {16, 16, 96.0f};
-    int w = 0, h = 0;
-    uint32_t *pixels;
-
-    TEST_FUNCTION("svg explicit sizing");
-    pixels = l_svg_load_mem(svg_red_rect, (int)sizeof(svg_red_rect) - 1, &opts, &w, &h);
-    TEST_CHECK(pixels != 0, "explicit size decode succeeds");
-    TEST_CHECK(w == 16, "explicit width is honored");
-    TEST_CHECK(h == 16, "explicit height is honored");
-    if (pixels) {
-        TEST_CHECK(test_svg_red(pixels[0]) == 255, "explicit size keeps red fill");
-        l_svg_free_pixels(pixels, w, h);
-    }
-}
-
-static void test_svg_viewbox_intrinsic(void) {
-    int w = 0, h = 0;
-    uint32_t *pixels;
-
-    TEST_FUNCTION("svg viewBox intrinsic sizing");
-    pixels = l_svg_load_mem(svg_viewbox_rect, (int)sizeof(svg_viewbox_rect) - 1, 0, &w, &h);
-    TEST_CHECK(pixels != 0, "viewBox-only decode succeeds");
-    TEST_CHECK(w == 10, "viewBox width becomes intrinsic width");
-    TEST_CHECK(h == 20, "viewBox height becomes intrinsic height");
-    if (pixels) l_svg_free_pixels(pixels, w, h);
-}
-
-static void test_svg_aspect_ratio(void) {
-    L_SvgOptions opts = {0, 40, 96.0f};
-    int w = 0, h = 0;
-    uint32_t *pixels;
-
-    TEST_FUNCTION("svg inferred aspect ratio");
-    pixels = l_svg_load_mem(svg_viewbox_rect, (int)sizeof(svg_viewbox_rect) - 1, &opts, &w, &h);
-    TEST_CHECK(pixels != 0, "aspect-ratio decode succeeds");
-    TEST_CHECK(w == 20, "width is inferred from aspect ratio");
-    TEST_CHECK(h == 40, "requested height is honored");
-    if (pixels) l_svg_free_pixels(pixels, w, h);
-}
-
 static void test_svg_invalid_data(void) {
-    unsigned char garbage[] = {0x00, 0x01, 0x02, 0x03};
+    unsigned char garbage[] = { 0x00, 0x01, 0x02, 0x03 };
     int w = 0, h = 0;
     uint32_t *pixels;
 
@@ -91,23 +50,52 @@ static void test_svg_null_empty(void) {
     TEST_CHECK(pixels == 0, "empty input returns NULL");
 }
 
-static void test_svg_color_check(void) {
-    L_SvgOptions opts = {4, 4, 96.0f};
+static void test_svg_explicit_size(void) {
+    L_SvgOptions opts = { 16, 16, 96.0f };
     int w = 0, h = 0;
     uint32_t *pixels;
 
-    TEST_FUNCTION("svg solid color");
-    pixels = l_svg_load_mem(svg_red_rect, (int)sizeof(svg_red_rect) - 1, &opts, &w, &h);
-    TEST_CHECK(pixels != 0, "solid color decode succeeds");
-    TEST_CHECK(w == 4, "solid color width is 4");
-    TEST_CHECK(h == 4, "solid color height is 4");
+    TEST_FUNCTION("svg explicit sizing");
+    pixels = l_svg_load_mem(svg_center_red_rect, (int)sizeof(svg_center_red_rect) - 1, &opts, &w, &h);
+    TEST_CHECK(pixels != 0, "explicit size decode succeeds");
+    TEST_CHECK(w == 16, "explicit width is honored");
+    TEST_CHECK(h == 16, "explicit height is honored");
     if (pixels) {
-        uint32_t pixel = pixels[0];
-        TEST_CHECK(test_svg_red(pixel) == 255, "solid color red channel is 255");
-        TEST_CHECK(test_svg_green(pixel) == 0, "solid color green channel is 0");
-        TEST_CHECK(test_svg_blue(pixel) == 0, "solid color blue channel is 0");
+        uint32_t center = pixels[(h / 2) * w + (w / 2)];
+        TEST_CHECK(test_svg_red(center) == 255, "explicit size keeps red fill");
+        TEST_CHECK(test_svg_green(center) == 0, "explicit size keeps green channel zero");
+        TEST_CHECK(test_svg_blue(center) == 0, "explicit size keeps blue channel zero");
         l_svg_free_pixels(pixels, w, h);
     }
+}
+
+static void test_svg_viewbox_intrinsic(void) {
+    int w = 0, h = 0;
+    uint32_t *pixels;
+
+    TEST_FUNCTION("svg viewBox intrinsic sizing");
+    pixels = l_svg_load_mem(svg_viewbox_red_rect, (int)sizeof(svg_viewbox_red_rect) - 1, 0, &w, &h);
+    TEST_CHECK(pixels != 0, "viewBox-only decode succeeds");
+    TEST_CHECK(w == 10, "viewBox width becomes intrinsic width");
+    TEST_CHECK(h == 20, "viewBox height becomes intrinsic height");
+    if (pixels) {
+        uint32_t center = pixels[(h / 2) * w + (w / 2)];
+        TEST_CHECK(test_svg_red(center) == 255, "viewBox render keeps red fill");
+        l_svg_free_pixels(pixels, w, h);
+    }
+}
+
+static void test_svg_aspect_ratio(void) {
+    L_SvgOptions opts = { 0, 40, 96.0f };
+    int w = 0, h = 0;
+    uint32_t *pixels;
+
+    TEST_FUNCTION("svg inferred aspect ratio");
+    pixels = l_svg_load_mem(svg_viewbox_red_rect, (int)sizeof(svg_viewbox_red_rect) - 1, &opts, &w, &h);
+    TEST_CHECK(pixels != 0, "aspect-ratio decode succeeds");
+    TEST_CHECK(w == 20, "width is inferred from aspect ratio");
+    TEST_CHECK(h == 40, "requested height is honored");
+    if (pixels) l_svg_free_pixels(pixels, w, h);
 }
 
 static void test_svg_gradient(void) {
@@ -133,12 +121,11 @@ int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     puts("Testing l_svg.h SVG decoding...\n");
 
+    test_svg_invalid_data();
+    test_svg_null_empty();
     test_svg_explicit_size();
     test_svg_viewbox_intrinsic();
     test_svg_aspect_ratio();
-    test_svg_invalid_data();
-    test_svg_null_empty();
-    test_svg_color_check();
     test_svg_gradient();
 
     l_test_print_summary(passed_count, test_count);

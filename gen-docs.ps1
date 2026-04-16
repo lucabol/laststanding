@@ -156,7 +156,7 @@ function Update-ReadmeSection {
     return [regex]::Replace($Readme, $pattern, $replacement)
 }
 
-# --- Parse both headers ---
+# --- Parse all headers ---
 
 $osFunctions = Parse-Header -Path (Join-Path $root 'l_os.h') -RequireWithDefs
 if ($osFunctions.Count -eq 0) {
@@ -174,6 +174,14 @@ $uiFunctions = Parse-Header -Path (Join-Path $root 'l_ui.h')
 if ($uiFunctions.Count -eq 0) {
     Write-Error "No documented functions found in l_ui.h."
     exit 1
+}
+
+# Parse l_svg.h if it exists; otherwise set to empty (not required yet)
+$svgPath = Join-Path $root 'l_svg.h'
+if (Test-Path $svgPath) {
+    $svgFunctions = Parse-Header -Path $svgPath
+} else {
+    $svgFunctions = @()
 }
 
 # --- Build platform compatibility matrix ---
@@ -342,12 +350,19 @@ $coverMd   = Build-CoverageMatrix -Functions $osFunctions -TestDir $testDir
 $osMd  = Build-MarkdownTable -Functions $osFunctions -Columns @('Function','Description','Platform')
 $gfxMd = Build-MarkdownTable -Functions $gfxFunctions -Columns @('Function','Description')
 $uiMd  = Build-MarkdownTable -Functions $uiFunctions  -Columns @('Function','Description')
+# Only build SVG markdown if functions were found
+if ($svgFunctions.Count -gt 0) {
+    $svgMd = Build-MarkdownTable -Functions $svgFunctions -Columns @('Function','Description')
+}
 
 # --- Update README.md ---
 
 $readme = [System.IO.File]::ReadAllText($readmeFile, [System.Text.UTF8Encoding]::new($false))
 $readme = Update-ReadmeSection $readme '<!-- BEGIN FUNCTION REFERENCE -->' '<!-- END FUNCTION REFERENCE -->' $osMd
 $readme = Update-ReadmeSection $readme '<!-- BEGIN GFX REFERENCE -->' '<!-- END GFX REFERENCE -->' $gfxMd
+if ($svgFunctions.Count -gt 0) {
+    $readme = Update-ReadmeSection $readme '<!-- BEGIN SVG REFERENCE -->' '<!-- END SVG REFERENCE -->' $svgMd
+}
 $readme = Update-ReadmeSection $readme '<!-- BEGIN UI REFERENCE -->' '<!-- END UI REFERENCE -->' $uiMd
 
 # Update compat and coverage matrices only if markers exist
@@ -373,4 +388,5 @@ $extra = @()
 if ($readme -match '<!-- BEGIN COMPAT MATRIX -->') { $extra += 'compat matrix' }
 if ($readme -match '<!-- BEGIN COVERAGE MATRIX -->') { $extra += 'coverage matrix' }
 $suffix = if ($extra.Count -gt 0) { " + $($extra -join ', ')" } else { '' }
-Write-Host "Updated README.md with $($osFunctions.Count) functions from l_os.h, $($gfxFunctions.Count) functions from l_gfx.h, and $($uiFunctions.Count) functions from l_ui.h$suffix" -ForegroundColor Green
+$svgNote = if ($svgFunctions.Count -gt 0) { ", $($svgFunctions.Count) functions from l_svg.h" } else { "" }
+Write-Host "Updated README.md with $($osFunctions.Count) functions from l_os.h, $($gfxFunctions.Count) functions from l_gfx.h, and $($uiFunctions.Count) functions from l_ui.h$svgNote$suffix" -ForegroundColor Green
