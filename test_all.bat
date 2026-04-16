@@ -21,7 +21,7 @@ if "!NEED_BUILD!"=="1" (
 )
 
 echo === Running default regression tests ===
-for %%f in (bin\test.exe bin\test_strings.exe bin\test_fs.exe bin\test_utils.exe bin\test_img.exe bin\test_tls.exe bin\test_clipboard.exe bin\gfx_test.exe bin\test_term_gfx.exe bin\ui_test.exe) do (
+for %%f in (bin\test.exe bin\test_strings.exe bin\test_fs.exe bin\test_utils.exe bin\test_img.exe bin\test_tls.exe bin\test_clipboard.exe bin\gfx_test.exe bin\test_term_gfx.exe bin\ui_test.exe bin\test_svg.exe) do (
     if exist "%%f" (
         echo --- Running %%f ---
         "%%f"

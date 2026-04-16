@@ -32,9 +32,9 @@ foreach ($f in $files) {
         $extraLibs = "-lws2_32 -lsecur32 -lcrypt32"
     }
 
-    # Detect if source uses l_img.h (needs compat headers for stb_image on non-Windows)
+    # Detect if source uses l_img.h or l_svg.h (needs compat headers)
     $extraInc = ""
-    if ($content -match 'l_img\.h') {
+    if ($content -match 'l_img\.h|l_svg\.h') {
         # On Windows, system headers provide string.h/stdlib.h — no compat needed
         # $extraInc = ""  (leave empty on Windows)
     }
