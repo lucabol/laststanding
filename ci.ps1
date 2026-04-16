@@ -350,6 +350,80 @@ function Write-BinarySizeTable {
     }
 }
 
+function Write-BinarySizeJson {
+    if ($script:BinarySizes.Count -eq 0) { return }
+    $binDir = Join-Path $RepoRoot 'bin'
+    if (-not (Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
+    $jsonPath = Join-Path $binDir '.ci_sizes.json'
+    $showBinaries = @('hello', 'ui_controls')
+    $entries = @()
+    foreach ($target in $script:BinarySizes.Keys) {
+        $entry = @{ target = $target }
+        foreach ($bin in $script:BinarySizes[$target].Keys) {
+            if ($bin -in $showBinaries) { $entry[$bin] = $script:BinarySizes[$target][$bin] }
+        }
+        $entries += $entry
+    }
+    $entries | ConvertTo-Json -Depth 3 | Set-Content -Path $jsonPath -Encoding UTF8
+}
+
+function Write-BinarySizeMarkdownSummary {
+    if (-not $env:GITHUB_STEP_SUMMARY) { return }
+    if ($script:BinarySizes.Count -eq 0) { return }
+
+    $shortNames = @{
+        'Windows'           = 'Win/clang'
+        'Linux (gcc)'       = 'Lin/gcc'
+        'Linux (clang)'     = 'Lin/clang'
+        'ARM (gcc)'         = 'ARM/gcc'
+        'ARM (clang)'       = 'ARM/clang'
+        'AArch64 (gcc)'     = 'A64/gcc'
+        'AArch64 (clang)'   = 'A64/clang'
+        'RISC-V (gcc)'      = 'RV64/gcc'
+        'WASI (clang)'      = 'WASI/clang'
+    }
+
+    $targets = @($script:BinarySizes.Keys | Sort-Object @{
+        Expression = {
+            if ($script:BinarySizes[$_].ContainsKey('hello')) {
+                $script:BinarySizes[$_]['hello']
+            } else { [int]::MaxValue }
+        }
+    })
+
+    $showBinaries = @('hello', 'ui_controls')
+    $allBinaries = @()
+    foreach ($t in $targets) {
+        foreach ($name in $script:BinarySizes[$t].Keys) {
+            if ($name -in $showBinaries -and $name -notin $allBinaries) { $allBinaries += $name }
+        }
+    }
+    $allBinaries = @($allBinaries | Sort-Object)
+    if ($allBinaries.Count -eq 0) { return }
+
+    $md = @()
+    $md += '### 📏 Binary Sizes'
+    $md += ''
+    $headerCols = @('Configuration') + $allBinaries
+    $md += '| ' + ($headerCols -join ' | ') + ' |'
+    $md += '| ' + (($headerCols | ForEach-Object { '---' }) -join ' | ') + ' |'
+
+    foreach ($t in $targets) {
+        $label = if ($shortNames.ContainsKey($t)) { $shortNames[$t] } else { $t }
+        $cols = @($label)
+        foreach ($bin in $allBinaries) {
+            if ($script:BinarySizes[$t].ContainsKey($bin)) {
+                $cols += '{0:N0}' -f $script:BinarySizes[$t][$bin]
+            } else {
+                $cols += '-'
+            }
+        }
+        $md += '| ' + ($cols -join ' | ') + ' |'
+    }
+
+    $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding UTF8
+}
+
 # --- WSL availability check (cached, Windows only) ---
 $script:WslAvailable = $null
 function Test-WslAvailable {
@@ -1140,6 +1214,8 @@ exit `$rc
 # ============================================================
 if (-not $SubProcess) {
     Write-BinarySizeTable
+    Write-BinarySizeJson
+    Write-BinarySizeMarkdownSummary
 }
 
 # ============================================================

@@ -40,6 +40,14 @@ jobs:
         run: ./ci.ps1 -Target windows
         shell: pwsh
 
+      - name: Upload size data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sizes-windows
+          path: bin/.ci_sizes.json
+          if-no-files-found: ignore
+
   linux:
     runs-on: ubuntu-latest
     steps:
@@ -48,6 +56,14 @@ jobs:
       - name: Run CI
         run: ./ci.ps1 -Target linux
         shell: pwsh
+
+      - name: Upload size data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sizes-linux
+          path: bin/.ci_sizes.json
+          if-no-files-found: ignore
 
   arm:
     runs-on: ubuntu-latest
@@ -61,6 +77,14 @@ jobs:
         run: ./ci.ps1 -Target arm
         shell: pwsh
 
+      - name: Upload size data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sizes-arm
+          path: bin/.ci_sizes.json
+          if-no-files-found: ignore
+
   riscv:
     runs-on: ubuntu-latest
     steps:
@@ -72,6 +96,14 @@ jobs:
       - name: Run CI
         run: ./ci.ps1 -Target riscv
         shell: pwsh
+
+      - name: Upload size data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sizes-riscv
+          path: bin/.ci_sizes.json
+          if-no-files-found: ignore
 
   wasi:
     runs-on: ubuntu-latest
@@ -87,3 +119,94 @@ jobs:
       - name: Run CI
         run: ./ci.ps1 -Target wasi
         shell: pwsh
+
+      - name: Upload size data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sizes-wasi
+          path: bin/.ci_sizes.json
+          if-no-files-found: ignore
+
+  sizes:
+    if: always()
+    needs: [windows, linux, arm, riscv, wasi]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all size artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sizes-*
+          merge-multiple: false
+
+      - name: Generate combined size table
+        shell: pwsh
+        run: |
+          $allSizes = @{}
+          $shortNames = @{
+            'Windows'           = 'Win/clang'
+            'Linux (gcc)'       = 'Lin/gcc'
+            'Linux (clang)'     = 'Lin/clang'
+            'ARM (gcc)'         = 'ARM/gcc'
+            'ARM (clang)'       = 'ARM/clang'
+            'AArch64 (gcc)'     = 'A64/gcc'
+            'AArch64 (clang)'   = 'A64/clang'
+            'RISC-V (gcc)'      = 'RV64/gcc'
+            'WASI (clang)'      = 'WASI/clang'
+          }
+
+          foreach ($f in Get-ChildItem -Recurse -Filter '.ci_sizes.json') {
+            $entries = Get-Content $f.FullName -Raw | ConvertFrom-Json
+            if ($entries -isnot [System.Array]) { $entries = @($entries) }
+            foreach ($entry in $entries) {
+              $target = $entry.target
+              $sizes = @{}
+              foreach ($prop in $entry.PSObject.Properties) {
+                if ($prop.Name -ne 'target') { $sizes[$prop.Name] = [int64]$prop.Value }
+              }
+              if ($sizes.Count -gt 0) { $allSizes[$target] = $sizes }
+            }
+          }
+
+          if ($allSizes.Count -eq 0) {
+            '> No binary size data collected.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+            return
+          }
+
+          $targets = @($allSizes.Keys | Sort-Object @{
+            Expression = {
+              if ($allSizes[$_].ContainsKey('hello')) { $allSizes[$_]['hello'] }
+              else { [int]::MaxValue }
+            }
+          })
+
+          $showBinaries = @('hello', 'ui_controls')
+          $allBinaries = @()
+          foreach ($t in $targets) {
+            foreach ($name in $allSizes[$t].Keys) {
+              if ($name -in $showBinaries -and $name -notin $allBinaries) { $allBinaries += $name }
+            }
+          }
+          $allBinaries = @($allBinaries | Sort-Object)
+
+          $md = @()
+          $md += '### 📏 Binary Sizes (all platforms)'
+          $md += ''
+          $headerCols = @('Configuration') + $allBinaries
+          $md += '| ' + ($headerCols -join ' | ') + ' |'
+          $md += '| ' + (($headerCols | ForEach-Object { '---' }) -join ' | ') + ' |'
+
+          foreach ($t in $targets) {
+            $label = if ($shortNames.ContainsKey($t)) { $shortNames[$t] } else { $t }
+            $cols = @($label)
+            foreach ($bin in $allBinaries) {
+              if ($allSizes[$t].ContainsKey($bin)) {
+                $cols += '{0:N0}' -f $allSizes[$t][$bin]
+              } else {
+                $cols += '-'
+              }
+            }
+            $md += '| ' + ($cols -join ' | ') + ' |'
+          }
+
+          $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding UTF8
