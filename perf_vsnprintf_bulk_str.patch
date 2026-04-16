@@ -1,3 +1,26 @@
+From 2af4e49fa5a3660d57b1349d4264c023bb2f64c7 Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Thu, 16 Apr 2026 01:38:03 +0000
+Subject: [PATCH] perf: bulk memcpy/memset for %s padding and string copy in
+ l_vsnprintf
+
+Replace character-by-character loops in the %s path with:
+- l_memset(buf+pos, ' ', cp) for padding (left/right aligned)
+- l_memcpy(buf+pos, sv, cp) for the string data
+
+Use the L_SNPRINTF_AVAIL() helper macro to safely calculate how many
+bytes can be written before the reserved NUL terminator slot, avoiding
+size_t underflow when n==0. Each bulk operation clamps to available
+space, so truncation and NUL termination remain correct.
+
+This eliminates the overhead of per-character emit calls when printing
+long padded strings, giving O(n/word_size) throughput instead of O(n).
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ l_os.h | 26 +++++++++++++++++++++++---
+ 1 file changed, 23 insertions(+), 3 deletions(-)
+
 diff --git a/l_os.h b/l_os.h
 index 595f60e..be0a726 100644
 --- a/l_os.h
@@ -35,3 +58,6 @@ index 595f60e..be0a726 100644
              continue;
          }
  
+-- 
+2.53.0
+
