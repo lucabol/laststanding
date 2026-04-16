@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sizes-windows
-          path: bin/.ci_sizes.json
+          path: bin/ci_sizes.json
           if-no-files-found: ignore
 
   linux:
@@ -62,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sizes-linux
-          path: bin/.ci_sizes.json
+          path: bin/ci_sizes.json
           if-no-files-found: ignore
 
   arm:
@@ -82,7 +82,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sizes-arm
-          path: bin/.ci_sizes.json
+          path: bin/ci_sizes.json
           if-no-files-found: ignore
 
   riscv:
@@ -102,7 +102,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sizes-riscv
-          path: bin/.ci_sizes.json
+          path: bin/ci_sizes.json
           if-no-files-found: ignore
 
   wasi:
@@ -125,7 +125,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sizes-wasi
-          path: bin/.ci_sizes.json
+          path: bin/ci_sizes.json
           if-no-files-found: ignore
 
   sizes:
@@ -155,7 +155,7 @@ jobs:
             'WASI (clang)'      = 'WASI/clang'
           }
 
-          foreach ($f in Get-ChildItem -Recurse -Filter '.ci_sizes.json') {
+          foreach ($f in Get-ChildItem -Recurse -Filter 'ci_sizes.json') {
             $entries = Get-Content $f.FullName -Raw | ConvertFrom-Json
             if ($entries -isnot [System.Array]) { $entries = @($entries) }
             foreach ($entry in $entries) {

@@ -354,7 +354,7 @@ function Write-BinarySizeJson {
     if ($script:BinarySizes.Count -eq 0) { return }
     $binDir = Join-Path $RepoRoot 'bin'
     if (-not (Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
-    $jsonPath = Join-Path $binDir '.ci_sizes.json'
+    $jsonPath = Join-Path $binDir 'ci_sizes.json'
     $showBinaries = @('hello', 'ui_controls')
     $entries = @()
     foreach ($target in $script:BinarySizes.Keys) {
