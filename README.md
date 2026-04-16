@@ -990,6 +990,7 @@ typedef struct {
 - Transforms (`translate`, `scale`, `rotate`, `skewX`, `skewY`, `matrix`) are supported; nested transforms accumulate.
 - CSS color names are supported; `currentColor` uses fallback rules; RGB/RGBA hex notation is standard.
 - Opacity and `stroke`/`fill` attributes follow SVG spec (default fill: black, no stroke).
+- SVG backgrounds are transparent. When displaying with `l_gfx.h`, use `l_blit_alpha` (not `l_blit`) and clear to `L_WHITE` so transparent areas render correctly. See `examples/svg_view.c`.
 
 ## Function Reference — `l_tls.h`
 
