@@ -231,6 +231,15 @@ static inline int l_tls_connect(const char *hostname, int port) {
     SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock == INVALID_SOCKET) return -1;
 
+    // Apply send/recv timeouts so blocking syscalls (handshake recv/send and
+    // l_tls_recv body reads) cannot hang forever on unresponsive peers.
+    // Winsock SO_RCVTIMEO / SO_SNDTIMEO take a DWORD in milliseconds.
+    // Values chosen to be generous for slow links but short enough that an
+    // unreachable host surfaces an error instead of a ~21 s OS default hang.
+    { DWORD rcv_ms = 15000; DWORD snd_ms = 10000;
+      setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&rcv_ms, (int)sizeof(rcv_ms));
+      setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&snd_ms, (int)sizeof(snd_ms)); }
+
     struct sockaddr_in sa;
     l_memset(&sa, 0, sizeof(sa));
     sa.sin_family = AF_INET;
