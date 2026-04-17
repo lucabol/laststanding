@@ -51,6 +51,7 @@ typedef struct {
     int       mouse_x;     // current mouse x position
     int       mouse_y;     // current mouse y position
     int       mouse_btn;   // button bitmask: 1=left, 2=right, 4=middle
+    int       wheel;       // accumulated vertical wheel delta (clicks); cleared by l_canvas_wheel()
     int       resized;     // set to 1 when window was resized; cleared by l_canvas_resized()
 
 #ifdef _WIN32
@@ -217,6 +218,10 @@ static inline void l_canvas_clear(L_Canvas *c, uint32_t color);
 static inline int  l_canvas_key(L_Canvas *c);
 /// Returns mouse button bitmask (1=left, 2=right, 4=middle) and writes position to *x, *y.
 static inline int  l_canvas_mouse(L_Canvas *c, int *x, int *y);
+/// Returns and clears the accumulated vertical mouse-wheel delta (positive=up, negative=down,
+/// in wheel clicks/notches). Call after l_canvas_mouse() each frame to drain pending wheel events.
+/// Not supported on Linux framebuffer or terminal backends (always returns 0).
+static inline int  l_canvas_wheel(L_Canvas *c);
 /// Returns 1 if the window was resized since the last call, 0 otherwise. Clears the flag.
 /// When resized, c->width, c->height, c->stride, and c->pixels are already updated.
 /// Not supported on Linux framebuffer backend (always returns 0).
@@ -584,6 +589,9 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_RBUTTONUP:   if (c) c->mouse_btn &= ~2; return 0;
     case WM_MBUTTONDOWN: if (c) c->mouse_btn |=  4; return 0;
     case WM_MBUTTONUP:   if (c) c->mouse_btn &= ~4; return 0;
+    case WM_MOUSEWHEEL:
+        if (c) c->wheel += (short)HIWORD(wp) / 120 /* WHEEL_DELTA */;
+        return 0;
     case WM_SIZE:
         if (c && wp != 1 /* SIZE_MINIMIZED */) {
             int nw = (int)LOWORD(lp);
@@ -820,6 +828,18 @@ static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
     if (x) *x = c->mouse_x;
     if (y) *y = c->mouse_y;
     return c->mouse_btn;
+}
+
+static inline int l_canvas_wheel(L_Canvas *c) {
+    if (c->backend == 2) return 0;
+    MSG msg;
+    while (PeekMessageW(&msg, (HWND)c->hwnd, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    int w = c->wheel;
+    c->wheel = 0;
+    return w;
 }
 
 static inline int l_canvas_resized(L_Canvas *c) {
@@ -1335,6 +1355,8 @@ static inline void l_x11_pump_events(L_Canvas *c) {
             if (btn == 1) c->mouse_btn |= 1;
             else if (btn == 2) c->mouse_btn |= 4;
             else if (btn == 3) c->mouse_btn |= 2;
+            else if (btn == 4) c->wheel += 1;  /* scroll up */
+            else if (btn == 5) c->wheel -= 1;  /* scroll down */
             break;
         }
         case 5: /* ButtonRelease */ {
@@ -1342,6 +1364,7 @@ static inline void l_x11_pump_events(L_Canvas *c) {
             if (btn == 1) c->mouse_btn &= ~1;
             else if (btn == 2) c->mouse_btn &= ~4;
             else if (btn == 3) c->mouse_btn &= ~2;
+            /* buttons 4/5 are wheel: only the press carries data, ignore release */
             break;
         }
         case 6: /* MotionNotify */ {
@@ -1774,6 +1797,19 @@ static inline int l_canvas_mouse(L_Canvas *c, int *x, int *y) {
     if (x) *x = c->mouse_x;
     if (y) *y = c->mouse_y;
     return c->mouse_btn;
+}
+
+static inline int l_canvas_wheel(L_Canvas *c) {
+    /* Only the X11 backend currently sources wheel data.
+       The framebuffer backend reads /dev/input/mice in 3-byte PS/2 mode,
+       which does not carry wheel information. The terminal backend does
+       not parse mouse escape sequences. Both paths return a cleared counter. */
+    if (c->backend == 1) {
+        l_x11_pump_events(c);
+    }
+    int w = c->wheel;
+    c->wheel = 0;
+    return w;
 }
 
 static inline int l_canvas_resized(L_Canvas *c) {

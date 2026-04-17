@@ -190,6 +190,13 @@ static void test_backend_helpers(void) {
                mx == 12 && my == 34,
                "canvas_mouse reports cached state");
 
+    /* wheel counter is read-and-clear */
+    c.wheel = 5;
+    TEST_CHECK(l_canvas_wheel(&c) == 5, "canvas_wheel returns cached delta");
+    TEST_CHECK(l_canvas_wheel(&c) == 0, "canvas_wheel clears after read");
+    c.wheel = -3;
+    TEST_CHECK(l_canvas_wheel(&c) == -3, "canvas_wheel handles negative delta");
+
     memset(&c, 0, sizeof(c));
 #ifndef _WIN32
     c.mouse_fd = -1;

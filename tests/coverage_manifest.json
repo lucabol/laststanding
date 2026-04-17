@@ -44,7 +44,8 @@
         "l_canvas_alive",
         "l_canvas_close",
         "l_canvas_key",
-        "l_canvas_mouse"
+        "l_canvas_mouse",
+        "l_canvas_wheel"
       ],
       "indirect": [],
       "uncovered": [
@@ -125,6 +126,11 @@
       "owner": "tests/gfx_test.c",
       "status": "covered",
       "notes": "Cached mouse state path is covered without requiring a live device."
+    },
+    "l_canvas_wheel": {
+      "owner": "tests/gfx_test.c",
+      "status": "covered",
+      "notes": "Accumulated wheel counter is verified to read and clear without requiring a live device."
     },
     "l_canvas_open": {
       "owner": "tests/gfx_test.c",
