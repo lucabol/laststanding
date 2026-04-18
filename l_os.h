@@ -831,6 +831,11 @@ static inline long long l_file_size(const char *path);
 static inline ptrdiff_t l_read_all(L_FD fd, void *buf, size_t count);
 /// Writes exactly count bytes, retrying on short writes. Returns total bytes written, or negative on error.
 static inline ptrdiff_t l_write_all(L_FD fd, const void *buf, size_t count);
+/// Sets the icon of an executable file from an .ico file on disk.
+/// On Windows, patches the target .exe's RT_ICON / RT_GROUP_ICON resources.
+/// On non-Windows platforms this is a no-op (executables don't embed icons).
+/// Returns 0 on success, -1 on error. The target must not be currently running.
+static inline int l_set_exe_icon(const char *exe_path, const char *ico_path);
 /// Opens a directory for reading. Returns 0 on success, -1 on error.
 static inline int l_opendir(const char *path, L_Dir *dir);
 /// Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done.
@@ -9516,6 +9521,89 @@ static inline int l_path_isdir(const char *path) {
     L_Stat st;
     if (l_stat(path, &st) != 0) return 0;
     return L_S_ISDIR(st.st_mode) ? 1 : 0;
+}
+
+// --- l_set_exe_icon: patch the icon of an executable ---
+
+static inline int l_set_exe_icon(const char *exe_path, const char *ico_path) {
+#ifdef _WIN32
+    if (!exe_path || !ico_path) return -1;
+
+    long long fsize = l_file_size(ico_path);
+    // Minimum valid ICO: 6-byte header + one 16-byte entry + some image data.
+    if (fsize < 22 || fsize > (1LL << 24)) return -1;
+
+    L_FD fd = l_open_read(ico_path);
+    if (fd < 0) return -1;
+
+    L_Arena arena = l_arena_init((size_t)fsize + 4096);
+    if (!arena.base) { l_close(fd); return -1; }
+
+    unsigned char *ico = (unsigned char *)l_arena_alloc(&arena, (size_t)fsize);
+    if (!ico) { l_arena_free(&arena); l_close(fd); return -1; }
+    ptrdiff_t got = l_read_all(fd, ico, (size_t)fsize);
+    l_close(fd);
+    if (got != (ptrdiff_t)fsize) { l_arena_free(&arena); return -1; }
+
+    // Parse ICONDIR
+    unsigned short reserved = (unsigned short)(ico[0] | (ico[1] << 8));
+    unsigned short type     = (unsigned short)(ico[2] | (ico[3] << 8));
+    unsigned short count    = (unsigned short)(ico[4] | (ico[5] << 8));
+    if (reserved != 0 || type != 1 || count == 0) { l_arena_free(&arena); return -1; }
+    if ((long long)(6 + (long long)count * 16) > fsize) { l_arena_free(&arena); return -1; }
+
+    // Build RT_GROUP_ICON: 6-byte header + 14*count entries (replacing the
+    // 4-byte image offset in each ICONDIRENTRY with a 2-byte resource ID).
+    size_t group_size = (size_t)(6 + 14 * (size_t)count);
+    unsigned char *group = (unsigned char *)l_arena_alloc(&arena, group_size);
+    if (!group) { l_arena_free(&arena); return -1; }
+    l_memcpy(group, ico, 6);
+    for (unsigned short i = 0; i < count; i++) {
+        unsigned char *src = ico + 6 + i * 16;
+        unsigned char *dst = group + 6 + i * 14;
+        l_memcpy(dst, src, 12);
+        unsigned short id = (unsigned short)(i + 1);
+        dst[12] = (unsigned char)(id & 0xFF);
+        dst[13] = (unsigned char)((id >> 8) & 0xFF);
+    }
+
+    wchar_t wexe[L_PATH_MAX];
+    int nexe = MultiByteToWideChar(CP_UTF8, 0, exe_path, -1, wexe, L_PATH_MAX);
+    if (nexe <= 0) { l_arena_free(&arena); return -1; }
+
+    HANDLE h = BeginUpdateResourceW(wexe, FALSE);
+    if (!h) { l_arena_free(&arena); return -1; }
+
+    int ok = 1;
+    WORD lang = MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL);
+    for (unsigned short i = 0; i < count && ok; i++) {
+        unsigned char *src = ico + 6 + i * 16;
+        DWORD img_size = (DWORD)src[8]
+                       | ((DWORD)src[9]  << 8)
+                       | ((DWORD)src[10] << 16)
+                       | ((DWORD)src[11] << 24);
+        DWORD img_off  = (DWORD)src[12]
+                       | ((DWORD)src[13] << 8)
+                       | ((DWORD)src[14] << 16)
+                       | ((DWORD)src[15] << 24);
+        if ((long long)img_off + (long long)img_size > fsize) { ok = 0; break; }
+        if (!UpdateResourceW(h, (LPWSTR)RT_ICON, MAKEINTRESOURCEW(i + 1),
+                             lang, ico + img_off, img_size)) ok = 0;
+    }
+
+    if (ok) {
+        if (!UpdateResourceW(h, (LPWSTR)RT_GROUP_ICON, MAKEINTRESOURCEW(1),
+                             lang, group, (DWORD)group_size)) ok = 0;
+    }
+
+    if (!EndUpdateResourceW(h, ok ? FALSE : TRUE)) ok = 0;
+
+    l_arena_free(&arena);
+    return ok ? 0 : -1;
+#else
+    (void)exe_path; (void)ico_path;
+    return 0;
+#endif
 }
 
 #endif // L_OSH
