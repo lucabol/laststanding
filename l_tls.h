@@ -74,6 +74,7 @@ typedef struct {
     int         in_use;
     int         has_cred;
     int         has_ctx;
+    int         closed;   // 1 when peer sent close_notify (graceful TLS shutdown)
     // Decrypted data buffer for partial reads
     char        decrypted[65536];
     int         dec_len;
@@ -140,11 +141,17 @@ static inline int l_tls_do_handshake(int slot, const char *hostname) {
     int hs_len = 0;
 
     while (ss == SEC_I_CONTINUE_NEEDED || ss == SEC_E_INCOMPLETE_MESSAGE) {
-        if (ss != SEC_E_INCOMPLETE_MESSAGE) {
-            int r = recv(c->sock, hs_buf + hs_len, (int)(sizeof(hs_buf) - (size_t)hs_len), 0);
-            if (r <= 0) return -1;
-            hs_len += r;
-        }
+        // Always read more data. The previous logic skipped recv() when ss ==
+        // SEC_E_INCOMPLETE_MESSAGE — but that is precisely when the peer owes us
+        // more bytes to complete the current TLS record. Skipping recv() caused
+        // an infinite CPU spin (calling InitializeSecurityContextA repeatedly
+        // with the same partial buffer) whenever the server's handshake
+        // response was fragmented across TCP segments (common for large cert
+        // chains or slow links).
+        if ((size_t)hs_len >= sizeof(hs_buf)) return -1; // buffer full — bail
+        int r = recv(c->sock, hs_buf + hs_len, (int)(sizeof(hs_buf) - (size_t)hs_len), 0);
+        if (r <= 0) return -1;
+        hs_len += r;
 
         SecBuffer in_bufs[2];
         in_bufs[0].BufferType = SECBUFFER_TOKEN;
@@ -164,8 +171,9 @@ static inline int l_tls_do_handshake(int slot, const char *hostname) {
 
         if (ss == SEC_E_OK || ss == SEC_I_CONTINUE_NEEDED) {
             if (out_buf2.cbBuffer > 0 && out_buf2.pvBuffer) {
-                send(c->sock, (char *)out_buf2.pvBuffer, (int)out_buf2.cbBuffer, 0);
+                int sent = send(c->sock, (char *)out_buf2.pvBuffer, (int)out_buf2.cbBuffer, 0);
                 FreeContextBuffer(out_buf2.pvBuffer);
+                if (sent <= 0) return -1;
             }
             // Handle extra data
             if (in_bufs[1].BufferType == SECBUFFER_EXTRA && in_bufs[1].cbBuffer > 0) {
@@ -336,7 +344,11 @@ static inline int l_tls_decrypt_data(L_TlsConn *c) {
 
     SECURITY_STATUS ss = DecryptMessage(&c->ctx, &desc, 0, NULL);
 
-    if (ss == SEC_E_OK) {
+    if (ss == SEC_E_OK || ss == SEC_I_CONTEXT_EXPIRED) {
+        // SEC_I_CONTEXT_EXPIRED = peer sent TLS close_notify. Any SECBUFFER_DATA
+        // in this batch is still valid application data that must be delivered
+        // to the caller before we surface end-of-stream.
+        if (ss == SEC_I_CONTEXT_EXPIRED) c->closed = 1;
         for (int i = 0; i < 4; i++) {
             if (bufs[i].BufferType == SECBUFFER_DATA && bufs[i].cbBuffer > 0) {
                 int space = (int)sizeof(c->decrypted) - c->dec_len;
@@ -384,6 +396,9 @@ static inline int l_tls_recv(int handle, void *buf, int len) {
     c->dec_pos = 0;
     c->dec_len = 0;
 
+    // Peer has cleanly closed and all buffered plaintext has been delivered.
+    if (c->closed) return 0;
+
     // Try to decrypt existing raw data
     int dr = l_tls_decrypt_data(c);
     if (dr > 0 && c->dec_len > 0) {
@@ -394,6 +409,7 @@ static inline int l_tls_recv(int handle, void *buf, int len) {
         return copy;
     }
     if (dr < 0) return -1;
+    if (c->closed) return 0;
 
     // Read more raw data and try to decrypt
     for (int attempts = 0; attempts < 100; attempts++) {
@@ -413,6 +429,7 @@ static inline int l_tls_recv(int handle, void *buf, int len) {
             return copy;
         }
         if (dr < 0) return -1;
+        if (c->closed) return 0;
     }
     return -1;
 }
