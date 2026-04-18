@@ -749,7 +749,6 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_file_size` | Returns the size of a file in bytes, or -1 on error. | All |
 | `l_read_all` | Reads exactly count bytes, retrying on short reads. Returns total bytes read, 0 on EOF, or negative on error. | All |
 | `l_write_all` | Writes exactly count bytes, retrying on short writes. Returns total bytes written, or negative on error. | All |
-| `l_set_exe_icon` | Sets the icon of an executable file from an .ico file on disk. | All |
 | `l_opendir` | Opens a directory for reading. Returns 0 on success, -1 on error. | All |
 | `l_readdir` | Reads the next directory entry. Returns pointer to L_DirEntry or NULL when done. | All |
 | `l_closedir` | Closes a directory handle. | All |
@@ -900,6 +899,7 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_canvas_mouse` | Returns mouse button bitmask (1=left, 2=right, 4=middle) and writes position to *x, *y. |
 | `l_canvas_wheel` | Returns and clears the accumulated vertical mouse-wheel delta (positive=up, negative=down, |
 | `l_canvas_resized` | Returns 1 if the window was resized since the last call, 0 otherwise. Clears the flag. |
+| `l_canvas_set_icon` | Sets the window / taskbar icon from an ARGB pixel array (0xAARRGGBB). |
 | `l_clipboard_set` | Copy text to clipboard. Returns 0 on success, -1 on failure. |
 | `l_clipboard_get` | Get text from clipboard. Returns bytes read (excluding NUL), 0 if empty, -1 on failure. |
 | **Drawing primitives (platform-independent, operate on pixels[])** | |
@@ -1204,7 +1204,6 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_file_size`` | ✅ | ✅ | ✅ |
 | ``l_read_all`` | ✅ | ✅ | ✅ |
 | ``l_write_all`` | ✅ | ✅ | ✅ |
-| ``l_set_exe_icon`` | ✅ | ✅ | ✅ |
 | ``l_opendir`` | ✅ | ✅ | ✅ |
 | ``l_readdir`` | ✅ | ✅ | ✅ |
 | ``l_closedir`` | ✅ | ✅ | ✅ |
@@ -1495,7 +1494,6 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_file_size` | ✅ | test_fs.c |
 | `l_read_all` | ✅ | test_fs.c |
 | `l_write_all` | ✅ | test_fs.c |
-| ``l_set_exe_icon`` | — | |
 | `l_opendir` | ✅ | test_fs.c |
 | `l_readdir` | ✅ | test_fs.c |
 | `l_closedir` | ✅ | test_fs.c |
@@ -1623,7 +1621,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | ``l_socket_recvfrom_addr`` | — | |
 | ``l_socket_unix_connect`` | — | |
 
-**Coverage: 244 / 250 functions referenced in tests** (98%)
+**Coverage: 244 / 249 functions referenced in tests** (98%)
 
 <!-- END COVERAGE MATRIX -->
 

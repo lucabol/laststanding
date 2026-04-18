@@ -226,6 +226,14 @@ static inline int  l_canvas_wheel(L_Canvas *c);
 /// When resized, c->width, c->height, c->stride, and c->pixels are already updated.
 /// Not supported on Linux framebuffer backend (always returns 0).
 static inline int  l_canvas_resized(L_Canvas *c);
+/// Sets the window / taskbar icon from an ARGB pixel array (0xAARRGGBB).
+/// pixels points to w*h uint32_t values in row-major, top-down order.
+/// Recommended sizes: 16x16, 32x32, 48x48, up to 128x128. Larger sizes may
+/// exceed X11 request limits. Supported on Windows GDI and Linux X11
+/// backends; a no-op returning 0 on framebuffer / terminal / WASI.
+/// Returns 0 on success, -1 on error (e.g. invalid args or write failure).
+/// Replaces any previously set icon; previous HICONs on Windows are freed.
+static inline int  l_canvas_set_icon(L_Canvas *c, const uint32_t *pixels, int w, int h);
 /// Copy text to clipboard. Returns 0 on success, -1 on failure.
 /// On framebuffer/WASI: internal-only buffer (works within same process).
 static inline int  l_clipboard_set(L_Canvas *c, const char *text, int len);
@@ -846,6 +854,52 @@ static inline int l_canvas_resized(L_Canvas *c) {
     int r = c->resized;
     c->resized = 0;
     return r;
+}
+
+static inline int l_canvas_set_icon(L_Canvas *c, const uint32_t *pixels, int w, int h) {
+    if (!c || !pixels || w <= 0 || h <= 0 || w > 256 || h > 256) return -1;
+    if (c->backend != 0 || !c->hwnd) return 0; /* terminal: no-op */
+
+    BITMAPV5HEADER bi;
+    l_memset(&bi, 0, sizeof(bi));
+    bi.bV5Size        = sizeof(bi);
+    bi.bV5Width       = w;
+    bi.bV5Height      = -h; /* top-down */
+    bi.bV5Planes      = 1;
+    bi.bV5BitCount    = 32;
+    bi.bV5Compression = BI_BITFIELDS;
+    bi.bV5RedMask     = 0x00FF0000;
+    bi.bV5GreenMask   = 0x0000FF00;
+    bi.bV5BlueMask    = 0x000000FF;
+    bi.bV5AlphaMask   = 0xFF000000;
+
+    HDC hdc = GetDC(NULL);
+    void *bits = NULL;
+    HBITMAP hbmColor = CreateDIBSection(hdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    ReleaseDC(NULL, hdc);
+    if (!hbmColor || !bits) { if (hbmColor) DeleteObject(hbmColor); return -1; }
+    l_memcpy(bits, pixels, (size_t)w * (size_t)h * 4);
+
+    /* 1-bpp AND mask; all zeros means "use color bitmap's alpha for transparency". */
+    HBITMAP hbmMask = CreateBitmap(w, h, 1, 1, NULL);
+    if (!hbmMask) { DeleteObject(hbmColor); return -1; }
+
+    ICONINFO ii;
+    l_memset(&ii, 0, sizeof(ii));
+    ii.fIcon    = TRUE;
+    ii.hbmColor = hbmColor;
+    ii.hbmMask  = hbmMask;
+    HICON hicon = CreateIconIndirect(&ii);
+    DeleteObject(hbmColor);
+    DeleteObject(hbmMask);
+    if (!hicon) return -1;
+
+    /* SendMessage returns the previous icon, which we destroy to avoid leaks. */
+    HICON prev_big = (HICON)SendMessageW((HWND)c->hwnd, WM_SETICON, ICON_BIG,   (LPARAM)hicon);
+    HICON prev_sml = (HICON)SendMessageW((HWND)c->hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hicon);
+    if (prev_big && prev_big != hicon) DestroyIcon(prev_big);
+    if (prev_sml && prev_sml != hicon && prev_sml != prev_big) DestroyIcon(prev_sml);
+    return 0;
 }
 
 static inline int l_clipboard_set(L_Canvas *c, const char *text, int len) {
@@ -1862,6 +1916,55 @@ static inline int l_x11_read_reply(L_Canvas *c, uint8_t *reply_hdr,
         /* Other events are dropped during reply wait (rare, brief window) */
     }
     return -1;
+}
+
+static inline int l_canvas_set_icon(L_Canvas *c, const uint32_t *pixels, int w, int h) {
+    if (!c || !pixels || w <= 0 || h <= 0 || w > 256 || h > 256) return -1;
+    if (c->backend != 1 || c->x11_fd <= 0 || !c->x11_wid) return 0; /* fb/terminal: no-op */
+
+    /* InternAtom("_NET_WM_ICON") — opcode 16 */
+    uint32_t icon_atom = 0;
+    {
+        const char name[12] = { '_','N','E','T','_','W','M','_','I','C','O','N' };
+        uint8_t req[20];
+        l_memset(req, 0, sizeof(req));
+        req[0] = 16; req[1] = 0; /* only_if_exists=false */
+        uint16_t wlen = 5; /* 20/4 */
+        l_memcpy(req + 2, &wlen, 2);
+        uint16_t nlen = 12;
+        l_memcpy(req + 4, &nlen, 2);
+        l_memcpy(req + 8, name, 12);
+        if (l_x11_write_full(c->x11_fd, req, 20) < 0) return -1;
+        uint8_t rhdr[32];
+        if (l_x11_read_reply(c, rhdr, (uint8_t *)0, 0) < 0) return -1;
+        l_memcpy(&icon_atom, rhdr + 8, 4);
+        if (!icon_atom) return -1;
+    }
+
+    /* ChangeProperty (opcode 18) with type=CARDINAL(6), format=32.
+       Data layout: [width, height, pixel0, pixel1, ...] as CARD32 values. */
+    uint32_t count = (uint32_t)2 + (uint32_t)(w * h);
+    uint32_t data_bytes = count * 4;
+    uint32_t total_bytes = 24 + data_bytes; /* already multiple of 4 */
+    if (total_bytes / 4 > 0xFFFFu) return -1; /* fits in 16-bit request length */
+
+    uint8_t hdr[24];
+    l_memset(hdr, 0, sizeof(hdr));
+    hdr[0] = 18; hdr[1] = 0; /* ChangeProperty, Replace */
+    uint16_t wlen = (uint16_t)(total_bytes / 4);
+    l_memcpy(hdr + 2, &wlen, 2);
+    l_memcpy(hdr + 4, &c->x11_wid, 4);
+    l_memcpy(hdr + 8, &icon_atom, 4);
+    uint32_t type = 6; /* CARDINAL */
+    l_memcpy(hdr + 12, &type, 4);
+    hdr[16] = 32; /* format */
+    l_memcpy(hdr + 20, &count, 4);
+    if (l_x11_write_full(c->x11_fd, hdr, 24) < 0) return -1;
+
+    uint32_t wh[2] = { (uint32_t)w, (uint32_t)h };
+    if (l_x11_write_full(c->x11_fd, wh, 8) < 0) return -1;
+    if (l_x11_write_full(c->x11_fd, pixels, w * h * 4) < 0) return -1;
+    return 0;
 }
 
 static inline int l_clipboard_set(L_Canvas *c, const char *text, int len) {
