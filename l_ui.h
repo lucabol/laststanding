@@ -87,6 +87,14 @@ typedef struct {
 
     // Font scale: 1 = 8x8, 2 = 16x16
     int        font_scale;
+
+#ifdef L_UI_WITH_CUSTOM_FONT
+    // Optional custom font (only compiled in when L_UI_WITH_CUSTOM_FONT is
+    // defined before including l_ui.h). NULL means "use the built-in ASCII
+    // path". Set to e.g. &l_font8x8_proportional or &l_font8x8_latin1 after
+    // also defining L_FONT_PROPORTIONAL / L_FONT_LATIN1_SUPPLEMENT.
+    const L_Font *font;
+#endif
 } L_UI;
 
 // ---------------------------------------------------------------------------
@@ -121,6 +129,37 @@ static inline int l_ui__text_width(const char *text, int scale) {
 static inline int l_ui__text_height(int scale) {
     return 8 * scale;
 }
+
+// Internal macros used by widgets. When L_UI_WITH_CUSTOM_FONT is defined and
+// ui->font is non-NULL, widgets route through the L_Font/_f drawing API
+// (UTF-8, multiple fonts, proportional widths). Otherwise they use the legacy
+// ASCII-only path with zero size impact.
+#ifdef L_UI_WITH_CUSTOM_FONT
+#  define L_UI__DRAW_TEXT(ui_, x_, y_, txt_, col_)                               \
+    do { const L_UI *_u = (ui_); const char *_t = (txt_);                        \
+         if (_u->font) {                                                         \
+             if (_u->font_scale <= 1) l_draw_text_f(_u->canvas, _u->font,        \
+                 (x_), (y_), _t, (col_));                                        \
+             else                     l_draw_text_scaled_f(_u->canvas, _u->font, \
+                 (x_), (y_), _t, (col_), _u->font_scale, _u->font_scale);        \
+         } else {                                                                \
+             l_ui__draw_text(_u->canvas, (x_), (y_), _t, (col_), _u->font_scale);\
+         }                                                                       \
+    } while (0)
+#  define L_UI__TEXT_WIDTH(ui_, txt_)                                            \
+    ((ui_)->font                                                                 \
+        ? l_text_width_f((ui_)->font, (txt_)) * (ui_)->font_scale                \
+        : l_ui__text_width((txt_), (ui_)->font_scale))
+#  define L_UI__TEXT_HEIGHT(ui_)                                                 \
+    (((ui_)->font ? (ui_)->font->cell_h : 8) * (ui_)->font_scale)
+#else
+#  define L_UI__DRAW_TEXT(ui_, x_, y_, txt_, col_)                               \
+    l_ui__draw_text((ui_)->canvas, (x_), (y_), (txt_), (col_), (ui_)->font_scale)
+#  define L_UI__TEXT_WIDTH(ui_, txt_)                                            \
+    l_ui__text_width((txt_), (ui_)->font_scale)
+#  define L_UI__TEXT_HEIGHT(ui_)                                                 \
+    l_ui__text_height((ui_)->font_scale)
+#endif
 
 // ---------------------------------------------------------------------------
 // Frame functions
@@ -182,7 +221,7 @@ static inline int l_ui__mouse_released(L_UI *ui) {
 
 /// Draws a text label at (x,y). Returns 0 always.
 static inline int l_ui_label(L_UI *ui, int x, int y, const char *text) {
-    l_ui__draw_text(ui->canvas, x, y, text, ui->theme.fg, ui->font_scale);
+    L_UI__DRAW_TEXT(ui, x, y, text, ui->theme.fg);
     return 0;
 }
 
@@ -211,11 +250,11 @@ static inline int l_ui_button(L_UI *ui, int x, int y, int w, int h, const char *
     l_rect(ui->canvas, x, y, w, h, ui->theme.border);
 
     // Center text
-    int tw = l_ui__text_width(label, ui->font_scale);
-    int th = l_ui__text_height(ui->font_scale);
+    int tw = L_UI__TEXT_WIDTH(ui, label);
+    int th = L_UI__TEXT_HEIGHT(ui);
     int tx = x + (w - tw) / 2;
     int ty = y + (h - th) / 2;
-    l_ui__draw_text(ui->canvas, tx, ty, label, ui->theme.fg, ui->font_scale);
+    L_UI__DRAW_TEXT(ui, tx, ty, label, ui->theme.fg);
 
     return clicked;
 }
@@ -254,9 +293,9 @@ static inline int l_ui_checkbox(L_UI *ui, int x, int y, const char *label, int *
     }
 
     // Label to the right
-    int th = l_ui__text_height(scale);
-    l_ui__draw_text(ui->canvas, x + box + 4 * scale, y + (box - th) / 2,
-                    label, ui->theme.fg, scale);
+    int th = L_UI__TEXT_HEIGHT(ui);
+    L_UI__DRAW_TEXT(ui, x + box + 4 * scale, y + (box - th) / 2,
+                    label, ui->theme.fg);
 
     return toggled;
 }

@@ -122,6 +122,56 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+### Extended Fonts / UTF-8 (`l_gfx.h`)
+
+`l_draw_text` uses the built-in 8×8 ASCII table (codepoints 32–126). For
+UTF-8 text, proportional widths, or extra glyphs, use the `L_Font` API.
+Extended glyph tables are **opt-in** via compile-time macros so programs
+that don't use them pay zero bytes:
+
+| Macro | Adds |
+|-------|------|
+| *(none)* | `l_font8x8_default` — fixed-width ASCII (always available) |
+| `L_FONT_PROPORTIONAL` | `l_font8x8_proportional` — per-glyph widths for ASCII |
+| `L_FONT_LATIN1_SUPPLEMENT` | `l_font8x8_latin1` — U+00A0..U+00FF (accents, symbols) |
+| `L_FONT_BOX_DRAWING` | `l_font8x8_box` — box-drawing + arrows subset |
+
+```c
+#define L_MAINFILE
+#define L_FONT_PROPORTIONAL
+#define L_FONT_LATIN1_SUPPLEMENT
+#include "l_gfx.h"
+
+int main(int argc, char *argv[]) {
+    l_getenv_init(argc, argv);
+    L_Canvas c; l_canvas_open(&c, 480, 120, "Fonts");
+    while (l_canvas_alive(&c)) {
+        l_canvas_clear(&c, L_BLACK);
+        // UTF-8 strings decode automatically; unknown codepoints fall back to '?'.
+        l_draw_text_f(&c, &l_font8x8_latin1,       10, 10,
+                      "Caf\xc3\xa9 r\xc3\xa9sum\xc3\xa9 \xc2\xa9 2025", L_WHITE);
+        l_draw_text_f(&c, &l_font8x8_proportional, 10, 30,
+                      "proportional widths: iii vs MMM", L_CYAN);
+        l_draw_text_scaled_f(&c, &l_font8x8_proportional, 10, 50,
+                             "scaled text", L_YELLOW, 3, 3);
+        l_canvas_flush(&c);
+        if (l_canvas_key(&c) == 27) break; l_sleep_ms(16);
+    }
+    l_canvas_close(&c); return 0;
+}
+```
+
+Key entry points: `l_utf8_next` (decoder), `l_font_lookup` (with fallback),
+`l_draw_glyph_f` / `l_draw_text_f` / `l_draw_text_scaled_f`, `l_text_width_f`.
+
+`l_ui.h` can also route its widgets through a custom font. Define
+`L_UI_WITH_CUSTOM_FONT` before including it, then set `ui.font = &l_font8x8_latin1`
+(or any other `L_Font *`). When the macro is not defined, widget call sites
+expand byte-identical to the legacy ASCII path, so `ui_demo` and other
+existing UI binaries keep their original size.
+
+See [`examples/font_demo.c`](examples/font_demo.c) for a full visual tour.
+
 ### Image Decoding (`l_img.h`)
 
 ```c
@@ -541,6 +591,10 @@ l_arena_free(&a);
 | `L_MAINFILE` | Activates function definitions and platform startup code. **Exactly one** translation unit must define this. |
 | `L_DONTOVERRIDE` | Prevents `#define strlen l_strlen` aliases — use when mixing with standard headers. |
 | `L_WITHSNPRINTF` | Enables `l_snprintf` / `l_vsnprintf` (opt-in to keep binaries small). |
+| `L_FONT_PROPORTIONAL` | Adds `l_font8x8_proportional` (per-glyph ASCII widths) to `l_gfx.h`. |
+| `L_FONT_LATIN1_SUPPLEMENT` | Adds `l_font8x8_latin1` — U+00A0..U+00FF glyph table (~1 KB). |
+| `L_FONT_BOX_DRAWING` | Adds `l_font8x8_box` — box-drawing and arrow subset (sparse). |
+| `L_UI_WITH_CUSTOM_FONT` | Adds a `const L_Font *font` field to `L_UI` and routes widgets through the `_f` drawing path when set. |
 
 By default, `l_os.h` aliases standard names (`strlen`, `memcpy`, `exit`, `puts`, …) to their `l_` equivalents so you can write familiar C. Define `L_DONTOVERRIDE` to disable this.
 
@@ -916,6 +970,15 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_draw_text` | Draws a null-terminated string at (x,y), advancing 8 pixels per character. |
 | `l_draw_char_scaled` | Draws a single character at (x,y) scaled by (sx,sy) using nearest-neighbor. |
 | `l_draw_text_scaled` | Draws a string at (x,y) with each glyph scaled by (sx,sy). |
+| **Result of l_font_lookup: bitmap pointer (NULL if missing) and pixel advance.** | |
+| `l_utf8_next` | Reads one UTF-8 codepoint starting at *p and advances *p past it. |
+| `l_font_lookup_raw` | Looks up a codepoint in the font. Returns the bitmap pointer and pixel |
+| `l_font_lookup` | Looks up a codepoint, falling back to fallback_cp once if missing. |
+| `l_draw_glyph_f` | Draws one codepoint at (x,y) in the given font. Returns its pixel advance. |
+| `l_draw_text_f` | Draws a UTF-8 string at (x,y) using font f. Returns the total pixel width drawn. |
+| `l_draw_glyph_scaled_f` | Draws a single codepoint scaled by (sx,sy). Returns scaled advance. |
+| `l_draw_text_scaled_f` | Draws a UTF-8 string scaled by (sx,sy). Returns total pixel width drawn. |
+| `l_text_width_f` | Returns the pixel width that would be drawn for a UTF-8 string in font f. |
 | **Pixel blitting** | |
 | `l_blit` | Blit a rectangle of ARGB pixels onto the canvas at (dx, dy). |
 | `l_blit_alpha` | Blit with alpha blending (source-over). Assumes pre-multiplied alpha in the A channel. |
@@ -1416,7 +1479,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_itoa` | ✅ | test_strings.c |
 | **Memory functions** | | |
 | `l_memmove` | ✅ | test_strings.c |
-| `l_memset` | ✅ | test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
+| `l_memset` | ✅ | font_test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
 | `l_memcmp` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
 | `l_memcpy` | ✅ | test_strings.c, test_utils.c |
 | `l_memchr` | ✅ | test_strings.c |
@@ -1671,6 +1734,7 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | **fire** | Doom-style fire — bottom-up heat propagation | [fire.c](examples/fire.c) |
 | **clock** | Analog clock — hour/minute/second hands, ticking in real time | [clock.c](examples/clock.c) |
 | **scaled_text** | Scaled text at 1×–6× plus stretch modes | [scaled_text.c](examples/scaled_text.c) |
+| **font_demo** | Extended fonts — proportional ASCII, Latin-1 accents, box drawing, UTF-8 | [font_demo.c](examples/font_demo.c) |
 | **blit_demo** | Opaque and alpha-blended sprite blitting | [blit_demo.c](examples/blit_demo.c) |
 | **img_view** | Image viewer — load PNG/JPEG/BMP, aspect-ratio scaling | [img_view.c](examples/img_view.c) |
 | **https_get** | HTTPS client — fetch a page over TLS (Windows + Linux) | [https_get.c](examples/https_get.c) |
