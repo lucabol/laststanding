@@ -1054,6 +1054,37 @@ void test_memmove(void) {
     l_memmove(&sa, &sb, 1);
     TEST_ASSERT(sa == 'B', "single byte memmove");
 
+    // Large backward overlap — exercises word-at-a-time backward path.
+    // dst = buf+1, src = buf+0, len = 64: dst > src, backward copy required.
+    {
+        char buf[72];
+        size_t i;
+        for (i = 0; i < 65; i++) buf[i] = (char)(i + 1);
+        l_memmove(buf + 1, buf, 64);
+        for (i = 0; i < 64; i++)
+            TEST_ASSERT(buf[i + 1] == (char)(i + 1), "large backward overlap word-at-a-time");
+    }
+
+    // Large forward overlap — exercises word-at-a-time forward path.
+    // dst = buf, src = buf+1, len = 64: dst < src, forward copy safe.
+    {
+        char buf[72];
+        size_t i;
+        for (i = 0; i < 65; i++) buf[i] = (char)(i + 1);
+        l_memmove(buf, buf + 1, 64);
+        for (i = 0; i < 64; i++)
+            TEST_ASSERT(buf[i] == (char)(i + 2), "large forward overlap word-at-a-time");
+    }
+
+    // Non-overlapping large copy
+    {
+        char src64[64], dst64[64];
+        size_t i;
+        for (i = 0; i < 64; i++) src64[i] = (char)(i * 3 + 7);
+        l_memmove(dst64, src64, 64);
+        TEST_ASSERT(l_memcmp(dst64, src64, 64) == 0, "large non-overlapping memmove");
+    }
+
     TEST_SECTION_PASS("l_memmove");
 }
 
