@@ -8,9 +8,9 @@
 // Exit: press Escape or close the window.
 
 #define L_MAINFILE
-#define L_FONT_PROPORTIONAL        // enables l_font8x8_proportional
-#define L_FONT_LATIN1_SUPPLEMENT   // enables l_font8x8_latin1 (U+00A0..U+00FF)
-#define L_FONT_BOX_DRAWING         // enables l_font8x8_box  (box / arrows subset)
+#define L_FONT_PROPORTIONAL        // enables l_font8x8_proportional / l_font8x12_proportional
+#define L_FONT_LATIN1_SUPPLEMENT   // enables l_font8x8_latin1 / l_font8x12_latin1
+#define L_FONT_BOX_DRAWING         // enables l_font8x8_box    / l_font8x12_box
 #include "l_gfx.h"
 
 static void draw_section(L_Canvas *c, int x, int y, const char *title) {
@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
 
     L_Canvas c;
-    if (l_canvas_open(&c, 820, 500, "Font Demo — l_gfx.h L_Font API") != 0)
+    if (l_canvas_open(&c, 820, 600, "Font Demo — l_gfx.h L_Font API") != 0)
         return 1;
 
     while (l_canvas_alive(&c)) {
@@ -130,8 +130,27 @@ int main(int argc, char *argv[]) {
         l_draw_text(&c, rx, ry + 30, "ui_demo (no font macros):       unchanged", 0xFFA0FFA0);
         l_draw_text(&c, rx, ry + 42, "this demo (all 3 macros):       ~+3 KB",    0xFFFFC040);
 
+        // ── 8x12 bitmap family (1.5x line-height tier) ────────────────
+        {
+            int sx = 20, sy = 500;
+            draw_section(&c, sx, sy, "8x12 family (1.5x line-height tier):");
+            // Side-by-side comparison with matching baselines.
+            l_draw_text_f(&c, &l_font8x8_default,        sx,       sy + 22,
+                          "8x8  The quick brown fox 0123", L_WHITE);
+            l_draw_text_f(&c, &l_font8x12_default,       sx + 400, sy + 22,
+                          "8x12 The quick brown fox 0123", L_WHITE);
+            l_draw_text_f(&c, &l_font8x8_latin1,         sx,       sy + 40,
+                          "8x8  Caf\xc3\xa9 r\xc3\xa9sum\xc3\xa9 \xc2\xa9 na\xc3\xafve", 0xFFA0A0A0);
+            l_draw_text_f(&c, &l_font8x12_latin1,        sx + 400, sy + 40,
+                          "8x12 Caf\xc3\xa9 r\xc3\xa9sum\xc3\xa9 \xc2\xa9 na\xc3\xafve", 0xFFA0A0A0);
+            l_draw_text_f(&c, &l_font8x8_proportional,   sx,       sy + 60,
+                          "8x8  iii MMM WWW proportional", L_CYAN);
+            l_draw_text_f(&c, &l_font8x12_proportional,  sx + 400, sy + 60,
+                          "8x12 iii MMM WWW proportional", L_CYAN);
+        }
+
         // Footer
-        l_draw_text(&c, 20, 480, "Esc to exit  -  l_draw_text_f / l_draw_text_scaled_f / l_text_width_f",
+        l_draw_text(&c, 20, 580, "Esc to exit  -  l_draw_text_f / l_draw_text_scaled_f / l_text_width_f",
                     0xFF606060);
 
         l_canvas_flush(&c);
