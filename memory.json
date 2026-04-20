@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-04-20T01:28:52Z",
-  "last_run_id": "24644209799",
+  "last_run": "2026-04-20T13:27:39Z",
+  "last_run_id": "24669122321",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
     {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "title": "perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09"},
@@ -9,10 +9,14 @@
     {"number": 137, "branch": "repo-assist/perf-vsnprintf-bulk-str-2026-04-19-e43284a-f36a8cb10d0889a3", "title": "perf: bulk memcpy/memset for %s padding and string copy in l_vsnprintf", "created": "2026-04-19"},
     {"number": 138, "branch": "repo-assist/feat-snprintf-octal-hash-2026-04-19-e43284a-7959303f2f811899", "title": "feat: add %o octal format and # flag to l_vsnprintf", "created": "2026-04-19"},
     {"number": 139, "branch": "repo-assist/test-getrandom-2026-04-19-e43284a-26e8eae8b522b2c6", "title": "test: add l_getrandom coverage in test_utils.c", "created": "2026-04-19"},
-    {"branch": "repo-assist/feat-str-printf-to-num-2026-04-20-e43284a", "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double to L_Str API", "created": "2026-04-20", "status": "queued"}
+    {"number": 140, "branch": "repo-assist/feat-str-printf-to-num-2026-04-20-e43284a-8ec83fa9604cf580", "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double to L_Str API", "created": "2026-04-20"},
+    {"number": 141, "branch": "repo-assist/feat-str-printf-to-num-2026-04-20-e43284a-e3d3110b124a4a63", "title": "DUPLICATE of #140 - awaiting close by maintainer", "created": "2026-04-20", "status": "duplicate"}
   ],
-  "comments_made": {"124": "2026-04-19 root cause analysis of workflow failures"},
+  "comments_made": {
+    "124": "2026-04-19 root cause analysis of workflow failures",
+    "141": "2026-04-20 duplicate of #140 - asked maintainer to close"
+  },
   "backlog_cursor": {"issues": "all_processed", "prs": "all_processed"},
   "checked_off_items": [],
-  "notes": "MCP auth: Authorization header from /home/runner/.copilot/mcp-config.json. PR #140 created this run. Task 2 had no actionable human issues."
+  "notes": "PR #141 is a duplicate of #140 (race condition in 2026-04-20 run). Both PRs are identical. Commented on #141 asking maintainer to close it. Task 2: no human issues exist - all 4 open issues are automated bot issues."
 }
