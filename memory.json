@@ -1,18 +1,18 @@
 {
-  "last_run": "2026-04-19T13:23:14Z",
-  "last_run_id": "24630102349",
+  "last_run": "2026-04-20T01:28:52Z",
+  "last_run_id": "24644209799",
   "monthly_activity_issue": "#123 (open, 2026-04)",
-  "mcp_fix": "safeoutputs MCP server accessible at http://host.docker.internal:80/mcp/safeoutputs - call via curl with session ID from initialize response. MCP-Session-Id header required after init.",
   "open_prs": [
     {"number": 122, "branch": "repo-assist/perf-memmove-backward-waat-2026-04-09-f4453f9fbe69eafc", "title": "perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09"},
     {"number": 126, "branch": "repo-assist/fix-strtod-erange-2026-04-13-6ecdac872e2f8f93", "title": "fix: add L_ERANGE and set errno on strtod/strtof overflow/underflow", "created": "2026-04-13"},
     {"number": 127, "branch": "repo-assist/perf-strcat-strncat-2026-04-13-3b38cd54f6a1f4d7", "title": "perf: word-at-a-time copy in l_strcat and l_strncat", "created": "2026-04-13"},
-    {"branch": "repo-assist/perf-vsnprintf-bulk-str-2026-04-19-e43284a", "title": "perf: bulk memcpy/memset for %s in l_vsnprintf", "created": "2026-04-19", "status": "queued"},
-    {"branch": "repo-assist/feat-snprintf-octal-hash-2026-04-19-e43284a", "title": "feat: %o octal format and # flag", "created": "2026-04-19", "status": "queued"},
-    {"branch": "repo-assist/test-getrandom-2026-04-19-e43284a", "title": "test: l_getrandom coverage", "created": "2026-04-19", "status": "queued"}
+    {"number": 137, "branch": "repo-assist/perf-vsnprintf-bulk-str-2026-04-19-e43284a-f36a8cb10d0889a3", "title": "perf: bulk memcpy/memset for %s padding and string copy in l_vsnprintf", "created": "2026-04-19"},
+    {"number": 138, "branch": "repo-assist/feat-snprintf-octal-hash-2026-04-19-e43284a-7959303f2f811899", "title": "feat: add %o octal format and # flag to l_vsnprintf", "created": "2026-04-19"},
+    {"number": 139, "branch": "repo-assist/test-getrandom-2026-04-19-e43284a-26e8eae8b522b2c6", "title": "test: add l_getrandom coverage in test_utils.c", "created": "2026-04-19"},
+    {"branch": "repo-assist/feat-str-printf-to-num-2026-04-20-e43284a", "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double to L_Str API", "created": "2026-04-20", "status": "queued"}
   ],
   "comments_made": {"124": "2026-04-19 root cause analysis of workflow failures"},
   "backlog_cursor": {"issues": "all_processed", "prs": "all_processed"},
   "checked_off_items": [],
-  "notes": "MCP server reachable via curl. safeoutputs tools work with proper session init. Memory reduced from 64KB to 3.6KB by removing patch files. Three new PRs queued this run."
+  "notes": "MCP auth: Authorization header from /home/runner/.copilot/mcp-config.json. PR #140 created this run. Task 2 had no actionable human issues."
 }
