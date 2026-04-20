@@ -118,5 +118,116 @@ int main(int argc, char *argv[]) {
         TEST_ASSERT(total == 16, "two-glyph UTF-8 string advance");
     }
 
+    TEST_FUNCTION("8x12 default font (1.5x line-height tier)");
+    {
+        // Metrics: 12 rows tall, 8 wide, advance 8.
+        TEST_ASSERT(l_font8x12_default.cell_h == 12, "cell_h == 12");
+        TEST_ASSERT(l_font8x12_default.cell_w == 8,  "cell_w == 8");
+        TEST_ASSERT(l_font8x12_default.advance == 8, "advance == 8");
+
+        // 'A' present, not a fallback to '?'.
+        L_FontGlyph g = l_font_lookup(&l_font8x12_default, 'A');
+        TEST_ASSERT(g.bitmap != 0,                          "A present");
+        TEST_ASSERT(g.bitmap != &l_font8x12['?' - 32][0],   "A not fallback");
+        TEST_ASSERT(g.bitmap == &l_font8x12['A' - 32][0],   "A points at 8x12 bitmap");
+        TEST_ASSERT(g.advance == 8,                         "A advance == 8");
+
+        // Row-doubling invariant: generator pattern is {0,0,1,2,2,3,4,4,5,6,6,7}
+        // over the 8x8 source. Rows 0..11 of 'A' must match that remap.
+        const uint8_t *s = &l_font8x8['A' - 32][0];
+        const uint8_t *d = g.bitmap;
+        const int remap[12] = {0,0,1,2,2,3,4,4,5,6,6,7};
+        int ok = 1;
+        for (int i = 0; i < 12; i++) if (d[i] != s[remap[i]]) { ok = 0; break; }
+        TEST_ASSERT(ok, "8x12 'A' is row-doubled 8x8 'A'");
+
+        // Missing codepoint falls back to '?' (12-row bitmap).
+        g = l_font_lookup(&l_font8x12_default, 0x00E9);
+        TEST_ASSERT(g.bitmap == &l_font8x12['?' - 32][0],   "fallback to '?' in 12-row table");
+    }
+
+    TEST_FUNCTION("8x12 render: pixels in rows 8..11");
+    {
+        // Use a 16-wide x 16-tall canvas; draw 'H' which has vertical strokes
+        // on cols 0 and 5 (from 0x33 pattern). With row-doubling, rows 10/11
+        // (source row 6) carry those strokes — prove the renderer actually
+        // touches rows 8..11, not just the first 8.
+        uint32_t pix[16 * 16];
+        for (int i = 0; i < 16 * 16; i++) pix[i] = 0;
+        L_Canvas c;
+        l_memset(&c, 0, sizeof(c));
+        c.width = 16; c.height = 16; c.stride = 16 * 4; c.pixels = pix;
+
+        int adv = l_draw_glyph_f(&c, &l_font8x12_default, 0, 0, 'H', 0xFFFFFFFFu);
+        TEST_ASSERT(adv == 8, "H advance from 12-row drawer");
+
+        int any_lower = 0;
+        for (int row = 8; row < 12; row++)
+            for (int col = 0; col < 8; col++)
+                if (pix[row * 16 + col] == 0xFFFFFFFFu) { any_lower = 1; break; }
+        TEST_ASSERT(any_lower, "H drew at least one pixel in rows 8..11");
+
+        // Line height is taller than 8: two lines of 8x12 must not overlap
+        // if placed 12 px apart.
+        for (int i = 0; i < 16 * 16; i++) pix[i] = 0;
+        l_draw_glyph_f(&c, &l_font8x12_default, 0, 0,  'H', 0xFFFFFFFFu);
+        l_draw_glyph_f(&c, &l_font8x12_default, 0, 12, 'H', 0xFFFFFFFFu);
+        // y=12 is outside the 16-tall canvas for rows 12..15 (still drawable 4 rows).
+        // What we assert: pixels in rows 12..15 appear only from the SECOND draw.
+        int any_second = 0;
+        for (int row = 12; row < 16; row++)
+            for (int col = 0; col < 8; col++)
+                if (pix[row * 16 + col] == 0xFFFFFFFFu) { any_second = 1; break; }
+        TEST_ASSERT(any_second, "second 12-row glyph drew below first");
+    }
+
+#ifdef L_FONT_PROPORTIONAL
+    TEST_FUNCTION("8x12 proportional");
+    {
+        L_FontGlyph gi = l_font_lookup(&l_font8x12_proportional, 'i');
+        L_FontGlyph gw = l_font_lookup(&l_font8x12_proportional, 'W');
+        TEST_ASSERT(gi.advance < gw.advance, "i narrower than W (12-row)");
+
+        // Widths table is shared with 8x8 proportional.
+        L_FontGlyph gi8 = l_font_lookup(&l_font8x8_proportional, 'i');
+        TEST_ASSERT(gi.advance == gi8.advance, "shared widths table");
+    }
+#endif
+
+#ifdef L_FONT_LATIN1_SUPPLEMENT
+    TEST_FUNCTION("8x12 Latin-1");
+    {
+        TEST_ASSERT(l_font8x12_latin1.cell_h == 12, "latin1 cell_h == 12");
+
+        L_FontGlyph g = l_font_lookup(&l_font8x12_latin1, 0x00E9);  // é
+        TEST_ASSERT(g.bitmap != 0,                           "é present");
+        TEST_ASSERT(g.bitmap != &l_font8x12['?' - 32][0],    "é not fallback");
+        TEST_ASSERT(g.bitmap ==
+                    &l_font8x12_latin1_supp_data[0x00E9 - 0x00A0][0],
+                    "é points at 12-row latin1 data, not 8-row");
+
+        // ASCII range must ALSO resolve to 12-row data (mixing rows would
+        // break the cell_h indexing).
+        g = l_font_lookup(&l_font8x12_latin1, 'A');
+        TEST_ASSERT(g.bitmap == &l_font8x12['A' - 32][0],    "ASCII served from 12-row table");
+    }
+#endif
+
+#ifdef L_FONT_BOX_DRAWING
+    TEST_FUNCTION("8x12 Box drawing");
+    {
+        TEST_ASSERT(l_font8x12_box.cell_h == 12,             "box cell_h == 12");
+
+        L_FontGlyph g = l_font_lookup(&l_font8x12_box, 0x2588);  // █
+        TEST_ASSERT(g.bitmap != 0,                           "█ present");
+        TEST_ASSERT(g.bitmap[0] == 0xFF && g.bitmap[11] == 0xFF,
+                    "█ all 12 rows filled");
+
+        // ASCII range must resolve to 12-row data.
+        g = l_font_lookup(&l_font8x12_box, 'A');
+        TEST_ASSERT(g.bitmap == &l_font8x12['A' - 32][0],    "ASCII served from 12-row table");
+    }
+#endif
+
     return 0;
 }
