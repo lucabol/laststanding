@@ -1009,6 +1009,75 @@ void test_str_replace_helper(void) {
     TEST_SECTION_PASS("l_str_replace");
 }
 
+void test_str_to_num(void) {
+    TEST_FUNCTION("l_str_to_int / l_str_to_double");
+
+    /* l_str_to_int: decimal */
+    TEST_ASSERT(l_str_to_int(l_str("42"), 10) == 42LL, "str_to_int 42");
+    TEST_ASSERT(l_str_to_int(l_str("-1"), 10) == -1LL, "str_to_int -1");
+    TEST_ASSERT(l_str_to_int(l_str("0"), 10) == 0LL, "str_to_int 0");
+    TEST_ASSERT(l_str_to_int(l_str("  7"), 10) == 7LL, "str_to_int leading space");
+    TEST_ASSERT(l_str_to_int(l_str("+123"), 10) == 123LL, "str_to_int +sign");
+    TEST_ASSERT(l_str_to_int(l_str("99abc"), 10) == 99LL, "str_to_int stops at non-digit");
+    TEST_ASSERT(l_str_to_int(l_str(""), 10) == 0LL, "str_to_int empty");
+
+    /* l_str_to_int: hex */
+    TEST_ASSERT(l_str_to_int(l_str("ff"), 16) == 255LL, "str_to_int hex ff");
+    TEST_ASSERT(l_str_to_int(l_str("0xFF"), 16) == 255LL, "str_to_int hex 0xFF");
+    TEST_ASSERT(l_str_to_int(l_str("10"), 16) == 16LL, "str_to_int hex 10");
+
+    /* l_str_to_int: octal */
+    TEST_ASSERT(l_str_to_int(l_str("10"), 8) == 8LL, "str_to_int octal 10");
+    TEST_ASSERT(l_str_to_int(l_str("077"), 8) == 63LL, "str_to_int octal 077");
+
+    /* l_str_to_double */
+    {
+        double d;
+        d = l_str_to_double(l_str("3.14"));
+        TEST_ASSERT(d > 3.139 && d < 3.141, "str_to_double 3.14");
+        d = l_str_to_double(l_str("-2.5"));
+        TEST_ASSERT(d > -2.501 && d < -2.499, "str_to_double -2.5");
+        d = l_str_to_double(l_str("0"));
+        TEST_ASSERT(d == 0.0, "str_to_double 0");
+        d = l_str_to_double(l_str("1e3"));
+        TEST_ASSERT(d > 999.9 && d < 1000.1, "str_to_double 1e3");
+        d = l_str_to_double(l_str(""));
+        TEST_ASSERT(d == 0.0, "str_to_double empty");
+    }
+
+    TEST_SECTION_PASS("l_str_to_int / l_str_to_double");
+}
+
+void test_str_printf_arena(void) {
+    TEST_FUNCTION("l_str_printf");
+
+    L_Arena a = l_arena_init(4096);
+
+    /* basic formatting */
+    L_Str s = l_str_printf(&a, "hello %s", "world");
+    TEST_ASSERT(l_str_eq(s, l_str("hello world")), "str_printf basic");
+
+    /* integer formatting */
+    L_Str s2 = l_str_printf(&a, "%d + %d = %d", 1, 2, 3);
+    TEST_ASSERT(l_str_eq(s2, l_str("1 + 2 = 3")), "str_printf ints");
+
+    /* empty format */
+    L_Str s3 = l_str_printf(&a, "no args");
+    TEST_ASSERT(l_str_eq(s3, l_str("no args")), "str_printf no args");
+
+    /* width and padding */
+    L_Str s4 = l_str_printf(&a, "%5d", 42);
+    TEST_ASSERT(l_str_eq(s4, l_str("   42")), "str_printf width pad");
+
+    /* length must be exact */
+    L_Str s5 = l_str_printf(&a, "ab%sc", "XY");
+    TEST_ASSERT(s5.len == 5, "str_printf length exact");
+    TEST_ASSERT(l_str_eq(s5, l_str("abXYc")), "str_printf content");
+
+    l_arena_free(&a);
+    TEST_SECTION_PASS("l_str_printf");
+}
+
 // Comparator for large structs — compares by the first int field
 typedef struct { int key; char pad[512]; } BigElem;
 static int big_elem_cmp(const void *a, const void *b) {
@@ -1258,6 +1327,8 @@ int main(int argc, char *argv[]) {
     test_mktime();
     test_strtof();
     test_str_replace_helper();
+    test_str_to_num();
+    test_str_printf_arena();
 
     // Context variant tests
     test_rand_ctx();
