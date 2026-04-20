@@ -925,6 +925,14 @@ static inline L_Str l_str_upper(L_Arena *a, L_Str s);
 static inline L_Str l_str_lower(L_Arena *a, L_Str s);
 /// Replace all occurrences of find with repl in s. Result is arena-allocated.
 static inline L_Str l_str_replace(L_Arena *a, L_Str s, L_Str find, L_Str repl);
+/// Parse a signed integer from s in the given base (2–36). Mirrors l_strtoll semantics.
+static inline long long l_str_to_int(L_Str s, int base);
+/// Parse a floating-point value from s. Mirrors l_strtod semantics.
+static inline double l_str_to_double(L_Str s);
+#ifdef L_WITHSNPRINTF
+/// Format args into an arena-allocated L_Str. Result length is exact; not NUL-terminated.
+static inline L_Str l_str_printf(L_Arena *a, const char *fmt, ...);
+#endif
 
 /// Append L_Str to buf. Returns 0 on success, -1 on failure.
 static inline int l_buf_push_str(L_Buf *b, L_Str s);
@@ -8962,6 +8970,37 @@ static inline int l_buf_push_int(L_Buf *b, int value) {
 static inline L_Str l_buf_as_str(const L_Buf *b) {
     return l_str_from((const char *)b->data, b->len);
 }
+
+/* Number parsing from L_Str */
+static inline long long l_str_to_int(L_Str s, int base) {
+    char tmp[70]; /* 64 bits binary + sign + null, plus a little slack */
+    size_t n = s.len < sizeof(tmp) - 1 ? s.len : sizeof(tmp) - 1;
+    l_memcpy(tmp, s.data, n);
+    tmp[n] = '\0';
+    return l_strtoll(tmp, (char **)0, base);
+}
+static inline double l_str_to_double(L_Str s) {
+    char tmp[128];
+    size_t n = s.len < sizeof(tmp) - 1 ? s.len : sizeof(tmp) - 1;
+    l_memcpy(tmp, s.data, n);
+    tmp[n] = '\0';
+    return l_strtod(tmp, (char **)0);
+}
+#ifdef L_WITHSNPRINTF
+static inline L_Str l_str_printf(L_Arena *a, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int need = l_vsnprintf((char *)0, 0, fmt, ap);
+    va_end(ap);
+    if (need < 0) return l_str_null();
+    char *p = (char *)l_arena_alloc(a, (size_t)need + 1);
+    if (!p) return l_str_null();
+    va_start(ap, fmt);
+    l_vsnprintf(p, (size_t)need + 1, fmt, ap);
+    va_end(ap);
+    return l_str_from(p, (size_t)need);
+}
+#endif /* L_WITHSNPRINTF */
 
 // --- L_Map: arena-backed hash table (FNV-1a, open addressing, linear probing) ---
 

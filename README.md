@@ -845,6 +845,9 @@ Generated from doc-comments. Run `.\gen-docs.ps1` to regenerate.
 | `l_str_upper` | Uppercase copy in arena (ASCII). | All |
 | `l_str_lower` | Lowercase copy in arena (ASCII). | All |
 | `l_str_replace` | Replace all occurrences of find with repl in s. Result is arena-allocated. | All |
+| `l_str_to_int` | Parse a signed integer from s in the given base (2–36). Mirrors l_strtoll semantics. | All |
+| `l_str_to_double` | Parse a floating-point value from s. Mirrors l_strtod semantics. | All |
+| `l_str_printf` | Format args into an arena-allocated L_Str. Result length is exact; not NUL-terminated. | All |
 | `l_buf_push_str` | Append L_Str to buf. Returns 0 on success, -1 on failure. | All |
 | `l_buf_push_cstr` | Append C string to buf. Returns 0 on success, -1 on failure. | All |
 | `l_buf_push_int` | Append decimal int to buf. Returns 0 on success, -1 on failure. | All |
@@ -1309,6 +1312,9 @@ Which `l_os.h` functions work on which platform. Generated from code annotations
 | ``l_str_upper`` | ✅ | ✅ | ✅ |
 | ``l_str_lower`` | ✅ | ✅ | ✅ |
 | ``l_str_replace`` | ✅ | ✅ | ✅ |
+| ``l_str_to_int`` | ✅ | ✅ | ✅ |
+| ``l_str_to_double`` | ✅ | ✅ | ✅ |
+| ``l_str_printf`` | ✅ | ✅ | ✅ |
 | ``l_buf_push_str`` | ✅ | ✅ | ✅ |
 | ``l_buf_push_cstr`` | ✅ | ✅ | ✅ |
 | ``l_buf_push_int`` | ✅ | ✅ | ✅ |
@@ -1599,6 +1605,9 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_str_upper` | ✅ | test_utils.c |
 | `l_str_lower` | ✅ | test_utils.c |
 | `l_str_replace` | ✅ | test_utils.c |
+| `l_str_to_int` | ✅ | test_utils.c |
+| `l_str_to_double` | ✅ | test_utils.c |
+| `l_str_printf` | ✅ | test_utils.c |
 | `l_buf_push_str` | ✅ | test_utils.c |
 | `l_buf_push_cstr` | ✅ | test_utils.c |
 | `l_buf_push_int` | ✅ | test_utils.c |
@@ -1684,7 +1693,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | ``l_socket_recvfrom_addr`` | — | |
 | ``l_socket_unix_connect`` | — | |
 
-**Coverage: 244 / 249 functions referenced in tests** (98%)
+**Coverage: 247 / 252 functions referenced in tests** (98%)
 
 <!-- END COVERAGE MATRIX -->
 
