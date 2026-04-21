@@ -1468,6 +1468,31 @@ void test_snprintf_float(void) {
     l_snprintf(buf, sizeof(buf), "%f", my_nan);
     TEST_ASSERT(l_strcmp(buf, "nan") == 0, "%f nan");
 
+    /* flag_plus and flag_space for floats */
+    l_snprintf(buf, sizeof(buf), "%+f", 3.14);
+    TEST_ASSERT(l_strcmp(buf, "+3.140000") == 0, "%+f positive");
+
+    l_snprintf(buf, sizeof(buf), "%+f", -3.14);
+    TEST_ASSERT(l_strcmp(buf, "-3.140000") == 0, "%+f negative");
+
+    l_snprintf(buf, sizeof(buf), "% f", 3.14);
+    TEST_ASSERT(l_strcmp(buf, " 3.140000") == 0, "% f positive");
+
+    l_snprintf(buf, sizeof(buf), "% f", -3.14);
+    TEST_ASSERT(l_strcmp(buf, "-3.140000") == 0, "% f negative");
+
+    l_snprintf(buf, sizeof(buf), "%+e", 1.0);
+    TEST_ASSERT(l_strcmp(buf, "+1.000000e+00") == 0, "%+e positive");
+
+    l_snprintf(buf, sizeof(buf), "%+g", 100.0);
+    TEST_ASSERT(l_strcmp(buf, "+100") == 0, "%+g positive");
+
+    l_snprintf(buf, sizeof(buf), "%+f", my_inf);
+    TEST_ASSERT(l_strcmp(buf, "+inf") == 0, "%+f +inf");
+
+    l_snprintf(buf, sizeof(buf), "% f", my_inf);
+    TEST_ASSERT(l_strcmp(buf, " inf") == 0, "% f +inf space");
+
     TEST_SECTION_PASS("l_snprintf %%f/%%e/%%g");
 }
 
