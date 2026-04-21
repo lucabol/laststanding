@@ -1479,7 +1479,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_itoa` | ✅ | test_strings.c |
 | **Memory functions** | | |
 | `l_memmove` | ✅ | test_strings.c |
-| `l_memset` | ✅ | font_test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
+| `l_memset` | ✅ | font_test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_tt.c, test_utils.c, test.c |
 | `l_memcmp` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
 | `l_memcpy` | ✅ | test_strings.c, test_utils.c |
 | `l_memchr` | ✅ | test_strings.c |

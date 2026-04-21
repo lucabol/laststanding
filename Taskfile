@@ -76,7 +76,7 @@ function build {    # Build {compiler:gcc} {optimizationchar:0}
     x="${x%.*}";
     EXTRA_INC=""
     EXTRA_LINK=""
-    grep -q 'l_img\.h\|l_svg\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    grep -q 'l_img\.h\|l_svg\.h\|l_tt\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
     if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
       EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
       EXTRA_LINK="$BEARSSL_LIB"
@@ -125,7 +125,7 @@ function build_arm {    # Build for ARM (armhf/armv7) {compiler:arm-linux-gnueab
     x="${x%.*}";
     EXTRA_INC=""
     EXTRA_LINK=""
-    grep -q 'l_img\.h\|l_svg\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    grep -q 'l_img\.h\|l_svg\.h\|l_tt\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
     if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
       EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
       EXTRA_LINK="$BEARSSL_LIB"
@@ -171,7 +171,7 @@ function build_aarch64 {    # Build for AArch64 (arm64) {compiler:aarch64-linux-
     x="${x%.*}";
     EXTRA_INC=""
     EXTRA_LINK=""
-    grep -q 'l_img\.h\|l_svg\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    grep -q 'l_img\.h\|l_svg\.h\|l_tt\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
     if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
       EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
       EXTRA_LINK="$BEARSSL_LIB"
@@ -218,7 +218,7 @@ function build_riscv {    # Build for RISC-V (rv64gc) {compiler:riscv64-linux-gn
     x="${x%.*}";
     EXTRA_INC=""
     EXTRA_LINK=""
-    grep -q 'l_img\.h\|l_svg\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
+    grep -q 'l_img\.h\|l_svg\.h\|l_tt\.h' "$f" 2>/dev/null && EXTRA_INC="-Icompat"
     if grep -q 'l_tls\.h' "$f" 2>/dev/null && [ -n "$BEARSSL_LIB" ]; then
       EXTRA_INC="$EXTRA_INC $BEARSSL_INC"
       EXTRA_LINK="$BEARSSL_LIB"
@@ -257,7 +257,7 @@ function test_riscv {    # Build and run default RISC-V regression tests using Q
   build_riscv "$@"
   echo "=== Running default RISC-V regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test.riscv64 bin/test_strings.riscv64 bin/test_fs.riscv64 bin/test_utils.riscv64 bin/test_img.riscv64 bin/test_tls.riscv64 bin/test_clipboard.riscv64 bin/gfx_test.riscv64 bin/test_term_gfx.riscv64 bin/ui_test.riscv64 bin/test_svg.riscv64; do
+  for exe in bin/test.riscv64 bin/test_strings.riscv64 bin/test_fs.riscv64 bin/test_utils.riscv64 bin/test_img.riscv64 bin/test_tls.riscv64 bin/test_clipboard.riscv64 bin/gfx_test.riscv64 bin/test_term_gfx.riscv64 bin/ui_test.riscv64 bin/test_svg.riscv64 bin/test_tt.riscv64; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-riscv64 -L /usr/riscv64-linux-gnu "$exe"
@@ -544,7 +544,7 @@ function verify {    # Verify executables don't depend on stdlib and contain no 
 function quick_test {    # Run regression tests only (no build), ~15 seconds
   echo "=== Quick smoke test (tests only, no build) ==="
   local fail=0
-  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/test_img bin/test_tls bin/test_clipboard bin/gfx_test bin/test_term_gfx bin/ui_test bin/test_svg; do
+  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/test_img bin/test_tls bin/test_clipboard bin/gfx_test bin/test_term_gfx bin/ui_test bin/test_svg bin/test_tt; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       "$exe"
       if [ $? -ne 0 ]; then
@@ -564,7 +564,7 @@ function test {    # Build and run default regression tests (examples compile, r
   build "$@"
   echo "=== Running default regression tests in bin/ ==="
   local fail=0
-  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/test_img bin/test_tls bin/test_clipboard bin/gfx_test bin/test_term_gfx bin/ui_test bin/test_svg; do
+  for exe in bin/test bin/test_strings bin/test_fs bin/test_utils bin/test_img bin/test_tls bin/test_clipboard bin/gfx_test bin/test_term_gfx bin/ui_test bin/test_svg bin/test_tt; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       "$exe"
@@ -590,7 +590,7 @@ function test_arm {    # Build and run default ARM regression tests using QEMU
   build_arm "$@"
   echo "=== Running default ARM regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test.armhf bin/test_strings.armhf bin/test_fs.armhf bin/test_utils.armhf bin/test_img.armhf bin/test_tls.armhf bin/test_clipboard.armhf bin/gfx_test.armhf bin/test_term_gfx.armhf bin/ui_test.armhf bin/test_svg.armhf; do
+  for exe in bin/test.armhf bin/test_strings.armhf bin/test_fs.armhf bin/test_utils.armhf bin/test_img.armhf bin/test_tls.armhf bin/test_clipboard.armhf bin/gfx_test.armhf bin/test_term_gfx.armhf bin/ui_test.armhf bin/test_svg.armhf bin/test_tt.armhf; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-arm -L /usr/arm-linux-gnueabihf "$exe"
@@ -616,7 +616,7 @@ function test_aarch64 {    # Build and run default AArch64 regression tests usin
   build_aarch64 "$@"
   echo "=== Running default AArch64 regression tests in bin/ with QEMU ==="
   local fail=0
-  for exe in bin/test.aarch64 bin/test_strings.aarch64 bin/test_fs.aarch64 bin/test_utils.aarch64 bin/test_img.aarch64 bin/test_tls.aarch64 bin/test_clipboard.aarch64 bin/gfx_test.aarch64 bin/test_term_gfx.aarch64 bin/ui_test.aarch64 bin/test_svg.aarch64; do
+  for exe in bin/test.aarch64 bin/test_strings.aarch64 bin/test_fs.aarch64 bin/test_utils.aarch64 bin/test_img.aarch64 bin/test_tls.aarch64 bin/test_clipboard.aarch64 bin/gfx_test.aarch64 bin/test_term_gfx.aarch64 bin/ui_test.aarch64 bin/test_svg.aarch64 bin/test_tt.aarch64; do
     if [ -f "$exe" ] && [ -x "$exe" ]; then
       echo "--- Running $exe ---"
       qemu-aarch64 -L /usr/aarch64-linux-gnu "$exe"
