@@ -1,62 +1,27 @@
 {
-  "last_run": "2026-04-21T13:27:00Z",
-  "last_run_id": "24724947241",
+  "last_run": "2026-04-22T01:28:00Z",
+  "last_run_id": "24755337540",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
-    {
-      "number": 122,
-      "title": "perf: word-at-a-time backward copy in l_memmove",
-      "created": "2026-04-09"
-    },
-    {
-      "number": 126,
-      "title": "fix: add L_ERANGE and set errno on strtod/strtof overflow/underflow",
-      "created": "2026-04-13"
-    },
-    {
-      "number": 127,
-      "title": "perf: word-at-a-time copy in l_strcat and l_strncat",
-      "created": "2026-04-13"
-    },
-    {
-      "number": 137,
-      "title": "perf: bulk memcpy/memset for %s padding and string copy in l_vsnprintf",
-      "created": "2026-04-19"
-    },
-    {
-      "number": 138,
-      "title": "feat: add %o octal format and # flag to l_vsnprintf",
-      "created": "2026-04-19"
-    },
-    {
-      "number": 139,
-      "title": "test: add l_getrandom coverage in test_utils.c",
-      "created": "2026-04-19"
-    },
-    {
-      "number": 140,
-      "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double to L_Str API",
-      "created": "2026-04-20"
-    },
-    {
-      "number": 141,
-      "title": "DUPLICATE of #140 - awaiting close by maintainer",
-      "created": "2026-04-20"
-    },
-    {
-      "branch": "repo-assist/fix-strtoul-neg-overflow-2026-04-21",
-      "title": "fix: strtoul/strtoull return ULONG_MAX/ULLONG_MAX on negative overflow",
-      "created": "2026-04-21",
-      "note": "Committed locally. safeoutputs unavailable - branch push needed next run."
-    }
+    {"number": 122, "title": "perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09"},
+    {"number": 126, "title": "fix: add L_ERANGE and set errno on strtod/strtof overflow/underflow", "created": "2026-04-13"},
+    {"number": 127, "title": "perf: word-at-a-time copy in l_strcat and l_strncat", "created": "2026-04-13"},
+    {"number": 137, "title": "perf: bulk memcpy/memset for %s padding and string copy in l_vsnprintf", "created": "2026-04-19"},
+    {"number": 138, "title": "feat: add %o octal format and # flag to l_vsnprintf", "created": "2026-04-19"},
+    {"number": 139, "title": "test: add l_getrandom coverage in test_utils.c", "created": "2026-04-19"},
+    {"number": 140, "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double to L_Str API", "created": "2026-04-20"},
+    {"number": 141, "title": "DUPLICATE of #140 - awaiting close by maintainer", "created": "2026-04-20"},
+    {"number": 143, "title": "fix: apply flag_plus and flag_space to floating-point in l_vsnprintf", "created": "2026-04-21"},
+    {"branch": "repo-assist/eng-bundle-dependabot-2026-04-22", "title": "chore: bundle Dependabot action upgrades (#129, #130, #131)", "created": "2026-04-22", "note": "Committed locally. PR number TBD from safe-output tool."}
   ],
   "comments_made": {
-    "124": "2026-04-19 root cause analysis of workflow failures"
+    "124": "2026-04-19 root cause analysis of workflow failures",
+    "125": "2026-04-22 cross-reference to #124 analysis"
   },
   "backlog_cursor": {
     "issues": "all_processed",
     "prs": "all_processed"
   },
   "checked_off_items": [],
-  "notes": "safeoutputs tools unavailable (recurring issue). Float fix branch exists: origin/repo-assist/fix-vsnprintf-float-sign-flags-2026-04-21-92081d498d237fff (needs PR created). strtoul neg-overflow fix committed locally to repo-assist/fix-strtoul-neg-overflow-2026-04-21 (needs push + PR). PR #141 is duplicate of #140 - awaiting close by maintainer."
+  "notes": "PR #141 is duplicate of #140 - awaiting close by maintainer. Bundle Dependabot PR (#129,#130,#131) created this run. Task 2 had no human issues to engage with. PR #129, #130, #131 should be closed when bundle PR is merged."
 }
