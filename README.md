@@ -1529,7 +1529,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_open_append` | ✅ | test_fs.c |
 | `l_open_trunc` | ✅ | test_fs.c |
 | **Error reporting** | | |
-| `l_errno` | ✅ | test.c |
+| `l_errno` | ✅ | test_strings.c, test.c |
 | `l_strerror` | ✅ | test.c |
 | **Terminal and timing functions (cross-platform)** | | |
 | `l_sleep_ms` | ✅ | test_fs.c |

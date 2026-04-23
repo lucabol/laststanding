@@ -747,6 +747,25 @@ void test_strtod_atof(void) {
     TEST_ASSERT(l_atof("Infinity") > DBL_MAX, "atof 'Infinity' is infinity");
     TEST_ASSERT(l_atof("NaN") != l_atof("NaN"), "atof 'NaN' is NaN");
 
+    /* ERANGE: overflow — "1e9999" must produce infinity and set errno = ERANGE */
+    l_set_errno(0);
+    double overflow_val = l_strtod("1e9999", (char **)0);
+    int strtod_errno_overflow = l_errno();  /* save before I/O clobbers it */
+    TEST_ASSERT(__builtin_isinf(overflow_val), "strtod '1e9999' -> infinity");
+    TEST_ASSERT(strtod_errno_overflow == L_ERANGE, "strtod '1e9999' -> errno ERANGE");
+
+    /* ERANGE: underflow — "1e-9999" must produce 0.0 and set errno = ERANGE */
+    l_set_errno(0);
+    double underflow_val = l_strtod("1e-9999", (char **)0);
+    int strtod_errno_underflow = l_errno();
+    TEST_ASSERT(underflow_val == 0.0, "strtod '1e-9999' -> 0.0");
+    TEST_ASSERT(strtod_errno_underflow == L_ERANGE, "strtod '1e-9999' -> errno ERANGE");
+
+    /* No ERANGE for normal values */
+    l_set_errno(0);
+    l_strtod("1e10", (char **)0);
+    TEST_ASSERT(l_errno() == 0, "strtod '1e10' -> no errno");
+
     TEST_SECTION_PASS("l_strtod / l_atof");
 }
 
@@ -800,6 +819,20 @@ void test_strtof(void) {
     TEST_ASSERT(l_strtof("-inf", (char **)0) < -3.4e38f, "strtof '-inf' is neg infinity");
     float fnan = l_strtof("nan", (char **)0);
     TEST_ASSERT(fnan != fnan, "strtof 'nan' is NaN");
+
+    /* ERANGE: overflow */
+    l_set_errno(0);
+    float foverflow = l_strtof("1e9999", (char **)0);
+    int strtof_errno_overflow = l_errno();
+    TEST_ASSERT(__builtin_isinf(foverflow), "strtof '1e9999' -> infinity");
+    TEST_ASSERT(strtof_errno_overflow == L_ERANGE, "strtof '1e9999' -> errno ERANGE");
+
+    /* ERANGE: underflow */
+    l_set_errno(0);
+    float funderflow = l_strtof("1e-9999", (char **)0);
+    int strtof_errno_underflow = l_errno();
+    TEST_ASSERT(funderflow == 0.0f, "strtof '1e-9999' -> 0.0");
+    TEST_ASSERT(strtof_errno_underflow == L_ERANGE, "strtof '1e-9999' -> errno ERANGE");
 
     TEST_SECTION_PASS("l_strtof");
 }
