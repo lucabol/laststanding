@@ -741,6 +741,51 @@ void test_sha256(void) {
     l_sha256_final(&ctx, hash2);
     TEST_ASSERT(l_memcmp(hash, hash2, 32) == 0, "incremental sha256 matches one-shot");
 
+    // NIST FIPS 180-4 test vector: 56-byte input (crosses the padding boundary)
+    // "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    // Expected: 248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1
+    {
+        static const unsigned char nist56[32] = {
+            0x24, 0x8d, 0x6a, 0x61, 0xd2, 0x06, 0x38, 0xb8,
+            0xe5, 0xc0, 0x26, 0x93, 0x0c, 0x3e, 0x60, 0x39,
+            0xa3, 0x3c, 0xe4, 0x59, 0x64, 0xff, 0x21, 0x67,
+            0xf6, 0xec, 0xed, 0xd4, 0x19, 0xdb, 0x06, 0xc1
+        };
+        l_sha256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", 56, hash);
+        TEST_ASSERT(l_memcmp(hash, nist56, 32) == 0, "sha256 nist 56-byte vector");
+    }
+
+    // NIST FIPS 180-4 test vector: 112-byte input (two full 512-bit blocks)
+    // "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmn..."
+    // Expected: cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1
+    {
+        static const unsigned char nist112[32] = {
+            0xcf, 0x5b, 0x16, 0xa7, 0x78, 0xaf, 0x83, 0x80,
+            0x03, 0x6c, 0xe5, 0x9e, 0x7b, 0x04, 0x92, 0x37,
+            0x0b, 0x24, 0x9b, 0x11, 0xe8, 0xf0, 0x7a, 0x51,
+            0xaf, 0xac, 0x45, 0x03, 0x7a, 0xfe, 0xe9, 0xd1
+        };
+        l_sha256("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu", 112, hash);
+        TEST_ASSERT(l_memcmp(hash, nist112, 32) == 0, "sha256 nist 112-byte vector");
+    }
+
+    // NIST FIPS 180-4: 1,000,000 'a' characters via incremental API
+    // Expected: cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0
+    {
+        static const unsigned char nist1M[32] = {
+            0xcd, 0xc7, 0x6e, 0x5c, 0x99, 0x14, 0xfb, 0x92,
+            0x81, 0xa1, 0xc7, 0xe2, 0x84, 0xd7, 0x3e, 0x67,
+            0xf1, 0x80, 0x9a, 0x48, 0xa4, 0x97, 0x20, 0x0e,
+            0x04, 0x6d, 0x39, 0xcc, 0xc7, 0x11, 0x2c, 0xd0
+        };
+        char block[1000];
+        l_memset(block, 'a', sizeof(block));
+        l_sha256_init(&ctx);
+        for (int i = 0; i < 1000; i++) l_sha256_update(&ctx, block, 1000);
+        l_sha256_final(&ctx, hash2);
+        TEST_ASSERT(l_memcmp(hash2, nist1M, 32) == 0, "sha256 nist 1M-a incremental");
+    }
+
     TEST_SECTION_PASS("L_Sha256");
 }
 
