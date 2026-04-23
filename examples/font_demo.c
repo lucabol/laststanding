@@ -14,8 +14,8 @@
 #include "l_gfx.h"
 
 static void draw_section(L_Canvas *c, int s, int x, int y, const char *title) {
-    l_draw_text_scaled(c, x, y, title, L_YELLOW, s, s);
-    l_line(c, x, y + 10 * s, x + 380 * s, y + 10 * s, 0xFF404040);
+    l_draw_text_scaled(c, x * s, y * s, title, L_YELLOW, s, s);
+    l_line(c, x * s, (y + 10) * s, (x + 380) * s, (y + 10) * s, 0xFF404040);
 }
 
 int main(int argc, char *argv[]) {

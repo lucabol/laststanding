@@ -57,9 +57,16 @@ static void spread_fire(void) {
 }
 
 static void draw(L_Canvas *c) {
-    for (int y = 0; y < H; y++)
-        for (int x = 0; x < W; x++)
-            l_pixel(c, x, y, fire_palette[fire[y][x]]);
+    // Stretch the fixed 320x240 fire buffer to fill the whole canvas with
+    // nearest-neighbor sampling so it looks right at any window size / DPI.
+    int cw = c->width, ch = c->height;
+    for (int dy = 0; dy < ch; dy++) {
+        int sy = (dy * H) / ch;
+        for (int dx = 0; dx < cw; dx++) {
+            int sx = (dx * W) / cw;
+            l_pixel(c, dx, dy, fire_palette[fire[sy][sx]]);
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
