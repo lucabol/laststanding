@@ -23,6 +23,15 @@
 //   l_tt_free_bitmap(bitmap, w, h)                    → release bitmap
 //   l_tt_blit_alpha(dst, dw, dh, dstride, x, y,
 //                   alpha, aw, ah, color)             → blit α-bitmap into ARGB
+//   l_tt_draw_text(dst, dw, dh, dstride, info,
+//                  x, baseline_y, pixel_height,
+//                  utf8, color)                       → high-level draw, crisp
+//
+// The low-level path (`l_tt_render_glyph` + `l_tt_blit_alpha`) snaps every
+// glyph to integer pixels and rasterizes at 1×1 — simple but soft at small
+// sizes. Prefer `l_tt_draw_text` for body text: it carries the pen in float,
+// rasterizes at 2× with box downsampling, and composites with a gamma ≈ 2
+// stem-darkening approximation.
 //
 // The font's memory buffer (passed to l_tt_init_font) MUST remain valid for
 // the entire lifetime of the stbtt_fontinfo — stb_truetype reads from it on
@@ -57,6 +66,11 @@ static inline void  l_tt_blit_alpha(uint32_t *dst, int dw, int dh, int dstride,
                                     int x, int y,
                                     const unsigned char *alpha, int aw, int ah,
                                     uint32_t color);
+static inline float l_tt_draw_text(uint32_t *dst, int dw, int dh, int dstride,
+                                   const struct stbtt_fontinfo *info,
+                                   float x, float baseline_y,
+                                   float pixel_height,
+                                   const char *utf8, uint32_t color);
 
 // -- Implementation (only included once with L_WITHDEFS) ----------------------
 
@@ -263,9 +277,13 @@ static inline void l_tt_free_bitmap(unsigned char *bitmap, int w, int h) {
 }
 
 /// Blit an alpha bitmap into a 32-bit ARGB canvas using the given color.
-/// Uses straight alpha compositing: dst = src_alpha * color + (1-alpha) * dst.
-/// `color` is used for its RGB channels; alpha from the bitmap is multiplied
-/// with color's alpha. Clips to (dw, dh).
+/// Uses straight alpha compositing with a gamma ≈ 2 stem-darkening
+/// approximation (a' = 1 - (1-a)^2) applied to the source bitmap alpha.
+/// This counteracts the sRGB-space compositing that otherwise makes
+/// anti-aliased text look too thin / surrounded by dark halos, especially
+/// for light-on-dark rendering. `color` is used for its RGB channels; the
+/// color's alpha is multiplied with the (boosted) bitmap alpha.
+/// Clips to (dw, dh).
 static inline void l_tt_blit_alpha(uint32_t *dst, int dw, int dh, int dstride,
                                     int x, int y,
                                     const unsigned char *alpha, int aw, int ah,
@@ -286,6 +304,9 @@ static inline void l_tt_blit_alpha(uint32_t *dst, int dw, int dh, int dstride,
             if (dx < 0 || dx >= dw) continue;
             unsigned a = alpha[j * aw + i];
             if (a == 0) continue;
+            /* Gamma ≈ 2 correction (cheap stem-darkening). */
+            unsigned inv_g = 255u - a;
+            a = 255u - (inv_g * inv_g) / 255u;
             unsigned src_a = (a * cA) / 255;
             if (src_a == 0) continue;
             uint32_t *p = &dst[dy * pitch + dx];
@@ -303,6 +324,107 @@ static inline void l_tt_blit_alpha(uint32_t *dst, int dw, int dh, int dstride,
             *p = ((uint32_t)oA << 24) | (oR << 16) | (oG << 8) | oB;
         }
     }
+}
+
+/// Draw a UTF-8 string onto a 32-bit ARGB canvas using subpixel positioning
+/// and 2×2 supersampled rasterization. Internally this:
+///   * carries the pen in float so each glyph is rasterized at its true
+///     sub-pixel horizontal offset;
+///   * renders each glyph at 2× the target resolution (OX=OY=2) and
+///     box-downsamples, which preserves subpixel anti-aliasing and
+///     eliminates the integer-pixel snap you get from the raw
+///     `l_tt_render_glyph` path;
+///   * applies kerning between successive code-points;
+///   * composites with the gamma-approximated `l_tt_blit_alpha`.
+/// Non-ASCII bytes are treated as opaque glyph indices (passed as-is to
+/// stb_truetype's codepoint API), which is correct for the ASCII subset
+/// used by the built-in samples; a future UTF-8 decoder can be plugged in
+/// here without changing the signature. Returns the pen x after the final
+/// glyph (useful for chaining calls).
+static inline float l_tt_draw_text(uint32_t *dst, int dw, int dh, int dstride,
+                                   const struct stbtt_fontinfo *info,
+                                   float x, float baseline_y,
+                                   float pixel_height,
+                                   const char *utf8, uint32_t color) {
+    if (!dst || !info || !utf8 || dw <= 0 || dh <= 0) return x;
+    float scale = stbtt_ScaleForPixelHeight(info, pixel_height);
+    if (scale <= 0.0f) return x;
+
+    const int OX = 2, OY = 2;
+    float pen = x;
+    int baseline_i = (int)l_floor((double)baseline_y);
+    int prev_cp = 0;
+
+    for (const char *p = utf8; *p; p++) {
+        int cp = (unsigned char)*p;
+
+        if (prev_cp) {
+            int kern = stbtt_GetCodepointKernAdvance(info, prev_cp, cp);
+            pen += (float)kern * scale;
+        }
+
+        float pf = (float)l_floor((double)pen);
+        float shift_x = pen - pf;
+        int pen_i = (int)pf;
+
+        /* Screen-space bbox (for placement) */
+        int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0;
+        stbtt_GetCodepointBitmapBoxSubpixel(info, cp, scale, scale,
+            shift_x, 0.0f, &sx0, &sy0, &sx1, &sy1);
+
+        /* Oversampled bbox (for rasterization) */
+        int ox0 = 0, oy0 = 0, ox1 = 0, oy1 = 0;
+        stbtt_GetCodepointBitmapBoxSubpixel(info, cp,
+            scale * (float)OX, scale * (float)OY,
+            shift_x * (float)OX, 0.0f,
+            &ox0, &oy0, &ox1, &oy1);
+        int bw_over = ox1 - ox0;
+        int bh_over = oy1 - oy0;
+
+        if (bw_over > 0 && bh_over > 0) {
+            size_t mark = l_tt__save();
+            unsigned char *tmp = (unsigned char *)l_tt_malloc(
+                (size_t)bw_over * (size_t)bh_over);
+            if (tmp) {
+                l_memset(tmp, 0, (size_t)bw_over * (size_t)bh_over);
+                stbtt_MakeCodepointBitmapSubpixel(info, tmp,
+                    bw_over, bh_over, bw_over,
+                    scale * (float)OX, scale * (float)OY,
+                    shift_x * (float)OX, 0.0f, cp);
+
+                /* Downsample OX×OY → 1 screen pixel by box average. */
+                int sw = bw_over / OX;
+                int sh = bh_over / OY;
+                if (sw > 0 && sh > 0) {
+                    unsigned char *ds = (unsigned char *)l_tt_malloc(
+                        (size_t)sw * (size_t)sh);
+                    if (ds) {
+                        unsigned div = (unsigned)(OX * OY);
+                        for (int j = 0; j < sh; j++) {
+                            for (int i = 0; i < sw; i++) {
+                                unsigned sum = 0;
+                                for (int oy = 0; oy < OY; oy++)
+                                    for (int ox = 0; ox < OX; ox++)
+                                        sum += tmp[(j * OY + oy) * bw_over
+                                                   + (i * OX + ox)];
+                                ds[j * sw + i] = (unsigned char)(sum / div);
+                            }
+                        }
+                        l_tt_blit_alpha(dst, dw, dh, dstride,
+                                        pen_i + sx0, baseline_i + sy0,
+                                        ds, sw, sh, color);
+                    }
+                }
+            }
+            l_tt__restore(mark);
+        }
+
+        int adv = 0, lsb = 0;
+        stbtt_GetCodepointHMetrics(info, cp, &adv, &lsb);
+        pen += (float)adv * scale;
+        prev_cp = cp;
+    }
+    return pen;
 }
 
 #endif /* L_WITHDEFS */

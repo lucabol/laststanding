@@ -8,6 +8,7 @@ A freestanding C runtime — zero dependencies, direct syscalls, tiny binaries. 
 | `l_gfx.h` | Pixel graphics — drawing primitives, scaled bitmap font, pixel blitting, alpha blending, keyboard/mouse input, clipboard, and window/framebuffer/terminal backends |
 | `l_img.h` | Image decoding — PNG, JPEG, BMP, GIF, TGA from memory buffers via vendored stb_image (freestanding, no libc) |
 | `l_svg.h` | SVG rasterization — icons, diagrams, and vector assets from memory buffers. Subset renderer (paths, shapes, gradients); no text, images, clipping, or masks. ARGB output compatible with `l_gfx.h` |
+| `l_tt.h` | TrueType/OpenType text — parses `.ttf`/`.otf` from memory via vendored stb_truetype. `l_tt_draw_text` is the one-liner for crisp anti-aliased text with subpixel positioning and 2× supersampled rasterization |
 | `l_tls.h` | TLS/HTTPS client — SChannel on Windows, BearSSL on Linux (zero deps on both). Up to 8 simultaneous connections |
 | `l_ui.h` | Immediate-mode UI — buttons, checkboxes, sliders, text inputs, layout helpers (built on `l_gfx.h`) |
 
@@ -247,6 +248,53 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 ```
+
+### TrueType Text (`l_tt.h`)
+
+```c
+#define L_MAINFILE
+#include "l_gfx.h"
+#include "l_tt.h"         // pulls in l_os.h + stb_truetype (freestanding)
+
+int main(int argc, char *argv[]) {
+    l_getenv_init(argc, argv);
+
+    // Load a .ttf / .otf file into memory.
+    L_FD fd = l_open("C:\\Windows\\Fonts\\segoeui.ttf", 0, 0);
+    long long sz = l_lseek(fd, 0, 2); l_lseek(fd, 0, 0);
+    unsigned char *font = (unsigned char *)l_mmap(0, sz, L_PROT_READ,
+                                                   L_MAP_PRIVATE, fd, 0);
+    l_close(fd);
+
+    stbtt_fontinfo info;
+    l_tt_init_font(font, (int)sz, &info);
+
+    L_Canvas c; l_canvas_open(&c, 640, 240, "Hello, text!");
+    while (l_canvas_alive(&c) && l_canvas_key(&c) != 27) {
+        l_canvas_clear(&c, 0xFF101018);
+        // High-level draw: subpixel pen, 2× supersampling, gamma ≈ 2 blend.
+        l_tt_draw_text(c.pixels, c.width, c.height, c.stride,
+                       &info, 16.0f, 80.0f, 48.0f,
+                       "The quick brown fox", 0xFFFFFFFF);
+        l_canvas_flush(&c); l_sleep_ms(16);
+    }
+    l_canvas_close(&c);
+    return 0;
+}
+```
+
+Notes:
+- **DPI awareness.** On Windows, `l_canvas_open` marks the process
+  Per-Monitor-V2 DPI-aware automatically (via `GetProcAddress`, so pre-1703
+  builds still work). Without this, Windows bitmap-stretches the whole window
+  on scaled displays and every glyph looks blurry regardless of the
+  rasterizer. No client action needed.
+- **Security.** `stb_truetype` does no range checking on font offsets. Do
+  **not** pass untrusted font files — a malicious font can read arbitrary
+  process memory.
+- **Hinting.** `stb_truetype` has no TrueType hinting, so very small body
+  text (≤ 12 px) won't quite match native ClearType. Prefer bold / semibold
+  fonts at those sizes.
 
 ### HTTPS Client (`l_tls.h`)
 
@@ -1737,6 +1785,7 @@ Every program in `examples/` compiles to a small, self-contained binary with no 
 | **font_demo** | Extended fonts — proportional ASCII, Latin-1 accents, box drawing, UTF-8 | [font_demo.c](examples/font_demo.c) |
 | **blit_demo** | Opaque and alpha-blended sprite blitting | [blit_demo.c](examples/blit_demo.c) |
 | **img_view** | Image viewer — load PNG/JPEG/BMP, aspect-ratio scaling | [img_view.c](examples/img_view.c) |
+| **ttf_view** | TrueType font viewer — renders a pangram at several sizes via `l_tt_draw_text` (subpixel positioning + 2× supersampling) | [ttf_view.c](examples/ttf_view.c) |
 | **https_get** | HTTPS client — fetch a page over TLS (Windows + Linux) | [https_get.c](examples/https_get.c) |
 
 ### UI Demos (`l_ui.h`)

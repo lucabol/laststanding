@@ -1373,6 +1373,32 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
 
     l_gfx_active_canvas = c;
 
+    // Mark this process DPI-aware so Windows does not bitmap-stretch our
+    // back-buffer on high-DPI displays (producing blurry output). Called
+    // once, lazily, via GetProcAddress so pre-1703 Windows builds fall back
+    // to the older SetProcessDPIAware.
+    {
+        static int dpi_aware_initialized = 0;
+        if (!dpi_aware_initialized) {
+            dpi_aware_initialized = 1;
+            HMODULE u32 = GetModuleHandleW(L"user32.dll");
+            if (u32) {
+                typedef int (WINAPI *PFN_SPDAC)(void *);
+                PFN_SPDAC spdac = (PFN_SPDAC)(void *)GetProcAddress(
+                    u32, "SetProcessDpiAwarenessContext");
+                if (spdac) {
+                    /* DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 == (HANDLE)-4 */
+                    spdac((void *)(LONG_PTR)-4);
+                } else {
+                    typedef BOOL (WINAPI *PFN_SPDA)(void);
+                    PFN_SPDA spda = (PFN_SPDA)(void *)GetProcAddress(
+                        u32, "SetProcessDPIAware");
+                    if (spda) spda();
+                }
+            }
+        }
+    }
+
     int fullscreen = (width <= 0 && height <= 0);
     if (fullscreen) {
         width  = GetSystemMetrics(SM_CXSCREEN);

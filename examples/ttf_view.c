@@ -1,11 +1,13 @@
 // ttf_view — Minimal freestanding TrueType font viewer.
 //
 // Loads a .ttf / .otf file, rasterizes a pangram at several pixel sizes, and
-// displays the result with alpha-blended glyphs composited onto the canvas.
+// displays the result via `l_tt_draw_text` (subpixel positioning + 2×
+// supersampled rasterization + gamma-approximated compositing — see l_tt.h).
 //
 // Usage: ttf_view [font_path]
 //   If font_path is omitted, tries a short list of common system fonts
-//   (Arial on Windows, DejaVu Sans on Linux, Helvetica on macOS).
+//   (Segoe UI Semibold / Arial Bold on Windows, DejaVu Sans on Linux,
+//   Arial on macOS).
 //
 // Exit: press Escape or close the window.
 
@@ -13,9 +15,15 @@
 #include "l_gfx.h"
 #include "l_tt.h"
 
+// Fallback font list. Bolder variants are preferred first because
+// stb_truetype does not implement TrueType hinting, so heavier stems
+// hold up better at small pixel sizes.
 static const char *FALLBACK_FONTS[] = {
-    "C:\\Windows\\Fonts\\arial.ttf",
+    "C:\\Windows\\Fonts\\seguisb.ttf",   // Segoe UI Semibold (Windows)
+    "C:\\Windows\\Fonts\\arialbd.ttf",   // Arial Bold (Windows)
     "C:\\Windows\\Fonts\\segoeui.ttf",
+    "C:\\Windows\\Fonts\\arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
     "/usr/share/fonts/dejavu/DejaVuSans.ttf",
@@ -37,45 +45,6 @@ static unsigned char *load_file(const char *path, long long *out_size) {
     if (data == (unsigned char *)L_MAP_FAILED) return 0;
     *out_size = sz;
     return data;
-}
-
-/// Draw a UTF-8-free ASCII string at `px` pixel height. Returns the x pen
-/// position after the last glyph (useful for chaining).
-static int draw_line(L_Canvas *c, stbtt_fontinfo *info, int x, int baseline,
-                     float px, const char *text, uint32_t color) {
-    float scale = l_tt_scale_for_pixel_height(info, px);
-    int ascent = 0, descent = 0, linegap = 0;
-    l_tt_vmetrics(info, &ascent, &descent, &linegap);
-    (void)descent; (void)linegap;
-    int baseline_y = baseline;
-
-    int pen = x;
-    int prev_cp = 0;
-    for (const char *p = text; *p; p++) {
-        int cp = (unsigned char)*p;
-
-        if (prev_cp) {
-            int kern = l_tt_kern_advance(info, prev_cp, cp);
-            pen += (int)(kern * scale);
-        }
-
-        int gw = 0, gh = 0, gxo = 0, gyo = 0;
-        unsigned char *bm = l_tt_render_glyph(info, cp, scale,
-                                              &gw, &gh, &gxo, &gyo);
-        if (bm) {
-            l_tt_blit_alpha(c->pixels, c->width, c->height, c->stride,
-                            pen + gxo, baseline_y + gyo,
-                            bm, gw, gh, color);
-            l_tt_free_bitmap(bm, gw, gh);
-        }
-
-        int adv = 0, lsb = 0;
-        l_tt_hmetrics(info, cp, &adv, &lsb);
-        pen += (int)(adv * scale);
-        prev_cp = cp;
-    }
-    (void)ascent;
-    return pen;
 }
 
 int main(int argc, char *argv[]) {
@@ -127,16 +96,17 @@ int main(int argc, char *argv[]) {
         l_line(&c, 0, 28, c.width, 28, 0xFF303030);
 
         // TrueType-rendered samples at a few pixel sizes.
-        int y = 70;
-        float sizes[] = { 14.0f, 20.0f, 28.0f, 40.0f, 56.0f, 80.0f };
+        float y = 70.0f;
+        float sizes[] = { 16.0f, 20.0f, 28.0f, 40.0f, 56.0f, 80.0f };
         uint32_t palette[] = {
             0xFFFFFFFF, 0xFFA0D8FF, 0xFFFFD880, 0xFFA0FFA0,
             0xFFFF80A0, 0xFFE0C0FF
         };
         for (int i = 0; i < (int)(sizeof(sizes) / sizeof(sizes[0])); i++) {
-            draw_line(&c, &info, 16, y, sizes[i], pangram, palette[i]);
-            y += (int)(sizes[i] * 1.25f);
-            if (y > c.height - 20) break;
+            l_tt_draw_text(c.pixels, c.width, c.height, c.stride,
+                           &info, 16.0f, y, sizes[i], pangram, palette[i]);
+            y += sizes[i] * 1.25f;
+            if (y > (float)(c.height - 20)) break;
         }
 
         // Footer: hint.
