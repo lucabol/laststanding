@@ -1,0 +1,205 @@
+From b30bb46bf94581027179cf3ff6d36142b7d5eb63 Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Thu, 23 Apr 2026 13:41:32 +0000
+Subject: [PATCH] perf+feat: optimise l_strncpy; add l_hmac_sha256
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Task 8 – Performance: l_strncpy was byte-by-byte twice (copy pass +
+zero-fill pass).  Move the implementation to below l_strnlen / l_memcpy
+/ l_memset so it can delegate to the existing word-at-a-time helpers:
+  • l_strnlen  – word-at-a-time NUL scan capped at n
+  • l_memcpy   – word-at-a-time bulk copy
+  • l_memset   – word-at-a-time zero-fill
+For a typical strncpy(dst, src, 4096) where strlen(src)==10 this replaces
+~4086 individual byte stores with a single word-at-a-time memset loop.
+
+Task 10 – Take the repository forward: add l_hmac_sha256 (RFC 2104).
+HMAC-SHA256 is the foundation for JWT signatures, HKDF, API signing, and
+is the missing complement to the existing l_sha256 primitive.  The
+implementation handles oversized keys (>64 B) by hashing them first.
+Three RFC 4231 test vectors are added to test_utils.c (TC1, TC2, TC6).
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ l_os.h             | 71 ++++++++++++++++++++++++++++++++++++++--------
+ tests/test_utils.c | 52 +++++++++++++++++++++++++++++++++
+ 2 files changed, 111 insertions(+), 12 deletions(-)
+
+diff --git a/l_os.h b/l_os.h
+index 62849a3..6162374 100644
+--- a/l_os.h
++++ b/l_os.h
+@@ -995,6 +995,10 @@ static inline void l_sha256_update(L_Sha256 *ctx, const void *data, size_t len);
+ static inline void l_sha256_final(L_Sha256 *ctx, unsigned char hash[32]);
+ /// One-shot SHA-256.
+ static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]);
++/// One-shot HMAC-SHA256 per RFC 2104. Produces a 32-byte MAC in mac[].
++static inline void l_hmac_sha256(const void *key, size_t keylen,
++                                 const void *msg, size_t msglen,
++                                 unsigned char mac[32]);
+ 
+ /// Encode `len` bytes from `data` into standard Base64. Writes at most `outsz` bytes (including NUL)
+ /// to `out`. Returns the number of characters written (excluding NUL), or -1 if `outsz` is too small.
+@@ -2013,17 +2017,8 @@ static inline char *l_strcat(char *dst, const char *src)
+     return ret;
+ }
+ 
+-static inline char *l_strncpy(char *dst, const char *src, size_t n)
+-{
+-    char *ret = dst;
+-    size_t i;
+-
+-    for (i = 0; i < n && src[i] != '\0'; i++)
+-        dst[i] = src[i];
+-    for (; i < n; i++)
+-        dst[i] = '\0';
+-    return ret;
+-}
++/* l_strncpy: implementation deferred below l_strnlen + l_memcpy + l_memset
++ * so they can be used for word-at-a-time speedup. */
+ 
+ static inline char *l_strncat(char *dst, const char *src, size_t n)
+ {
+@@ -3140,6 +3135,19 @@ static inline size_t l_strnlen(const char *s, size_t maxlen)
+     return end ? (size_t)(end - s) : maxlen;
+ }
+ 
++/* Optimised l_strncpy: delegates to word-at-a-time l_strnlen, l_memcpy and
++ * l_memset instead of iterating byte-by-byte twice. */
++static inline char *l_strncpy(char *dst, const char *src, size_t n)
++{
++    char *ret = dst;
++    if (n == 0) return ret;
++    size_t srclen = l_strnlen(src, n); /* word-at-a-time scan capped at n */
++    l_memcpy(dst, src, srclen);        /* word-at-a-time copy */
++    if (srclen < n)
++        l_memset(dst + srclen, 0, n - srclen); /* word-at-a-time zero-fill */
++    return ret;
++}
++
+ static inline void *l_memmem(const void *haystack, size_t haystacklen,
+                       const void *needle,   size_t needlelen)
+ {
+@@ -9434,7 +9442,46 @@ static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]
+     l_sha256_final(&ctx, hash);
+ }
+ 
+-// --- Base64 encode / decode ---
++/* HMAC-SHA256 per RFC 2104.
++ * key:    secret key bytes (any length)
++ * keylen: length of key
++ * msg:    message bytes
++ * msglen: length of message
++ * mac:    output buffer, receives 32-byte MAC */
++static inline void l_hmac_sha256(const void *key, size_t keylen,
++                                 const void *msg, size_t msglen,
++                                 unsigned char mac[32]) {
++    unsigned char k[64];
++    unsigned char ipad[64], opad[64];
++    unsigned char inner[32];
++    L_Sha256 ctx;
++    size_t i;
++
++    l_memset(k, 0, sizeof(k));
++    if (keylen > 64)
++        l_sha256(key, keylen, k);   /* hash oversized key down to 32 bytes */
++    else
++        l_memcpy(k, key, keylen);
++
++    for (i = 0; i < 64; i++) {
++        ipad[i] = k[i] ^ 0x36u;
++        opad[i] = k[i] ^ 0x5cu;
++    }
++
++    /* inner = SHA256(ipad || msg) */
++    l_sha256_init(&ctx);
++    l_sha256_update(&ctx, ipad, 64);
++    l_sha256_update(&ctx, msg, msglen);
++    l_sha256_final(&ctx, inner);
++
++    /* mac = SHA256(opad || inner) */
++    l_sha256_init(&ctx);
++    l_sha256_update(&ctx, opad, 64);
++    l_sha256_update(&ctx, inner, 32);
++    l_sha256_final(&ctx, mac);
++}
++
++
+ 
+ static inline ptrdiff_t l_base64_encode(const void *data, size_t len, char *out, size_t outsz)
+ {
+diff --git a/tests/test_utils.c b/tests/test_utils.c
+index bba9073..701f13c 100644
+--- a/tests/test_utils.c
++++ b/tests/test_utils.c
+@@ -744,6 +744,57 @@ void test_sha256(void) {
+     TEST_SECTION_PASS("L_Sha256");
+ }
+ 
++/* HMAC-SHA256 test vectors from RFC 4231 */
++void test_hmac_sha256(void) {
++    TEST_FUNCTION("l_hmac_sha256");
++    unsigned char mac[32];
++    size_t i;
++
++    /* RFC 4231 Test Case 1
++     * Key  = 20 × 0x0b
++     * Data = "Hi There"
++     * HMAC = b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7 */
++    {
++        unsigned char key[20];
++        for (i = 0; i < 20; i++) key[i] = 0x0b;
++        l_hmac_sha256(key, 20, "Hi There", 8, mac);
++        TEST_ASSERT(mac[0]  == 0xb0 && mac[1]  == 0x34 && mac[2]  == 0x4c && mac[3]  == 0x61,
++                    "hmac-sha256 rfc4231 tc1 bytes 0-3");
++        TEST_ASSERT(mac[28] == 0x2e && mac[29] == 0x32 && mac[30] == 0xcf && mac[31] == 0xf7,
++                    "hmac-sha256 rfc4231 tc1 bytes 28-31");
++    }
++
++    /* RFC 4231 Test Case 2
++     * Key  = "Jefe"
++     * Data = "what do ya want for nothing?"
++     * HMAC = 5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843 */
++    {
++        l_hmac_sha256("Jefe", 4, "what do ya want for nothing?", 28, mac);
++        TEST_ASSERT(mac[0]  == 0x5b && mac[1]  == 0xdc && mac[2]  == 0xc1 && mac[3]  == 0x46,
++                    "hmac-sha256 rfc4231 tc2 bytes 0-3");
++        TEST_ASSERT(mac[28] == 0x64 && mac[29] == 0xec && mac[30] == 0x38 && mac[31] == 0x43,
++                    "hmac-sha256 rfc4231 tc2 bytes 28-31");
++    }
++
++    /* Test with key > 64 bytes (triggers key-hashing path)
++     * RFC 4231 Test Case 6
++     * Key  = 131 × 0xaa
++     * Data = "Test Using Larger Than Block-Size Key - Hash Key First"
++     * HMAC = 60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54 */
++    {
++        unsigned char bigkey[131];
++        for (i = 0; i < 131; i++) bigkey[i] = 0xaa;
++        const char *data = "Test Using Larger Than Block-Size Key - Hash Key First";
++        l_hmac_sha256(bigkey, 131, data, l_strlen(data), mac);
++        TEST_ASSERT(mac[0]  == 0x60 && mac[1]  == 0xe4 && mac[2]  == 0x31 && mac[3]  == 0x59,
++                    "hmac-sha256 rfc4231 tc6 bytes 0-3");
++        TEST_ASSERT(mac[28] == 0x0e && mac[29] == 0xe3 && mac[30] == 0x7f && mac[31] == 0x54,
++                    "hmac-sha256 rfc4231 tc6 bytes 28-31");
++    }
++
++    TEST_SECTION_PASS("l_hmac_sha256");
++}
++
+ void test_math(void) {
+     TEST_FUNCTION("l_fabs");
+     TEST_ASSERT(l_fabs(-3.14) == 3.14, "fabs(-3.14) == 3.14");
+@@ -1253,6 +1304,7 @@ int main(int argc, char *argv[]) {
+     test_localtime();
+     test_fnmatch();
+     test_sha256();
++    test_hmac_sha256();
+     test_math();
+     test_math_extended();
+     test_mktime();
+-- 
+2.53.0
+
