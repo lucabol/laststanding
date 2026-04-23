@@ -7787,10 +7787,12 @@ static inline L_FD l_open(const char *path, int flags, mode_t mode) {
     // Handle access flags
     if ((flags & O_RDWR) == O_RDWR) {
         desired = GENERIC_READ | GENERIC_WRITE;
+        shared = FILE_SHARE_READ;
     } else if (flags & O_WRONLY) {
         desired = GENERIC_WRITE;
     } else {
         desired = GENERIC_READ;
+        shared = FILE_SHARE_READ;
     }
     
     // Handle append flag
