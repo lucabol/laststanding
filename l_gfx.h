@@ -1403,6 +1403,32 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     if (fullscreen) {
         width  = GetSystemMetrics(SM_CXSCREEN);
         height = GetSystemMetrics(SM_CYSCREEN);
+    } else {
+        // Auto-scale the requested client size by the system DPI factor so
+        // windows stay at a sensible physical size on high-DPI displays. A
+        // client asking for 900x520 on a 150%-scaled monitor gets a
+        // 1350x780 back-buffer — same physical size, but crisper. Use
+        // GetDpiForSystem when available (Windows 10 1607+), else fall back
+        // to GetDeviceCaps(LOGPIXELSY) on the screen DC.
+        unsigned int dpi = 0;
+        HMODULE u32b = GetModuleHandleW(L"user32.dll");
+        if (u32b) {
+            typedef UINT (WINAPI *PFN_GDFS)(void);
+            PFN_GDFS gdfs = (PFN_GDFS)(void *)GetProcAddress(
+                u32b, "GetDpiForSystem");
+            if (gdfs) dpi = gdfs();
+        }
+        if (dpi == 0) {
+            HDC sdc = GetDC(0);
+            if (sdc) {
+                dpi = (unsigned int)GetDeviceCaps(sdc, LOGPIXELSY);
+                ReleaseDC(0, sdc);
+            }
+        }
+        if (dpi >= 96 && dpi <= 1000) {
+            width  = (int)((long long)width  * (int)dpi / 96);
+            height = (int)((long long)height * (int)dpi / 96);
+        }
     }
 
     c->width  = width;
