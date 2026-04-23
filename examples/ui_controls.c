@@ -44,9 +44,10 @@ int main(int argc, char *argv[]) {
         puts("Could not open canvas\n");
         return 1;
     }
+    int s = canvas.scale;  // HiDPI multiplier for hardcoded coords.
 
     L_UI ui;
-    l_ui_init(&ui);
+    l_ui_init(&ui);  // font_scale auto-picked from canvas.scale in l_ui_begin.
 
     int red = 128, green = 64, blue = 200;
     char hex_buf[L_UI_MAX_TEXT];
@@ -61,59 +62,59 @@ int main(int argc, char *argv[]) {
         int cw = canvas.width, ch = canvas.height;
 
         // Panel
-        l_ui_panel(&ui, 10, 10, cw - 20, ch - 20);
+        l_ui_panel(&ui, 10 * s, 10 * s, cw - 20 * s, ch - 20 * s);
 
         // Title
         {
             int saved = ui.font_scale;
-            ui.font_scale = 2;
-            l_ui__draw_text(&canvas, 24, 18, "Color Mixer",
-                            ui.theme.accent, 2);
+            ui.font_scale = 2 * s;
+            l_ui__draw_text(&canvas, 24 * s, 18 * s, "Color Mixer",
+                            ui.theme.accent, 2 * s);
             ui.font_scale = saved;
         }
 
-        l_ui_column_begin(&ui, 24, 50, 6);
+        l_ui_column_begin(&ui, 24 * s, 50 * s, 6 * s);
 
-        int slider_w = (cw < 480 ? cw - 80 : 200);
-        if (cw > 300) slider_w = (cw / 2) - 60;
-        if (slider_w < 60) slider_w = 60;
+        int slider_w = (cw < 480 * s ? cw - 80 * s : 200 * s);
+        if (cw > 300 * s) slider_w = (cw / 2) - 60 * s;
+        if (slider_w < 60 * s) slider_w = 60 * s;
 
         // Red slider
         {
-            int y = l_ui_next(&ui, 8);
+            int y = l_ui_next(&ui, 8 * s);
             char lbl[32];
             l_snprintf(lbl, sizeof(lbl), "R: %d", red);
-            l_ui_label(&ui, 24, y, lbl);
-            y = l_ui_next(&ui, 16);
-            l_ui_slider(&ui, 24, y, slider_w, &red, 0, 255);
+            l_ui_label(&ui, 24 * s, y, lbl);
+            y = l_ui_next(&ui, 16 * s);
+            l_ui_slider(&ui, 24 * s, y, slider_w, &red, 0, 255);
         }
 
         // Green slider
         {
-            int y = l_ui_next(&ui, 8);
+            int y = l_ui_next(&ui, 8 * s);
             char lbl[32];
             l_snprintf(lbl, sizeof(lbl), "G: %d", green);
-            l_ui_label(&ui, 24, y, lbl);
-            y = l_ui_next(&ui, 16);
-            l_ui_slider(&ui, 24, y, slider_w, &green, 0, 255);
+            l_ui_label(&ui, 24 * s, y, lbl);
+            y = l_ui_next(&ui, 16 * s);
+            l_ui_slider(&ui, 24 * s, y, slider_w, &green, 0, 255);
         }
 
         // Blue slider
         {
-            int y = l_ui_next(&ui, 8);
+            int y = l_ui_next(&ui, 8 * s);
             char lbl[32];
             l_snprintf(lbl, sizeof(lbl), "B: %d", blue);
-            l_ui_label(&ui, 24, y, lbl);
-            y = l_ui_next(&ui, 16);
-            l_ui_slider(&ui, 24, y, slider_w, &blue, 0, 255);
+            l_ui_label(&ui, 24 * s, y, lbl);
+            y = l_ui_next(&ui, 16 * s);
+            l_ui_slider(&ui, 24 * s, y, slider_w, &blue, 0, 255);
         }
 
         // Hex textbox
         {
-            int y = l_ui_next(&ui, 8);
-            l_ui_label(&ui, 24, y, "Hex:");
-            y = l_ui_next(&ui, 20);
-            if (l_ui_textbox(&ui, 24, y, 100, hex_buf, L_UI_MAX_TEXT)) {
+            int y = l_ui_next(&ui, 8 * s);
+            l_ui_label(&ui, 24 * s, y, "Hex:");
+            y = l_ui_next(&ui, 20 * s);
+            if (l_ui_textbox(&ui, 24 * s, y, 100 * s, hex_buf, L_UI_MAX_TEXT)) {
                 // Parse hex -> update sliders
                 int r2, g2, b2;
                 if (hex_to_rgb(hex_buf, &r2, &g2, &b2)) {
@@ -125,12 +126,12 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        l_ui_separator(&ui, 24, l_ui_next(&ui, 4) + 2, cw - 68);
+        l_ui_separator(&ui, 24 * s, l_ui_next(&ui, 4 * s) + 2 * s, cw - 68 * s);
 
         // Reset button
         {
-            int y = l_ui_next(&ui, 26);
-            if (l_ui_button(&ui, 24, y, 80, 24, "Reset")) {
+            int y = l_ui_next(&ui, 26 * s);
+            if (l_ui_button(&ui, 24 * s, y, 80 * s, 24 * s, "Reset")) {
                 red = 128; green = 64; blue = 200;
                 color_to_hex(red, green, blue, hex_buf);
             }
@@ -141,9 +142,9 @@ int main(int argc, char *argv[]) {
         // Color preview rectangle
         {
             uint32_t col = L_RGB(red, green, blue);
-            int px = slider_w + 60, py = 50;
-            int pw = cw - px - 20, ph = ch - 80;
-            if (pw > 20 && ph > 20) {
+            int px = slider_w + 60 * s, py = 50 * s;
+            int pw = cw - px - 20 * s, ph = ch - 80 * s;
+            if (pw > 20 * s && ph > 20 * s) {
                 l_fill_rect(&canvas, px, py, pw, ph, col);
                 l_rect(&canvas, px, py, pw, ph, ui.theme.border);
 
@@ -152,9 +153,9 @@ int main(int argc, char *argv[]) {
                 uint32_t tc = (lum > 128) ? L_BLACK : L_WHITE;
                 char label[32];
                 color_to_hex(red, green, blue, label);
-                int tw = l_ui__text_width(label, 1);
-                l_ui__draw_text(&canvas, px + (pw - tw) / 2, py + ph / 2 - 4,
-                                label, tc, 1);
+                int tw = l_ui__text_width(label, s);
+                l_ui__draw_text(&canvas, px + (pw - tw) / 2, py + ph / 2 - 4 * s,
+                                label, tc, s);
             }
         }
 

@@ -51,6 +51,10 @@ int main(int argc, char *argv[]) {
 
         l_canvas_clear(&canvas, L_BLACK);
 
+        int cx = canvas.width / 2;
+        int cy = canvas.height / 2;
+        int s = canvas.scale;
+
         for (int i = 0; i < NUM_STARS; i++) {
             star_z[i] -= speed;
             if (star_z[i] <= Z_NEAR) {
@@ -58,10 +62,10 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            int sx = (star_x[i] * 256) / star_z[i] + CX;
-            int sy = (star_y[i] * 256) / star_z[i] + CY;
+            int sx = (star_x[i] * 256) / star_z[i] + cx;
+            int sy = (star_y[i] * 256) / star_z[i] + cy;
 
-            if (sx < 0 || sx >= W || sy < 0 || sy >= H) {
+            if (sx < 0 || sx >= canvas.width || sy < 0 || sy >= canvas.height) {
                 spawn_star(i);
                 continue;
             }
@@ -74,13 +78,16 @@ int main(int argc, char *argv[]) {
 
             // Draw bigger pixels for closer stars
             if (star_z[i] < Z_FAR / 4) {
-                l_fill_rect(&canvas, sx, sy, 2, 2, color);
+                l_fill_rect(&canvas, sx, sy, 2 * s, 2 * s, color);
+            } else if (s > 1) {
+                l_fill_rect(&canvas, sx, sy, s, s, color);
             } else {
                 l_pixel(&canvas, sx, sy, color);
             }
         }
 
-        l_draw_text(&canvas, 2, H - 10, "+/-:speed Q:quit", L_RGB(100, 100, 100));
+        l_draw_text_scaled(&canvas, 2 * s, canvas.height - 10 * s,
+                           "+/-:speed Q:quit", L_RGB(100, 100, 100), s, s);
         l_canvas_flush(&canvas);
         l_sleep_ms(16);
     }

@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
 
     L_Canvas c;
     if (l_canvas_open(&c, 900, 520, "ttf_view — l_tt.h") != 0) return 1;
+    int s = c.scale;
 
     const char *pangram =
         "The quick brown fox jumps over the lazy dog 0123456789";
@@ -91,28 +92,29 @@ int main(int argc, char *argv[]) {
         l_canvas_clear(&c, 0xFF101018);
 
         // Header: the font's path, rendered with the built-in bitmap font.
-        l_draw_text(&c, 16, 12, "Font:", L_YELLOW);
-        l_draw_text(&c, 64, 12, path, L_WHITE);
-        l_line(&c, 0, 28, c.width, 28, 0xFF303030);
+        l_draw_text_scaled(&c, 16 * s, 12 * s, "Font:", L_YELLOW, s, s);
+        l_draw_text_scaled(&c, 64 * s, 12 * s, path, L_WHITE, s, s);
+        l_line(&c, 0, 28 * s, c.width, 28 * s, 0xFF303030);
 
         // TrueType-rendered samples at a few pixel sizes.
-        float y = 70.0f;
+        float y = 70.0f * (float)s;
         float sizes[] = { 16.0f, 20.0f, 28.0f, 40.0f, 56.0f, 80.0f };
         uint32_t palette[] = {
             0xFFFFFFFF, 0xFFA0D8FF, 0xFFFFD880, 0xFFA0FFA0,
             0xFFFF80A0, 0xFFE0C0FF
         };
         for (int i = 0; i < (int)(sizeof(sizes) / sizeof(sizes[0])); i++) {
+            float px = sizes[i] * (float)s;
             l_tt_draw_text(c.pixels, c.width, c.height, c.stride,
-                           &info, 16.0f, y, sizes[i], pangram, palette[i]);
-            y += sizes[i] * 1.25f;
-            if (y > (float)(c.height - 20)) break;
+                           &info, 16.0f * (float)s, y, px, pangram, palette[i]);
+            y += px * 1.25f;
+            if (y > (float)(c.height - 20 * s)) break;
         }
 
         // Footer: hint.
-        l_draw_text(&c, 16, c.height - 18,
+        l_draw_text_scaled(&c, 16 * s, c.height - 18 * s,
                     "Esc to exit  -  pass any .ttf/.otf path on the command line",
-                    0xFF606060);
+                    0xFF606060, s, s);
 
         l_canvas_flush(&c);
         if (l_canvas_key(&c) == 27) break;

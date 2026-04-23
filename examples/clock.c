@@ -6,9 +6,7 @@
 
 #define W 320
 #define H 240
-#define CX 160
-#define CY 120
-#define RADIUS 100
+/* CX/CY/RADIUS are computed at runtime from the canvas dimensions below. */
 
 // Signed sine table: 360 entries, values -1024..+1024 (10-bit fixed point)
 // sin_tbl[i] = sin(i * pi / 180) * 1024
@@ -61,19 +59,19 @@ static int fp_cos(int deg) {
 }
 
 // Draw a clock hand from center at angle (in degrees, 0=12 o'clock, clockwise)
-static void draw_hand(L_Canvas *c, int angle, int length, uint32_t color) {
+static void draw_hand(L_Canvas *c, int cx, int cy, int angle, int length, uint32_t color) {
     // Convert clock angle (0=up) to math angle (0=right)
     // clock 0 = math 270, so math_angle = angle - 90
     int deg = angle - 90;
-    int ex = CX + (fp_cos(deg) * length) / 1024;
-    int ey = CY + (fp_sin(deg) * length) / 1024;
-    l_line(c, CX, CY, ex, ey, color);
+    int ex = cx + (fp_cos(deg) * length) / 1024;
+    int ey = cy + (fp_sin(deg) * length) / 1024;
+    l_line(c, cx, cy, ex, ey, color);
 }
 
-static void draw_face(L_Canvas *c) {
+static void draw_face(L_Canvas *c, int cx, int cy, int radius, int s) {
     // Outer circle
-    l_circle(c, CX, CY, RADIUS, L_WHITE);
-    l_circle(c, CX, CY, RADIUS - 1, L_WHITE);
+    l_circle(c, cx, cy, radius, L_WHITE);
+    l_circle(c, cx, cy, radius - 1, L_WHITE);
 
     // Hour markers and numbers
     static const char *nums[12] = {
@@ -82,28 +80,28 @@ static void draw_face(L_Canvas *c) {
     for (int i = 0; i < 12; i++) {
         int deg = i * 30 - 90;
         // Tick mark
-        int ix = CX + (fp_cos(deg) * (RADIUS - 8)) / 1024;
-        int iy = CY + (fp_sin(deg) * (RADIUS - 8)) / 1024;
-        int ox = CX + (fp_cos(deg) * (RADIUS - 2)) / 1024;
-        int oy = CY + (fp_sin(deg) * (RADIUS - 2)) / 1024;
+        int ix = cx + (fp_cos(deg) * (radius - 8 * s)) / 1024;
+        int iy = cy + (fp_sin(deg) * (radius - 8 * s)) / 1024;
+        int ox = cx + (fp_cos(deg) * (radius - 2 * s)) / 1024;
+        int oy = cy + (fp_sin(deg) * (radius - 2 * s)) / 1024;
         l_line(c, ix, iy, ox, oy, L_WHITE);
 
         // Number
-        int nx = CX + (fp_cos(deg) * (RADIUS - 20)) / 1024;
-        int ny = CY + (fp_sin(deg) * (RADIUS - 20)) / 1024;
+        int nx = cx + (fp_cos(deg) * (radius - 20 * s)) / 1024;
+        int ny = cy + (fp_sin(deg) * (radius - 20 * s)) / 1024;
         // Center the text roughly
-        int tw = (int)l_strlen(nums[i]) * 8;
-        l_draw_text(c, nx - tw / 2, ny - 4, nums[i], L_RGB(200, 200, 200));
+        int tw = (int)l_strlen(nums[i]) * 8 * s;
+        l_draw_text_scaled(c, nx - tw / 2, ny - 4 * s, nums[i], L_RGB(200, 200, 200), s, s);
     }
 
     // Minute ticks
     for (int i = 0; i < 60; i++) {
         if (i % 5 == 0) continue;
         int deg = i * 6 - 90;
-        int ix = CX + (fp_cos(deg) * (RADIUS - 4)) / 1024;
-        int iy = CY + (fp_sin(deg) * (RADIUS - 4)) / 1024;
-        int ox = CX + (fp_cos(deg) * (RADIUS - 2)) / 1024;
-        int oy = CY + (fp_sin(deg) * (RADIUS - 2)) / 1024;
+        int ix = cx + (fp_cos(deg) * (radius - 4 * s)) / 1024;
+        int iy = cy + (fp_sin(deg) * (radius - 4 * s)) / 1024;
+        int ox = cx + (fp_cos(deg) * (radius - 2 * s)) / 1024;
+        int oy = cy + (fp_sin(deg) * (radius - 2 * s)) / 1024;
         l_line(c, ix, iy, ox, oy, L_RGB(100, 100, 100));
     }
 }
@@ -116,6 +114,11 @@ int main(int argc, char *argv[]) {
         puts("No display available\n");
         return 0;
     }
+    int s  = canvas.scale;
+    int cx = canvas.width  / 2;
+    int cy = canvas.height / 2;
+    int radius = (canvas.width < canvas.height ? canvas.width : canvas.height)
+                  * 100 / 240;
 
     while (l_canvas_alive(&canvas)) {
         int key = l_canvas_key(&canvas);
@@ -129,19 +132,19 @@ int main(int argc, char *argv[]) {
         int seconds = total_secs % 60;
 
         l_canvas_clear(&canvas, L_BLACK);
-        draw_face(&canvas);
+        draw_face(&canvas, cx, cy, radius, s);
 
-        // Draw hands
+        // Draw hands (lengths scaled relative to the clock radius)
         int sec_angle = seconds * 6;          // 360/60 = 6 deg per sec
         int min_angle = minutes * 6 + seconds / 10;
         int hr_angle  = (hours % 12) * 30 + minutes / 2;
 
-        draw_hand(&canvas, hr_angle,  55, L_WHITE);
-        draw_hand(&canvas, min_angle, 75, L_RGB(180, 180, 255));
-        draw_hand(&canvas, sec_angle, 85, L_RED);
+        draw_hand(&canvas, cx, cy, hr_angle,  radius * 55 / 100, L_WHITE);
+        draw_hand(&canvas, cx, cy, min_angle, radius * 75 / 100, L_RGB(180, 180, 255));
+        draw_hand(&canvas, cx, cy, sec_angle, radius * 85 / 100, L_RED);
 
         // Center dot
-        l_fill_circle(&canvas, CX, CY, 3, L_RED);
+        l_fill_circle(&canvas, cx, cy, 3 * s, L_RED);
 
         // HUD: show time as text
         char tbuf[16];
@@ -154,8 +157,10 @@ int main(int argc, char *argv[]) {
         tbuf[6] = '0' + (char)(seconds / 10);
         tbuf[7] = '0' + (char)(seconds % 10);
         tbuf[8] = '\0';
-        l_draw_text(&canvas, CX - 32, CY + RADIUS + 8, tbuf, L_RGB(150, 150, 150));
-        l_draw_text(&canvas, 2, H - 10, "Q:quit", L_RGB(80, 80, 80));
+        l_draw_text_scaled(&canvas, cx - 32 * s, cy + radius + 8 * s, tbuf,
+                           L_RGB(150, 150, 150), s, s);
+        l_draw_text_scaled(&canvas, 2 * s, canvas.height - 10 * s, "Q:quit",
+                           L_RGB(80, 80, 80), s, s);
 
         l_canvas_flush(&canvas);
         l_sleep_ms(16);

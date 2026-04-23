@@ -57,6 +57,8 @@ int main(int argc, char *argv[]) {
         puts("No display available\n");
         return 0;
     }
+    int s = canvas.scale;
+    int cw = canvas.width, ch = canvas.height;
 
     init_palette();
     int t = 0;
@@ -65,8 +67,8 @@ int main(int argc, char *argv[]) {
         int key = l_canvas_key(&canvas);
         if (key == 'q' || key == 'Q' || key == 27) break;
 
-        for (int y = 0; y < H; y++) {
-            for (int x = 0; x < W; x++) {
+        for (int y = 0; y < ch; y++) {
+            for (int x = 0; x < cw; x++) {
                 // Combine several sine waves at different frequencies
                 int v1 = sin_table[(x + t) & 255];
                 int v2 = sin_table[((y * 3 + t * 2) >> 1) & 255];
@@ -77,7 +79,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        l_draw_text(&canvas, 2, H - 10, "Q:quit", L_RGB(0, 0, 0));
+        l_draw_text_scaled(&canvas, 2 * s, ch - 10 * s, "Q:quit",
+                           L_RGB(0, 0, 0), s, s);
         l_canvas_flush(&canvas);
         l_sleep_ms(16);
         t++;

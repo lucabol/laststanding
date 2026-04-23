@@ -49,13 +49,16 @@ static void step(void) {
 }
 
 static void draw(L_Canvas *c) {
+    int s = c->scale;
     l_canvas_clear(c, L_BLACK);
     for (int y = 0; y < GH; y++)
         for (int x = 0; x < GW; x++)
             if (grid[y][x])
-                l_fill_rect(c, x * CELL, y * CELL, CELL, CELL, L_GREEN);
+                l_fill_rect(c, x * CELL * s, y * CELL * s, CELL * s, CELL * s,
+                             L_GREEN);
 
-    l_draw_text(c, 2, H - 10, "SPC:pause R:rand C:clear Q:quit", L_RGB(128, 128, 128));
+    l_draw_text_scaled(c, 2 * s, c->height - 10 * s,
+        "SPC:pause R:rand C:clear Q:quit", L_RGB(128, 128, 128), s, s);
 }
 
 int main(int argc, char *argv[]) {

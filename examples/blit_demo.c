@@ -33,22 +33,26 @@ int main(int argc, char *argv[]) {
 
     L_Canvas c;
     if (l_canvas_open(&c, 320, 240, "Blit Demo") != 0) return 1;
+    int s = c.scale;
 
     while (l_canvas_alive(&c)) {
         l_canvas_clear(&c, L_RGB(32, 32, 64));
 
-        l_draw_text(&c, 10, 10, "l_blit (opaque):", L_WHITE);
+        l_draw_text_scaled(&c, 10 * s, 10 * s, "l_blit (opaque):",
+                           L_WHITE, s, s);
         for (int i = 0; i < 10; i++)
-            l_blit(&c, 10 + i * 20, 30, 8, 8, smiley, 8 * 4);
+            l_blit(&c, (10 + i * 20) * s, 30 * s, 8, 8, smiley, 8 * 4);
 
-        l_draw_text(&c, 10, 60, "l_blit_alpha (blended):", L_WHITE);
+        l_draw_text_scaled(&c, 10 * s, 60 * s, "l_blit_alpha (blended):",
+                           L_WHITE, s, s);
         // Draw a gradient background, then blit with alpha
-        l_fill_rect(&c, 10, 80, 200, 30, L_RED);
-        l_fill_rect(&c, 110, 80, 100, 30, L_GREEN);
+        l_fill_rect(&c, 10 * s, 80 * s, 200 * s, 30 * s, L_RED);
+        l_fill_rect(&c, 110 * s, 80 * s, 100 * s, 30 * s, L_GREEN);
         for (int i = 0; i < 10; i++)
-            l_blit_alpha(&c, 10 + i * 20, 85, 8, 8, smiley, 8 * 4);
+            l_blit_alpha(&c, (10 + i * 20) * s, 85 * s, 8, 8, smiley, 8 * 4);
 
-        l_draw_text_scaled(&c, 10, 130, "Scaled + Blit!", L_CYAN, 2, 2);
+        l_draw_text_scaled(&c, 10 * s, 130 * s, "Scaled + Blit!",
+                           L_CYAN, 2 * s, 2 * s);
 
         l_canvas_flush(&c);
         if (l_canvas_key(&c) == 27) break;

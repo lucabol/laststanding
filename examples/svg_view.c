@@ -46,29 +46,33 @@ int main(int argc, char *argv[]) {
     if (req_w <= 0) req_w = 512;
     if (req_h <= 0) req_h = 512;
 
-    // Rasterize SVG
-    L_SvgOptions opt = { req_w, req_h, 96.0f };
+    // Open canvas first so we can pick up the HiDPI scale and rasterize the
+    // SVG at the physical pixel size. This keeps the vector art crisp on
+    // HiDPI displays instead of letting the canvas stretch it.
+    L_Canvas c;
+    if (l_canvas_open(&c, req_w, req_h, argv[1]) != 0) {
+        l_puts("Error: cannot open display\n");
+        l_munmap(fdata, (size_t)fsize);
+        return 1;
+    }
+
+    // Rasterize SVG at physical resolution
+    L_SvgOptions opt = { c.width, c.height, 96.0f };
     int w = 0, h = 0;
     uint32_t *pixels = l_svg_load_mem(fdata, (int)fsize, &opt, &w, &h);
     l_munmap(fdata, (size_t)fsize);
 
     if (!pixels) {
         l_puts("Error: unsupported or corrupt SVG\n");
-        return 1;
-    }
-
-    // Open canvas
-    L_Canvas c;
-    if (l_canvas_open(&c, w, h, argv[1]) != 0) {
-        l_puts("Error: cannot open display\n");
-        l_svg_free_pixels(pixels, w, h);
+        l_canvas_close(&c);
         return 1;
     }
 
     // Display the rasterized SVG
+    int s = c.scale;
     l_canvas_clear(&c, L_WHITE);
     l_blit_alpha(&c, 0, 0, w, h, pixels, w * 4);
-    l_draw_text(&c, 4, h - 12, argv[1], L_BLACK);
+    l_draw_text_scaled(&c, 4 * s, c.height - 12 * s, argv[1], L_BLACK, s, s);
     l_canvas_flush(&c);
 
     while (l_canvas_alive(&c) && l_canvas_key(&c) != 27)

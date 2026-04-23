@@ -53,6 +53,7 @@ typedef struct {
     int       mouse_btn;   // button bitmask: 1=left, 2=right, 4=middle
     int       wheel;       // accumulated vertical wheel delta (clicks); cleared by l_canvas_wheel()
     int       resized;     // set to 1 when window was resized; cleared by l_canvas_resized()
+    int       scale;       // integer DPI scale factor (1=96dpi, 2=144-192dpi, ...). Multiply hardcoded pixel coords/sizes by this for DPI-aware layouts.
 
 #ifdef _WIN32
     // Windows GDI internals
@@ -1363,7 +1364,7 @@ static LRESULT CALLBACK l_gfx_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *title) {
     (void)title;
     l_memset(c, 0, sizeof(*c));
-
+    c->scale = 1;
     // Check for terminal mode via environment variable
     const char *term_env = l_getenv("L_GFX_TERM");
     if (term_env && term_env[0] && l_isatty(L_STDIN) && l_isatty(L_STDOUT)) {
@@ -1403,13 +1404,13 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
     if (fullscreen) {
         width  = GetSystemMetrics(SM_CXSCREEN);
         height = GetSystemMetrics(SM_CYSCREEN);
+        c->scale = 1;
     } else {
-        // Auto-scale the requested client size by the system DPI factor so
-        // windows stay at a sensible physical size on high-DPI displays. A
-        // client asking for 900x520 on a 150%-scaled monitor gets a
-        // 1350x780 back-buffer — same physical size, but crisper. Use
-        // GetDpiForSystem when available (Windows 10 1607+), else fall back
-        // to GetDeviceCaps(LOGPIXELSY) on the screen DC.
+        // Compute an *integer* DPI scale (1 at 96dpi, 2 at 144-192dpi, 3 at
+        // 240+dpi, ...) so client pixel-art drawing stays pixel-exact. The
+        // requested client size is multiplied by this factor so the window
+        // keeps its physical size on high-DPI displays, and the factor is
+        // exposed via c->scale for clients to multiply their coordinates.
         unsigned int dpi = 0;
         HMODULE u32b = GetModuleHandleW(L"user32.dll");
         if (u32b) {
@@ -1425,9 +1426,16 @@ static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *
                 ReleaseDC(0, sdc);
             }
         }
+        int s = 1;
         if (dpi >= 96 && dpi <= 1000) {
-            width  = (int)((long long)width  * (int)dpi / 96);
-            height = (int)((long long)height * (int)dpi / 96);
+            // Round to nearest: 96→1, 120→1, 144→2, 192→2, 240→3, ...
+            s = ((int)dpi + 48) / 96;
+            if (s < 1) s = 1;
+        }
+        c->scale = s;
+        if (s > 1) {
+            width  *= s;
+            height *= s;
         }
     }
 
@@ -2446,7 +2454,7 @@ static inline int l_fb_canvas_open(L_Canvas *c, int width, int height) {
 static inline int l_canvas_open(L_Canvas *c, int width, int height, const char *title) {
     l_memset(c, 0, sizeof(*c));
     c->mouse_fd = -1;
-
+    c->scale = 1;
     /* Try X11 first if $DISPLAY is set */
     const char *disp = l_getenv("DISPLAY");
     if (disp && disp[0]) {

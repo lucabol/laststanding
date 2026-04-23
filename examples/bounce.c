@@ -17,7 +17,8 @@ int main(int argc, char *argv[]) {
     L_Canvas c;
     if (l_canvas_open(&c, w, h, "Bounce") != 0) return 1;
 
-    int x = c.width / 2, y = c.height / 2, dx = 2, dy = 1, r = 10;
+    int s = c.scale;
+    int x = c.width / 2, y = c.height / 2, dx = 2 * s, dy = 1 * s, r = 10 * s;
     while (l_canvas_alive(&c)) {
         if (l_canvas_key(&c) == 27) break;
         l_canvas_clear(&c, L_BLACK);

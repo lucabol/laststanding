@@ -1132,7 +1132,7 @@ Immediate-mode UI library built on `l_gfx.h`. No heap allocation, no widget tree
 | **Frame functions** | |
 | `l_ui_begin` | Begins a UI frame. Call once per frame before declaring widgets. |
 | `l_ui_end` | Ends a UI frame. Handles releasing active widget when mouse released. |
-| `l_ui_init` | Initializes a UI context with the default dark theme and font scale 1. |
+| `l_ui_init` | Initializes a UI context with the default dark theme. font_scale is left |
 | **Widgets** | |
 | `l_ui_label` | Draws a text label at (x,y). Returns 0 always. |
 | `l_ui_button` | Draws a clickable button at (x,y) with given width and height. Returns 1 if clicked this frame. |

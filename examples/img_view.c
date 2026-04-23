@@ -65,21 +65,24 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Scale image to canvas using nearest-neighbor
+    // Scale image to canvas using nearest-neighbor. Use the physical canvas
+    // dimensions (c.width/c.height) so the image fills the whole window on
+    // HiDPI displays, not just a logical-sized rectangle in the top-left.
     l_canvas_clear(&c, L_BLACK);
     {
-        int s = c.stride / 4;
-        for (int dy = 0; dy < ch; dy++) {
-            int sy = (dy * h) / ch;
-            for (int dx = 0; dx < cw; dx++) {
-                int sx = (dx * w) / cw;
-                c.pixels[dy * s + dx] = pixels[sy * w + sx];
+        int stride_px = c.stride / 4;
+        for (int dy = 0; dy < c.height; dy++) {
+            int sy = (dy * h) / c.height;
+            for (int dx = 0; dx < c.width; dx++) {
+                int sx = (dx * w) / c.width;
+                c.pixels[dy * stride_px + dx] = pixels[sy * w + sx];
             }
         }
     }
 
     // Overlay filename
-    l_draw_text(&c, 4, ch - 12, argv[1], L_WHITE);
+    int s = c.scale;
+    l_draw_text_scaled(&c, 4 * s, c.height - 12 * s, argv[1], L_WHITE, s, s);
 
     l_canvas_flush(&c);
 

@@ -168,6 +168,13 @@ static inline int l_ui__text_height(int scale) {
 /// Begins a UI frame. Call once per frame before declaring widgets.
 static inline void l_ui_begin(L_UI *ui, L_Canvas *canvas) {
     ui->canvas = canvas;
+    // Auto-pick up the canvas's integer DPI scale the first frame so on
+    // high-DPI displays widget text is legible without explicit setup.
+    // font_scale == 0 means "not yet initialized"; l_ui_init leaves it 0.
+    if (ui->font_scale <= 0) {
+        int s = canvas ? canvas->scale : 1;
+        ui->font_scale = s > 0 ? s : 1;
+    }
     ui->mouse_btn_prev = ui->mouse_btn;
     ui->mouse_btn = l_canvas_mouse(canvas, &ui->mouse_x, &ui->mouse_y);
     ui->key = l_canvas_key(canvas);
@@ -189,12 +196,15 @@ static inline void l_ui_end(L_UI *ui) {
     }
 }
 
-/// Initializes a UI context with the default dark theme and font scale 1.
+/// Initializes a UI context with the default dark theme. font_scale is left
+/// as 0 ("auto") so that the first l_ui_begin call picks it up from the
+/// canvas's integer DPI scale — override explicitly after init if you want
+/// a fixed value.
 static inline void l_ui_init(L_UI *ui) {
     l_memset(ui, 0, sizeof(*ui));
     L_UI_Theme dark = L_UI_THEME_DARK;
     ui->theme = dark;
-    ui->font_scale = 1;
+    ui->font_scale = 0;  // 0 = auto (picked up in l_ui_begin from canvas->scale)
 }
 
 // ---------------------------------------------------------------------------

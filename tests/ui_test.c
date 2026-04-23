@@ -11,6 +11,7 @@ static L_Canvas test_canvas = { .width = 64, .height = 64, .stride = 64 * 4, .pi
 // Helper: set up UI with simulated input (bypasses l_ui_begin which calls l_canvas_mouse/key)
 static void sim_begin(L_UI *ui, int mx, int my, int mbtn, int key) {
     ui->canvas = &test_canvas;
+    if (ui->font_scale <= 0) ui->font_scale = 1;  // emulate l_ui_begin auto-scale
     ui->mouse_btn_prev = ui->mouse_btn;
     ui->mouse_x = mx;
     ui->mouse_y = my;
@@ -30,11 +31,14 @@ int main(int argc, char *argv[]) {
 
     // Verify theme defaults
     TEST_FUNCTION("l_ui_init");
-    TEST_ASSERT(ui.font_scale == 1, "default font scale is 1");
+    TEST_ASSERT(ui.font_scale == 0, "default font scale is 0 (auto)");
     TEST_ASSERT(ui.theme.fg != 0, "theme fg is set");
     TEST_ASSERT(ui.hot == 0, "hot starts at 0");
     TEST_ASSERT(ui.active == 0, "active starts at 0");
     TEST_ASSERT(ui.focused == 0, "focused starts at 0");
+
+    // Widget tests below expect a concrete scale; set it explicitly.
+    ui.font_scale = 1;
 
     // Verify hash
     TEST_FUNCTION("l_ui__hash");

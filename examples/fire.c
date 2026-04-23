@@ -81,7 +81,9 @@ int main(int argc, char *argv[]) {
 
         spread_fire();
         draw(&canvas);
-        l_draw_text(&canvas, 2, 2, "R:reset Q:quit", L_RGB(40, 40, 40));
+        int s = canvas.scale;
+        l_draw_text_scaled(&canvas, 2 * s, 2 * s, "R:reset Q:quit",
+                           L_RGB(40, 40, 40), s, s);
         l_canvas_flush(&canvas);
         l_sleep_ms(16);
     }

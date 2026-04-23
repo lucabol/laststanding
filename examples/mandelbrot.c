@@ -63,13 +63,14 @@ static void reset_view(void) {
 }
 
 static void render(L_Canvas *c) {
+    int rw = c->width, rh = c->height;
     fp_t x_min = view_cx - view_scale / 2;
-    fp_t y_min = view_cy - (fp_mul(view_scale, fp_from_int(H)) / W) / 2;
-    fp_t step  = view_scale / W;
+    fp_t y_min = view_cy - (fp_mul(view_scale, fp_from_int(rh)) / rw) / 2;
+    fp_t step  = view_scale / rw;
 
-    for (int py = 0; py < H; py++) {
+    for (int py = 0; py < rh; py++) {
         fp_t ci = y_min + step * py;
-        for (int px = 0; px < W; px++) {
+        for (int px = 0; px < rw; px++) {
             fp_t cr = x_min + step * px;
             fp_t zr = 0, zi = 0;
             int iter = 0;
@@ -98,8 +99,11 @@ static void render(L_Canvas *c) {
 }
 
 static void draw_hud(L_Canvas *c) {
-    l_fill_rect(c, 0, H - 12, W, 12, L_RGB(0, 0, 0));
-    l_draw_text(c, 2, H - 10, "Arrows:pan +/-:zoom I:iter R:reset Q:quit", L_RGB(180, 180, 180));
+    int s = c->scale;
+    l_fill_rect(c, 0, c->height - 12 * s, c->width, 12 * s, L_RGB(0, 0, 0));
+    l_draw_text_scaled(c, 2 * s, c->height - 10 * s,
+        "Arrows:pan +/-:zoom I:iter R:reset Q:quit",
+        L_RGB(180, 180, 180), s, s);
 }
 
 int main(int argc, char *argv[]) {
