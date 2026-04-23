@@ -1562,7 +1562,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | `l_closedir` | ✅ | test_fs.c |
 | `l_mmap` | ✅ | test_fs.c, test_utils.c |
 | `l_munmap` | ✅ | test_fs.c, test_utils.c |
-| ``l_getrandom`` | — | |
+| `l_getrandom` | ✅ | test_utils.c |
 | **Arena function declarations** | | |
 | `l_arena_init` | ✅ | test_fs.c, test_utils.c |
 | `l_arena_alloc` | ✅ | test_utils.c |
@@ -1684,7 +1684,7 @@ Which `l_os.h` functions are referenced in the test suite. Generated — run `.\
 | ``l_socket_recvfrom_addr`` | — | |
 | ``l_socket_unix_connect`` | — | |
 
-**Coverage: 244 / 249 functions referenced in tests** (98%)
+**Coverage: 245 / 249 functions referenced in tests** (98%)
 
 <!-- END COVERAGE MATRIX -->
 
