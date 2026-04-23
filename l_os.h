@@ -3338,7 +3338,7 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
         }
 
         int width = 0;
-        if (*fmt == '*') { fmt++; width = va_arg(ap, int); if (width < 0) { flag_minus = 1; width = -width; } }
+        if (*fmt == '*') { fmt++; width = va_arg(ap, int); if (width < 0) { flag_minus = 1; width = (width == INT_MIN) ? INT_MAX : -width; } }
         else while (*fmt >= '0' && *fmt <= '9') width = width * 10 + (*fmt++ - '0');
 
         int prec = -1;
