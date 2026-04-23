@@ -6,8 +6,7 @@
 //
 // Usage: ttf_view [font_path]
 //   If font_path is omitted, tries a short list of common system fonts
-//   (Segoe UI Semibold / Arial Bold on Windows, DejaVu Sans on Linux,
-//   Arial on macOS).
+//   (Georgia on Windows, DejaVu Sans on Linux, Arial on macOS).
 //
 // Exit: press Escape or close the window.
 
@@ -15,10 +14,11 @@
 #include "l_gfx.h"
 #include "l_tt.h"
 
-// Fallback font list. Bolder variants are preferred first because
-// stb_truetype does not implement TrueType hinting, so heavier stems
-// hold up better at small pixel sizes.
+// Fallback font list. On Windows we prefer Georgia (a hinted serif that
+// ships with every Windows install and renders crisply at body sizes).
 static const char *FALLBACK_FONTS[] = {
+    "C:\\Windows\\Fonts\\georgia.ttf",   // Georgia (Windows)
+    "C:\\Windows\\Fonts\\georgiab.ttf",  // Georgia Bold (Windows)
     "C:\\Windows\\Fonts\\seguisb.ttf",   // Segoe UI Semibold (Windows)
     "C:\\Windows\\Fonts\\arialbd.ttf",   // Arial Bold (Windows)
     "C:\\Windows\\Fonts\\segoeui.ttf",
