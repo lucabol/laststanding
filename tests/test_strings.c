@@ -1281,6 +1281,35 @@ void test_snprintf(void) {
     l_snprintf(buf, sizeof(buf), "%08x", 0xABu);
     TEST_ASSERT(l_strcmp(buf, "000000ab") == 0, "%08x zero-pad hex");
 
+    /* %o octal */
+    l_snprintf(buf, sizeof(buf), "%o", 8u);
+    TEST_ASSERT(l_strcmp(buf, "10") == 0, "%o basic octal");
+
+    l_snprintf(buf, sizeof(buf), "%o", 0u);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%o zero");
+
+    l_snprintf(buf, sizeof(buf), "%o", 0777u);
+    TEST_ASSERT(l_strcmp(buf, "777") == 0, "%o file permissions");
+
+    l_snprintf(buf, sizeof(buf), "%08o", 0644u);
+    TEST_ASSERT(l_strcmp(buf, "00000644") == 0, "%08o zero-padded octal");
+
+    /* # flag: alternate form */
+    l_snprintf(buf, sizeof(buf), "%#x", 0xABu);
+    TEST_ASSERT(l_strcmp(buf, "0xab") == 0, "%#x adds 0x prefix");
+
+    l_snprintf(buf, sizeof(buf), "%#X", 0xABu);
+    TEST_ASSERT(l_strcmp(buf, "0XAB") == 0, "%#X adds 0X prefix");
+
+    l_snprintf(buf, sizeof(buf), "%#x", 0u);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%#x zero: no prefix");
+
+    l_snprintf(buf, sizeof(buf), "%#o", 8u);
+    TEST_ASSERT(l_strcmp(buf, "010") == 0, "%#o adds leading 0");
+
+    l_snprintf(buf, sizeof(buf), "%#o", 0u);
+    TEST_ASSERT(l_strcmp(buf, "0") == 0, "%#o zero: no extra prefix");
+
     /* %% literal percent */
     l_snprintf(buf, sizeof(buf), "100%%");
     TEST_ASSERT(l_strcmp(buf, "100%") == 0, "%% literal");
