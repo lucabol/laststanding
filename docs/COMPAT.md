@@ -184,7 +184,7 @@ Legend:
 | `l_buf_printf` | ✅ | ✅ | ✅ |
 | `l_buf_clear` | ✅ | ✅ | ✅ |
 | `l_buf_free` | ✅ | ✅ | ✅ |
-| **L_Str â€” fat string (pointer + length) function declarations** | | | |
+| **L_Str — fat string (pointer + length) function declarations** | | | |
 | `l_str` | ✅ | ✅ | ✅ |
 | `l_str_from` | ✅ | ✅ | ✅ |
 | `l_str_null` | ✅ | ✅ | ✅ |
