@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-04-24T01:29:07Z",
-  "last_run_id": "24867496945",
+  "last_run": "2026-04-24T13:27:05Z",
+  "last_run_id": "24891915004",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
     {"number": 122, "title": "perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09"},
@@ -11,13 +11,14 @@
     {"number": 139, "title": "test: add l_getrandom coverage in test_utils.c", "created": "2026-04-19"},
     {"number": 140, "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double to L_Str API", "created": "2026-04-20"},
     {"number": 141, "title": "DUPLICATE of #140 - awaiting close by maintainer", "created": "2026-04-20"},
-    {"number": 143, "title": "fix: apply flag_plus and flag_space to floating-point in l_vsnprintf", "created": "2026-04-21"},
+    {"number": 143, "title": "fix: apply flag_plus and flag_space to floating-point in l_vsnprintf", "created": "2026-04-21", "ci": "pass"},
     {"number": 146, "title": "improve: add l_buf_push_char and fix l_str_replace size guard", "created": "2026-04-22"},
     {"number": 148, "title": "test: add NIST FIPS 180-4 SHA-256 test vectors", "created": "2026-04-23"},
     {"number": 149, "title": "fix: clamp INT_MIN dynamic width in l_vsnprintf to avoid UB", "created": "2026-04-23"},
-    {"number": 150, "title": "test: add NIST FIPS 180-4 SHA-256 test vectors (dup)", "created": "2026-04-23"},
-    {"number": 151, "title": "fix: clamp INT_MIN dynamic width in l_vsnprintf to avoid UB (dup)", "created": "2026-04-23"},
-    {"branch": "repo-assist/perf-strncpy-hmac-sha256-2026-04-24", "title": "perf+feat: optimise l_strncpy; add l_hmac_sha256", "created": "2026-04-24", "note": "Draft PR created this run. Number TBD - check next run."}
+    {"number": 150, "title": "DUPLICATE of #148 - awaiting close by maintainer", "created": "2026-04-23"},
+    {"number": 151, "title": "DUPLICATE of #149 - awaiting close by maintainer", "created": "2026-04-23"},
+    {"branch": "repo-assist/eng-bundle-deps-2026-04-24", "title": "chore: bundle Dependabot action upgrades (#129, #130, #131)", "created": "2026-04-24", "note": "PR submitted this run. Number TBD."},
+    {"branch": "repo-assist/feat-hmac-sha256-2026-04-24", "title": "feat: add l_hmac_sha256 — HMAC-SHA-256 message authentication", "created": "2026-04-24", "note": "PR submitted this run. Number TBD."}
   ],
   "comments_made": {
     "124": "2026-04-19 root cause analysis of workflow failures",
@@ -28,5 +29,5 @@
     "prs": "all_processed"
   },
   "checked_off_items": [],
-  "notes": "PR #141 is duplicate of #140. PRs #150, #151 are duplicates of #148, #149. Dependabot PRs #129, #130, #131 still open. Issue #147 is CI apt-cache proposal by Repo Assist. All open issues are: #123 (monthly activity), #124/#125 (workflow failures - already commented), #128/#145 (daily status reports - not worth commenting), #147 (Repo Assist CI proposal). Task 2 candidates exhausted this run."
+  "notes": "PR #141 is duplicate of #140. PRs #150, #151 are duplicates of #148, #149. Dependabot PRs #129, #130, #131 bundled in new PR this run. Task 10: l_hmac_sha256 added to l_os.h (companion to l_sha256, 3 RFC4231 test vectors). Task 4: Dependabot bundle (upload-artifact v7, download-artifact v8, github-script v9). Monthly activity issue #123 updated."
 }
