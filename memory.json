@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-04-23T13:28:15Z",
-  "last_run_id": "24837871547",
+  "last_run": "2026-04-24T01:29:07Z",
+  "last_run_id": "24867496945",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
     {"number": 122, "title": "perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09"},
@@ -17,7 +17,7 @@
     {"number": 149, "title": "fix: clamp INT_MIN dynamic width in l_vsnprintf to avoid UB", "created": "2026-04-23"},
     {"number": 150, "title": "test: add NIST FIPS 180-4 SHA-256 test vectors (dup)", "created": "2026-04-23"},
     {"number": 151, "title": "fix: clamp INT_MIN dynamic width in l_vsnprintf to avoid UB (dup)", "created": "2026-04-23"},
-    {"branch": "repo-assist/perf-strncpy-hmac-sha256-2026-04-23-62f6f4c", "title": "perf+feat: optimise l_strncpy; add l_hmac_sha256", "created": "2026-04-23", "note": "Committed locally ONLY - safeoutputs MCP unavailable (401 auth error). Patch saved to perf_strncpy_hmac_sha256.patch in repo memory. Next run must push this branch and create PR."}
+    {"branch": "repo-assist/perf-strncpy-hmac-sha256-2026-04-24", "title": "perf+feat: optimise l_strncpy; add l_hmac_sha256", "created": "2026-04-24", "note": "Draft PR created this run. Number TBD - check next run."}
   ],
   "comments_made": {
     "124": "2026-04-19 root cause analysis of workflow failures",
@@ -28,5 +28,5 @@
     "prs": "all_processed"
   },
   "checked_off_items": [],
-  "notes": "PR #141 is duplicate of #140 - awaiting close by maintainer. PRs #148,#150 are duplicates of SHA-256 NIST test vectors. PRs #149,#151 are duplicates of INT_MIN vsnprintf fix. Dependabot PRs #129, #130, #131 still open. PENDING ACTION: Next run must push branch repo-assist/perf-strncpy-hmac-sha256-2026-04-23-62f6f4c and create PR for l_strncpy perf + l_hmac_sha256 - patch is in perf_strncpy_hmac_sha256.patch. This run's safeoutputs MCP was blocked due to 401 from GitHub MCP registry."
+  "notes": "PR #141 is duplicate of #140. PRs #150, #151 are duplicates of #148, #149. Dependabot PRs #129, #130, #131 still open. Issue #147 is CI apt-cache proposal by Repo Assist. All open issues are: #123 (monthly activity), #124/#125 (workflow failures - already commented), #128/#145 (daily status reports - not worth commenting), #147 (Repo Assist CI proposal). Task 2 candidates exhausted this run."
 }
