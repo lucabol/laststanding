@@ -1,12 +1,13 @@
 <#
 .SYNOPSIS
-    Generates the API function reference tables in README.md from /// doc-comments in l_os.h and l_gfx.h.
+    Generates the API function reference, compat matrix, and coverage matrix in docs/*.md
+    from /// doc-comments in l_os.h, l_gfx.h, l_svg.h, and l_ui.h.
 .DESCRIPTION
     Parses header files for lines matching '/// description' followed by a function declaration or
     inline definition. Groups functions by section comments ('// Section name') and outputs markdown
-    tables between marker pairs in README.md.
+    tables between marker pairs in docs/API.md, docs/COMPAT.md, and docs/COVERAGE.md.
 .PARAMETER Check
-    If set, exits with error code 1 when README.md is out of date instead of updating it.
+    If set, exits with error code 1 when the docs are out of date instead of updating them.
 #>
 param(
     [switch]$Check
@@ -14,7 +15,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$readmeFile = Join-Path $root 'README.md'
+$apiFile      = Join-Path $root 'docs/API.md'
+$compatFile   = Join-Path $root 'docs/COMPAT.md'
+$coverageFile = Join-Path $root 'docs/COVERAGE.md'
 
 function Parse-Header {
     param(
@@ -283,7 +286,7 @@ function Build-CompatMatrix {
             }
         }
 
-        $md += ('| ``' + $name + '`` | ' + $linux + ' | ' + $windows + ' | ' + $wasi + ' |')
+        $md += ("| ``$name`` | $linux | $windows | $wasi |")
     }
     $md += ''
     return $md -join "`n"
@@ -329,7 +332,7 @@ function Build-CoverageMatrix {
             $files = $found -join ', '
             $md += "| ``$name`` | $([char]0x2705) | $files |"
         } else {
-            $md += ('| ``' + $name + '`` | ' + [char]0x2014 + ' | |')
+            $md += ("| ``$name`` | $([char]0x2014) | |")
         }
     }
     $md += ''
@@ -355,38 +358,62 @@ if ($svgFunctions.Count -gt 0) {
     $svgMd = Build-MarkdownTable -Functions $svgFunctions -Columns @('Function','Description')
 }
 
-# --- Update README.md ---
+# --- Update docs/ files ---
 
-$readme = [System.IO.File]::ReadAllText($readmeFile, [System.Text.UTF8Encoding]::new($false))
-$readme = Update-ReadmeSection $readme '<!-- BEGIN FUNCTION REFERENCE -->' '<!-- END FUNCTION REFERENCE -->' $osMd
-$readme = Update-ReadmeSection $readme '<!-- BEGIN GFX REFERENCE -->' '<!-- END GFX REFERENCE -->' $gfxMd
-if ($svgFunctions.Count -gt 0) {
-    $readme = Update-ReadmeSection $readme '<!-- BEGIN SVG REFERENCE -->' '<!-- END SVG REFERENCE -->' $svgMd
-}
-$readme = Update-ReadmeSection $readme '<!-- BEGIN UI REFERENCE -->' '<!-- END UI REFERENCE -->' $uiMd
+function Update-File {
+    param(
+        [string]$Path,
+        [hashtable]$Sections  # @{ 'BEGIN X' = 'md block'; ... } keyed by BEGIN marker text
+    )
 
-# Update compat and coverage matrices only if markers exist
-if ($readme -match '<!-- BEGIN COMPAT MATRIX -->') {
-    $readme = Update-ReadmeSection $readme '<!-- BEGIN COMPAT MATRIX -->' '<!-- END COMPAT MATRIX -->' $compatMd
-}
-if ($readme -match '<!-- BEGIN COVERAGE MATRIX -->') {
-    $readme = Update-ReadmeSection $readme '<!-- BEGIN COVERAGE MATRIX -->' '<!-- END COVERAGE MATRIX -->' $coverMd
-}
-
-if ($Check) {
-    $original = [System.IO.File]::ReadAllText($readmeFile, [System.Text.UTF8Encoding]::new($false))
-    if ($readme -ne $original) {
-        Write-Host "README.md function reference is out of date. Run: .\gen-docs.ps1" -ForegroundColor Red
+    if (-not (Test-Path $Path)) {
+        Write-Error "Missing file: $Path"
         exit 1
     }
-    Write-Host "README.md function reference is up to date." -ForegroundColor Green
+
+    $original = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false))
+    $updated  = $original
+
+    foreach ($beginLabel in $Sections.Keys) {
+        $beginMarker = "<!-- BEGIN $beginLabel -->"
+        $endMarker   = "<!-- END $beginLabel -->"
+        $block       = $Sections[$beginLabel]
+        $updated = Update-ReadmeSection $updated $beginMarker $endMarker $block
+    }
+
+    if ($Check) {
+        if ($updated -ne $original) {
+            Write-Host "$Path is out of date. Run: .\gen-docs.ps1" -ForegroundColor Red
+            $script:checkFailed = $true
+        }
+        return
+    }
+
+    if ($updated -ne $original) {
+        [System.IO.File]::WriteAllText($Path, $updated, [System.Text.UTF8Encoding]::new($false))
+    }
+}
+
+$script:checkFailed = $false
+
+$apiSections = @{
+    'FUNCTION REFERENCE' = $osMd
+    'GFX REFERENCE'      = $gfxMd
+    'UI REFERENCE'       = $uiMd
+}
+if ($svgFunctions.Count -gt 0) {
+    $apiSections['SVG REFERENCE'] = $svgMd
+}
+
+Update-File -Path $apiFile      -Sections $apiSections
+Update-File -Path $compatFile   -Sections @{ 'COMPAT MATRIX'   = $compatMd }
+Update-File -Path $coverageFile -Sections @{ 'COVERAGE MATRIX' = $coverMd }
+
+if ($Check) {
+    if ($script:checkFailed) { exit 1 }
+    Write-Host "docs/ are up to date." -ForegroundColor Green
     exit 0
 }
 
-[System.IO.File]::WriteAllText($readmeFile, $readme, [System.Text.UTF8Encoding]::new($false))
-$extra = @()
-if ($readme -match '<!-- BEGIN COMPAT MATRIX -->') { $extra += 'compat matrix' }
-if ($readme -match '<!-- BEGIN COVERAGE MATRIX -->') { $extra += 'coverage matrix' }
-$suffix = if ($extra.Count -gt 0) { " + $($extra -join ', ')" } else { '' }
 $svgNote = if ($svgFunctions.Count -gt 0) { ", $($svgFunctions.Count) functions from l_svg.h" } else { "" }
-Write-Host "Updated README.md with $($osFunctions.Count) functions from l_os.h, $($gfxFunctions.Count) functions from l_gfx.h, and $($uiFunctions.Count) functions from l_ui.h$svgNote$suffix" -ForegroundColor Green
+Write-Host "Updated docs/ with $($osFunctions.Count) functions from l_os.h, $($gfxFunctions.Count) from l_gfx.h, and $($uiFunctions.Count) from l_ui.h$svgNote, plus compat and coverage matrices." -ForegroundColor Green

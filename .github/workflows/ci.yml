@@ -20,16 +20,16 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Regenerate README function reference
+      - name: Regenerate API docs
         run: ./gen-docs.ps1
         shell: pwsh
 
-      - name: Auto-commit updated README
+      - name: Auto-commit updated docs
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
-          commit_message: "docs: auto-regenerate README function reference"
-          file_pattern: README.md
+          commit_message: "docs: auto-regenerate API reference"
+          file_pattern: "docs/*.md"
 
   windows:
     runs-on: windows-latest
