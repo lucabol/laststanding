@@ -360,12 +360,6 @@ int main(int argc, char *argv[]) {
 ```
 </details>
 
-> ⚠️ **Security.** `stb_image` performs only minimal validation on its
-> inputs. Do **not** decode untrusted image files from the network or
-> unsanitized uploads — a malicious image can trigger out-of-bounds reads
-> or excessive allocations. For untrusted input, pre-validate with a
-> hardened decoder or run the process inside a sandbox.
-
 ### SVG rasterization (`l_svg.h`)
 
 <details>
