@@ -92,7 +92,7 @@ without a single line of libc.
 #include "l_os.h"
 
 int main(int argc, char *argv[]) {
-    puts("Hello from laststanding!\n");  // note: l_puts does NOT append newline
+    puts("Hello from laststanding!\n");
     return 0;
 }
 ```
@@ -106,11 +106,6 @@ gcc -I. -Oz -ffreestanding -nostdlib -static \
 clang -I. -Oz -ffreestanding -nostdlib -lkernel32 \
       -Wall -Wextra -Wpedantic -o hello.exe hello.c
 ```
-
-> ⚠️ **`l_puts` does not append a newline.** The standard C `puts` appends
-> `\n`; the `puts` macro here is aliased to `l_puts`, which writes the
-> string verbatim. Always include `\n` explicitly, or define
-> `L_DONTOVERRIDE` and link against a different `puts`.
 
 Define `L_MAINFILE` in **exactly one** translation unit to pull in the
 function bodies and the platform-specific `_start` (Linux) or
