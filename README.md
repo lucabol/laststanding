@@ -223,6 +223,9 @@ See [docs/API.md](docs/API.md) for the full function reference
 
 ### Pixel graphics (`l_gfx.h`)
 
+<details>
+<summary>Open a window, draw shapes and text</summary>
+
 ```c
 #define L_MAINFILE
 #include "l_gfx.h"              // pulls in l_os.h
@@ -243,6 +246,7 @@ int main(void) {
     return 0;
 }
 ```
+</details>
 
 <details>
 <summary>Animation loop — bouncing ball</summary>
@@ -323,6 +327,9 @@ See [`examples/font_demo.c`](examples/font_demo.c) for a full visual tour.
 
 ### Image decoding (`l_img.h`)
 
+<details>
+<summary>Load a PNG/JPEG/BMP from disk and display it</summary>
+
 ```c
 #define L_MAINFILE
 #include "l_gfx.h"
@@ -351,6 +358,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 ```
+</details>
 
 > ⚠️ **Security.** `stb_image` performs only minimal validation on its
 > inputs. Do **not** decode untrusted image files from the network or
@@ -359,6 +367,9 @@ int main(int argc, char *argv[]) {
 > hardened decoder or run the process inside a sandbox.
 
 ### SVG rasterization (`l_svg.h`)
+
+<details>
+<summary>Rasterize an SVG file at a requested size</summary>
 
 ```c
 #define L_MAINFILE
@@ -390,11 +401,15 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 ```
+</details>
 
 Supported subset and sizing rules are documented in
 [docs/API.md](docs/API.md#function-reference--l_svgh).
 
 ### TrueType text (`l_tt.h`)
+
+<details>
+<summary>Render anti-aliased text from a `.ttf`/`.otf` file</summary>
 
 ```c
 #define L_MAINFILE
@@ -423,6 +438,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 ```
+</details>
 
 **Notes.**
 
@@ -437,6 +453,9 @@ int main(int argc, char *argv[]) {
   sizes.
 
 ### HTTPS client (`l_tls.h`)
+
+<details>
+<summary>Fetch a page over TLS 1.2+</summary>
 
 ```c
 #define L_MAINFILE
@@ -464,6 +483,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 ```
+</details>
 
 On Linux, run `git submodule update --init` once after cloning to fetch
 BearSSL. On Windows, `build_parallel.ps1` links `secur32`/`crypt32`/
@@ -472,6 +492,9 @@ mode** — for production use, load CAs from
 `/etc/ssl/certs/ca-certificates.crt`.
 
 ### Immediate-mode UI (`l_ui.h`)
+
+<details>
+<summary>Window with buttons, checkbox, slider, and text input</summary>
 
 ```c
 #define L_MAINFILE
@@ -509,6 +532,7 @@ int main(void) {
     return 0;
 }
 ```
+</details>
 
 For a full widget tour, see
 [`examples/ui_demo.c`](examples/ui_demo.c). For the RGB color-mixer variant,
