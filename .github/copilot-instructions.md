@@ -8,7 +8,7 @@ A freestanding C runtime — minimal reimplementations of libc functions with di
 
 **Always follow this sequence for any code change:**
 1. Run `powershell -NoProfile -ExecutionPolicy Bypass -File ci.ps1` (full cross-platform CI)
-2. If CI passes, update README via `powershell -NoProfile -ExecutionPolicy Bypass -File gen-docs.ps1`
+2. If CI passes, regenerate `docs/` via `powershell -NoProfile -ExecutionPolicy Bypass -File gen-docs.ps1` (updates `docs/API.md`, `docs/COMPAT.md`, `docs/COVERAGE.md`)
 3. Commit and push
 
 Never commit without running CI first. Never skip ARM/AArch64 targets — they catch real bugs.
