@@ -9149,15 +9149,20 @@ static inline long long l_mktime(L_Tm *tm) {
 }
 
 static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm *tm) {
-    static const char *wdays[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    static const char *wdays[]  = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    static const char *wdays_full[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
     static const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+    static const char *months_full[] = {"January","February","March","April","May","June",
+                                        "July","August","September","October","November","December"};
+    /* cumulative day-of-year at start of each month (non-leap) */
+    static const int month_yday[] = {0,31,59,90,120,151,181,212,243,273,304,334};
     size_t pos = 0;
     if (max == 0) return 0;
     for (const char *f = fmt; *f && pos < max - 1; f++) {
         if (*f != '%') { buf[pos++] = *f; continue; }
         f++;
         if (!*f) break;
-        char tmp[8];
+        char tmp[32];
         const char *s = tmp;
         int len = 0;
         switch (*f) {
@@ -9165,13 +9170,50 @@ static inline int l_strftime(char *buf, size_t max, const char *fmt, const L_Tm 
                 tmp[0]=(char)('0'+y/1000); tmp[1]=(char)('0'+(y/100)%10);
                 tmp[2]=(char)('0'+(y/10)%10); tmp[3]=(char)('0'+y%10);
                 len = 4; break; }
+            case 'y': { int y2=tm->year%100; tmp[0]=(char)('0'+y2/10); tmp[1]=(char)('0'+y2%10); len=2; break; }
             case 'm': tmp[0]=(char)('0'+(tm->mon+1)/10); tmp[1]=(char)('0'+(tm->mon+1)%10); len=2; break;
             case 'd': tmp[0]=(char)('0'+tm->mday/10); tmp[1]=(char)('0'+tm->mday%10); len=2; break;
+            case 'e': { int d=tm->mday; tmp[0]=(d<10)?' ':(char)('0'+d/10); tmp[1]=(char)('0'+d%10); len=2; break; }
             case 'H': tmp[0]=(char)('0'+tm->hour/10); tmp[1]=(char)('0'+tm->hour%10); len=2; break;
             case 'M': tmp[0]=(char)('0'+tm->min/10); tmp[1]=(char)('0'+tm->min%10); len=2; break;
             case 'S': tmp[0]=(char)('0'+tm->sec/10); tmp[1]=(char)('0'+tm->sec%10); len=2; break;
+            case 'I': { int h=tm->hour%12; if(h==0) h=12; tmp[0]=(char)('0'+h/10); tmp[1]=(char)('0'+h%10); len=2; break; }
+            case 'p': s=(tm->hour<12)?"AM":"PM"; len=2; break;
             case 'a': s = wdays[tm->wday % 7]; len = 3; break;
+            case 'A': s = wdays_full[tm->wday % 7]; len = (int)l_strlen(s); break;
             case 'b': s = months[tm->mon % 12]; len = 3; break;
+            case 'B': s = months_full[tm->mon % 12]; len = (int)l_strlen(s); break;
+            case 'j': { /* day of year 001-366 */
+                int year=tm->year+1900;
+                int leap=(year%4==0)&&(year%100!=0||year%400==0);
+                int yday=month_yday[tm->mon%12]+tm->mday+(tm->mon>1&&leap?1:0);
+                tmp[0]=(char)('0'+yday/100); tmp[1]=(char)('0'+(yday/10)%10); tmp[2]=(char)('0'+yday%10); len=3; break; }
+            case 'u': { int d=(tm->wday%7==0)?7:(tm->wday%7); tmp[0]=(char)('0'+d); len=1; break; }
+            case 'w': tmp[0]=(char)('0'+tm->wday%7); len=1; break;
+            case 'F': { /* %Y-%m-%d */
+                int y=tm->year+1900, mo=tm->mon+1, d=tm->mday;
+                tmp[0]=(char)('0'+y/1000); tmp[1]=(char)('0'+(y/100)%10);
+                tmp[2]=(char)('0'+(y/10)%10); tmp[3]=(char)('0'+y%10);
+                tmp[4]='-'; tmp[5]=(char)('0'+mo/10); tmp[6]=(char)('0'+mo%10);
+                tmp[7]='-'; tmp[8]=(char)('0'+d/10); tmp[9]=(char)('0'+d%10);
+                len=10; break; }
+            case 'T': { /* %H:%M:%S */
+                tmp[0]=(char)('0'+tm->hour/10); tmp[1]=(char)('0'+tm->hour%10);
+                tmp[2]=':'; tmp[3]=(char)('0'+tm->min/10); tmp[4]=(char)('0'+tm->min%10);
+                tmp[5]=':'; tmp[6]=(char)('0'+tm->sec/10); tmp[7]=(char)('0'+tm->sec%10);
+                len=8; break; }
+            case 'R': { /* %H:%M */
+                tmp[0]=(char)('0'+tm->hour/10); tmp[1]=(char)('0'+tm->hour%10);
+                tmp[2]=':'; tmp[3]=(char)('0'+tm->min/10); tmp[4]=(char)('0'+tm->min%10);
+                len=5; break; }
+            case 'D': { /* %m/%d/%y */
+                int mo=tm->mon+1, d=tm->mday, y2=tm->year%100;
+                tmp[0]=(char)('0'+mo/10); tmp[1]=(char)('0'+mo%10);
+                tmp[2]='/'; tmp[3]=(char)('0'+d/10); tmp[4]=(char)('0'+d%10);
+                tmp[5]='/'; tmp[6]=(char)('0'+y2/10); tmp[7]=(char)('0'+y2%10);
+                len=8; break; }
+            case 'n': tmp[0]='\n'; len=1; break;
+            case 't': tmp[0]='\t'; len=1; break;
             case '%': tmp[0] = '%'; len = 1; break;
             default: tmp[0] = '%'; tmp[1] = *f; len = 2; break;
         }
