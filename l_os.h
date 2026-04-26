@@ -1003,6 +1003,13 @@ static inline ptrdiff_t l_base64_encode(const void *data, size_t len, char *out,
 /// or insufficient `outsz`. Ignores whitespace; accepts both standard (+/) and URL-safe (-_) alphabets.
 static inline ptrdiff_t l_base64_decode(const char *in, size_t inlen, void *out, size_t outsz);
 
+/// Incremental CRC-32/ISO-HDLC (IEEE 802.3 / gzip) checksum.
+/// Pass crc=0 for the first chunk; feed subsequent chunks with the returned value.
+/// Final returned value is the complete CRC-32 checksum.
+static inline unsigned int l_crc32_update(unsigned int crc, const void *data, size_t len);
+/// One-shot CRC-32/ISO-HDLC (IEEE 802.3 / gzip) checksum over `len` bytes of `data`.
+static inline unsigned int l_crc32(const void *data, size_t len);
+
 /// Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error.
 static inline char *l_getcwd(char *buf, size_t size);
 /// Changes the current working directory
@@ -9508,6 +9515,31 @@ static inline ptrdiff_t l_base64_decode(const char *in, size_t inlen, void *out,
         }
     }
     return (ptrdiff_t)written;
+}
+
+// --- l_crc32: CRC-32/ISO-HDLC (IEEE 802.3 / gzip / zip) ---
+// Bit-by-bit implementation; no table needed. Polynomial 0xEDB88320 (reflected).
+static inline unsigned int l_crc32_update(unsigned int crc, const void *data, size_t len)
+{
+    const unsigned char *p = (const unsigned char *)data;
+    crc = ~crc;
+    while (len--) {
+        crc ^= (unsigned int)*p++;
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+        crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+    }
+    return ~crc;
+}
+
+static inline unsigned int l_crc32(const void *data, size_t len)
+{
+    return l_crc32_update(0u, data, len);
 }
 
 static inline int l_path_exists(const char *path) {
