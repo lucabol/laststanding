@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-04-26T01:29:16Z",
-  "last_run_id": "24945247194",
+  "last_run": "2026-04-26T13:25:33Z",
+  "last_run_id": "24957710644",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
     {"number": 122, "title": "perf: word-at-a-time backward copy in l_memmove", "created": "2026-04-09"},
@@ -18,18 +18,20 @@
     {"number": 150, "title": "DUPLICATE of #148 - awaiting close", "created": "2026-04-23"},
     {"number": 151, "title": "DUPLICATE of #149 - awaiting close", "created": "2026-04-23"},
     {"number": 154, "title": "feat: add l_hmac_sha256 — HMAC-SHA-256 message authentication", "created": "2026-04-24"},
-    {"branch": "repo-assist/fix-strtod-exp-overflow-2026-04-26", "title": "fix: prevent int overflow (UB) in l_strtod/l_strtof exponent parsing", "created": "2026-04-26", "note": "PR submitted this run. Number TBD."},
-    {"branch": "repo-assist/feat-crc32-2026-04-26", "title": "feat: add l_crc32 and l_crc32_update — CRC-32/ISO-HDLC checksum", "created": "2026-04-26", "note": "PR submitted this run. Number TBD."}
+    {"number": 155, "title": "fix: prevent int overflow (UB) in l_strtod/l_strtof exponent parsing", "created": "2026-04-26"},
+    {"number": 156, "title": "feat: add l_crc32 and l_crc32_update — CRC-32/ISO-HDLC checksum", "created": "2026-04-26"},
+    {"branch": "repo-assist/improve-strftime-2026-04-26", "title": "improve: extend l_strftime with 15 new POSIX format specifiers", "created": "2026-04-26", "note": "PR submitted this run. Number TBD."},
+    {"branch": "repo-assist/eng-bundle-deps-ci-2026-04-26", "title": "ci: bump upload-artifact v4->v7 and download-artifact v4->v8 (bundles #129, #130)", "created": "2026-04-26", "note": "PR submitted this run. Number TBD."}
   ],
   "comments_made": {
     "124": "2026-04-19 root cause analysis of workflow failures",
     "125": "2026-04-22 cross-reference to #124 analysis",
-    "153": "2026-04-25 noted accidental issue creation, linked new bundle PR"
+    "153": "2026-04-25 noted accidental issue creation"
   },
   "backlog_cursor": {
     "issues": "all_processed",
     "prs": "all_processed"
   },
   "checked_off_items": [],
-  "notes": "Duplicate PRs: #141 dup of #140, #150 dup of #148, #151 dup of #149. Task 3 this run: fixed int overflow UB in l_strtod/l_strtof exponent parsing. Task 10 this run: added l_crc32 and l_crc32_update (CRC-32/ISO-HDLC). Next run Task 10: consider l_crc32c (Castagnoli/SSE4.2 variant) or l_adler32. safeoutputs tools not available as function calls - use curl to MCP server at host.docker.internal:80/mcp/safeoutputs with auth from /home/runner/.copilot/mcp-config.json."
+  "notes": "Duplicate PRs: #141 dup of #140, #150 dup of #148, #151 dup of #149. Dependabot #129/#130 bundled by new PR this run. Task 5 this run: extended l_strftime with 15 POSIX specifiers (%y,%e,%A,%B,%I,%p,%j,%u,%w,%F,%T,%R,%D,%n,%t). Task 4 this run: bundled Dependabot #129+#130 in ci.yml. Next run: consider l_vsnprintf %e/%f/%g floating-point, or l_mkdirs recursive mkdir. 17+ open Repo Assist PRs - maintainer has not been merging; avoid creating more until backlog is cleared."
 }
