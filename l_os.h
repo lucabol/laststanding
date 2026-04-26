@@ -2518,8 +2518,11 @@ static inline double l_strtod(const char *nptr, char **endptr)
         if (*es >= '0' && *es <= '9') {
             s = es;
             int exp = 0;
-            while (*s >= '0' && *s <= '9')
-                exp = exp * 10 + (*s++ - '0');
+            while (*s >= '0' && *s <= '9') {
+                /* Cap before multiplying to prevent signed-integer overflow (UB). */
+                if (exp < 10000) exp = exp * 10 + (*s - '0');
+                s++;
+            }
             if (exp > 308) exp = 308; /* avoid infinite-loop for huge exponents */
             double epow = 1.0;
             for (int i = 0; i < exp; i++) epow *= 10.0;
@@ -2596,8 +2599,11 @@ static inline float l_strtof(const char *nptr, char **endptr)
         if (*es >= '0' && *es <= '9') {
             s = es;
             int exp = 0;
-            while (*s >= '0' && *s <= '9')
-                exp = exp * 10 + (*s++ - '0');
+            while (*s >= '0' && *s <= '9') {
+                /* Cap before multiplying to prevent signed-integer overflow (UB). */
+                if (exp < 10000) exp = exp * 10 + (*s - '0');
+                s++;
+            }
             if (exp > 38) exp = 38; /* clamp to float range */
             float epow = 1.0f;
             for (int i = 0; i < exp; i++) epow *= 10.0f;
