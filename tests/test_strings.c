@@ -1352,6 +1352,14 @@ void test_snprintf(void) {
     l_snprintf(buf, sizeof(buf), "%*d", -6, 42);
     TEST_ASSERT(l_strcmp(buf, "42    ") == 0, "%*d negative width = left-align");
 
+    /* INT_MIN as dynamic width must not overflow — treated as left-align with large pad */
+    {
+        int r = l_snprintf(buf, sizeof(buf), "%*d", INT_MIN, 42);
+        /* content "42" comes first (left-aligned), followed by padding spaces */
+        TEST_ASSERT(buf[0] == '4' && buf[1] == '2', "%*d INT_MIN width: digits correct");
+        TEST_ASSERT(r > 0, "%*d INT_MIN width: return value positive (no overflow)");
+    }
+
     /* dynamic precision: %.*s */
     l_snprintf(buf, sizeof(buf), "%.*s", 3, "hello");
     TEST_ASSERT(l_strcmp(buf, "hel") == 0, "%.*s precision from va_arg");
