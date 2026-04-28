@@ -7,6 +7,7 @@
     "tests/test_fs.c",
     "tests/test_utils.c",
     "tests/test_net.c",
+    "tests/test_img.c",
     "tests/gfx_test.c",
     "tests/ui_test.c",
     "tests/smoke/showcase_smoke.ps1",

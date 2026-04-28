@@ -325,6 +325,8 @@ typedef struct {
 #define L_EISDIR     21
 /// Directory not empty
 #define L_ENOTEMPTY  39
+/// Result out of range (e.g. strtod overflow/underflow)
+#define L_ERANGE     34
 
 // Signal numbers (POSIX values; Windows does not support these)
 #ifndef _WIN32
@@ -1609,6 +1611,8 @@ int WINAPI mainCRTStartup(void)
 #  define EISDIR   L_EISDIR
 #  undef ENOTEMPTY
 #  define ENOTEMPTY L_ENOTEMPTY
+#  undef ERANGE
+#  define ERANGE   L_ERANGE
 
 #endif // L_DONT_OVERRIDE
 
@@ -2520,11 +2524,17 @@ static inline double l_strtod(const char *nptr, char **endptr)
             int exp = 0;
             while (*s >= '0' && *s <= '9')
                 exp = exp * 10 + (*s++ - '0');
-            if (exp > 308) exp = 308; /* avoid infinite-loop for huge exponents */
+            /* Cap the loop so we don't iterate billions of times; IEEE 754
+             * overflow naturally produces +inf (overflow) or 0.0 (underflow) */
+            int ecap = (exp > 400) ? 400 : exp;
             double epow = 1.0;
-            for (int i = 0; i < exp; i++) epow *= 10.0;
+            for (int i = 0; i < ecap; i++) epow *= 10.0;
+            double val_before = val;
             if (eneg) val /= epow;
             else      val *= epow;
+            /* Set ERANGE on IEEE 754 overflow or underflow */
+            if (__builtin_isinf(val) || (val == 0.0 && val_before != 0.0))
+                l_set_errno(L_ERANGE);
         }
     }
 
@@ -2598,11 +2608,16 @@ static inline float l_strtof(const char *nptr, char **endptr)
             int exp = 0;
             while (*s >= '0' && *s <= '9')
                 exp = exp * 10 + (*s++ - '0');
-            if (exp > 38) exp = 38; /* clamp to float range */
+            /* Cap to avoid huge loops; overflow/underflow handled by ERANGE check */
+            int ecap = (exp > 100) ? 100 : exp;
             float epow = 1.0f;
-            for (int i = 0; i < exp; i++) epow *= 10.0f;
+            for (int i = 0; i < ecap; i++) epow *= 10.0f;
+            float val_before = val;
             if (eneg) val /= epow;
             else      val *= epow;
+            /* Set ERANGE on IEEE 754 overflow or underflow */
+            if (__builtin_isinf(val) || (val == 0.0f && val_before != 0.0f))
+                l_set_errno(L_ERANGE);
         }
     }
 
