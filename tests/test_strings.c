@@ -559,6 +559,8 @@ void test_strtoul_strtol(void) {
 
     /* strtoul: overflow -> ULONG_MAX */
     TEST_ASSERT(l_strtoul("99999999999999999999999", NULL, 10) == ULONG_MAX, "strtoul overflow -> ULONG_MAX");
+    /* C99 §7.20.1.4: negative overflow also returns ULONG_MAX */
+    TEST_ASSERT(l_strtoul("-99999999999999999999999", NULL, 10) == ULONG_MAX, "strtoul neg overflow -> ULONG_MAX");
 
     /* strtoul: negative sign — C99 §7.20.1.4: result is negated in the return type */
     TEST_ASSERT(l_strtoul("-1",  NULL, 10) == ULONG_MAX, "strtoul '-1' -> ULONG_MAX");
@@ -617,6 +619,9 @@ void test_strtoull_strtoll(void) {
     /* strtoull: overflow -> ULLONG_MAX */
     TEST_ASSERT(l_strtoull("99999999999999999999999999", NULL, 10) == 18446744073709551615ULL,
                 "strtoull overflow -> ULLONG_MAX");
+    /* C99 §7.20.1.4: negative overflow also returns ULLONG_MAX */
+    TEST_ASSERT(l_strtoull("-99999999999999999999999999", NULL, 10) == 18446744073709551615ULL,
+                "strtoull neg overflow -> ULLONG_MAX");
 
     /* strtoull: negative sign — C99 §7.20.1.4 */
     TEST_ASSERT(l_strtoull("-1", NULL, 10) == 18446744073709551615ULL, "strtoull '-1' -> ULLONG_MAX");

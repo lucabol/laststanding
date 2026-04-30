@@ -2323,7 +2323,9 @@ static inline unsigned long l_strtoul(const char *nptr, char **endptr, int base)
 
     if (endptr)
         *endptr = (char *)(any ? s : nptr);
-    return neg ? (unsigned long)(-(long)acc) : acc;
+    /* C99 §7.20.1.4: on overflow always return ULONG_MAX regardless of sign. */
+    if (overflow) return ULONG_MAX;
+    return neg ? (unsigned long)(0UL - acc) : acc;
 }
 
 static inline long l_strtol(const char *nptr, char **endptr, int base)
@@ -2420,7 +2422,9 @@ static inline unsigned long long l_strtoull(const char *nptr, char **endptr, int
 
     if (endptr)
         *endptr = (char *)(any ? s : nptr);
-    return neg ? (unsigned long long)(-(long long)acc) : acc;
+    /* C99 §7.20.1.4: on overflow always return ULLONG_MAX regardless of sign. */
+    if (overflow) return ULLONG_MAX;
+    return neg ? (unsigned long long)(0ULL - acc) : acc;
 }
 
 static inline long long l_strtoll(const char *nptr, char **endptr, int base)
