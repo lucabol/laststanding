@@ -1,113 +1,30 @@
 {
-  "last_run": "2026-04-29T13:29:06Z",
-  "last_run_id": "25111655441",
+  "last_run": "2026-04-30T01:29:39Z",
+  "last_run_id": "25142625962",
   "monthly_activity_issue": "#123 (open, 2026-04)",
   "open_prs": [
-    {
-      "number": 122,
-      "title": "perf: word-at-a-time backward copy in l_memmove",
-      "status": "clean"
-    },
-    {
-      "number": 126,
-      "title": "fix: add L_ERANGE and set errno on strtod/strtof overflow/un",
-      "status": "clean"
-    },
-    {
-      "number": 127,
-      "title": "perf: word-at-a-time copy in l_strcat and l_strncat",
-      "status": "clean"
-    },
-    {
-      "number": 129,
-      "title": "chore(deps): bump actions/upload-artifact from 4 to 7",
-      "status": "dependabot"
-    },
-    {
-      "number": 130,
-      "title": "chore(deps): bump actions/download-artifact from 4 to 8",
-      "status": "dependabot"
-    },
-    {
-      "number": 131,
-      "title": "chore(deps): bump actions/github-script from 8 to 9",
-      "status": "dependabot"
-    },
-    {
-      "number": 137,
-      "title": "perf: bulk memcpy/memset for %s padding in l_vsnprintf",
-      "status": "clean"
-    },
-    {
-      "number": 138,
-      "title": "feat: add %o octal format and # flag to l_vsnprintf",
-      "status": "clean"
-    },
-    {
-      "number": 139,
-      "title": "test: add l_getrandom coverage in test_utils.c",
-      "status": "clean"
-    },
-    {
-      "number": 140,
-      "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double",
-      "status": "clean"
-    },
-    {
-      "number": 141,
-      "title": "DUPLICATE of #140",
-      "status": "needs-close"
-    },
-    {
-      "number": 143,
-      "title": "fix: apply flag_plus and flag_space to floating-point",
-      "status": "clean"
-    },
-    {
-      "number": 146,
-      "title": "improve: add l_buf_push_char and fix l_str_replace size",
-      "status": "clean"
-    },
-    {
-      "number": 148,
-      "title": "test: add NIST FIPS 180-4 SHA-256 test vectors",
-      "status": "clean"
-    },
-    {
-      "number": 149,
-      "title": "fix: clamp INT_MIN dynamic width in l_vsnprintf",
-      "status": "clean"
-    },
-    {
-      "number": 150,
-      "title": "DUPLICATE of #148",
-      "status": "needs-close"
-    },
-    {
-      "number": 151,
-      "title": "DUPLICATE of #149",
-      "status": "needs-close"
-    },
-    {
-      "number": 154,
-      "title": "feat: add l_hmac_sha256 - HMAC-SHA-256 message authentication",
-      "status": "clean"
-    },
-    {
-      "number": 155,
-      "title": "fix: prevent int overflow (UB) in l_strtod/l_strtof exponent",
-      "status": "clean"
-    },
-    {
-      "number": 156,
-      "title": "feat: add l_crc32 and l_crc32_update - CRC-32/ISO-HDLC checksum",
-      "status": "clean"
-    },
-    {
-      "number": 158,
-      "title": "improve: extend l_strftime with 15 new POSIX format specifiers",
-      "status": "clean"
-    }
+    {"number": 122, "title": "perf: word-at-a-time backward copy in l_memmove", "status": "clean"},
+    {"number": 126, "title": "fix: add L_ERANGE and set errno on strtod/strtof overflow/un", "status": "clean"},
+    {"number": 127, "title": "perf: word-at-a-time copy in l_strcat and l_strncat", "status": "clean"},
+    {"number": 129, "title": "chore(deps): bump actions/upload-artifact from 4 to 7", "status": "dependabot"},
+    {"number": 130, "title": "chore(deps): bump actions/download-artifact from 4 to 8", "status": "dependabot"},
+    {"number": 131, "title": "chore(deps): bump actions/github-script from 8 to 9", "status": "dependabot"},
+    {"number": 137, "title": "perf: bulk memcpy/memset for %s padding in l_vsnprintf", "status": "clean"},
+    {"number": 138, "title": "feat: add %o octal format and # flag to l_vsnprintf", "status": "clean"},
+    {"number": 139, "title": "test: add l_getrandom coverage in test_utils.c", "status": "clean"},
+    {"number": 140, "title": "feat: add l_str_printf, l_str_to_int, l_str_to_double", "status": "clean"},
+    {"number": 141, "title": "DUPLICATE of #140", "status": "needs-close"},
+    {"number": 143, "title": "fix: apply flag_plus and flag_space to floating-point", "status": "clean"},
+    {"number": 146, "title": "improve: add l_buf_push_char and fix l_str_replace size", "status": "clean"},
+    {"number": 148, "title": "test: add NIST FIPS 180-4 SHA-256 test vectors", "status": "clean"},
+    {"number": 149, "title": "fix: clamp INT_MIN dynamic width in l_vsnprintf", "status": "clean"},
+    {"number": 150, "title": "DUPLICATE of #148", "status": "needs-close"},
+    {"number": 151, "title": "DUPLICATE of #149", "status": "needs-close"},
+    {"number": 154, "title": "feat: add l_hmac_sha256 - HMAC-SHA-256 message authentication", "status": "clean"},
+    {"number": 155, "title": "fix: prevent int overflow (UB) in l_strtod/l_strtof exponent", "status": "clean"},
+    {"number": 156, "title": "feat: add l_crc32 and l_crc32_update - CRC-32/ISO-HDLC checksum", "status": "clean"},
+    {"number": 158, "title": "improve: extend l_strftime with 15 new POSIX format specifiers", "status": "clean"},
+    {"number": 159, "title": "eng: add -Wall -Wextra -Wpedantic -fno-builtin to Windows build", "status": "pending-push", "branch": "repo-assist/eng-windows-strict-warnings-2026-04-30", "patch_file": "eng_windows_strict_warnings.patch"}
   ],
   "comments_made": {
     "124": "2026-04-19",
@@ -119,5 +36,5 @@
     "prs": "all_processed"
   },
   "checked_off_items": [],
-  "notes": "2026-04-29T13: safeoutputs tools unavailable (Copilot CLI v0.64.2 + AWF v0.25.1 - MCP tools not injected). Pending: (1) close duplicate PRs #141 #150 #151, (2) create eng PR for build_parallel.ps1 missing -Wall -Wextra -Wpedantic -fno-builtin on Windows, (3) consider bundling Dependabot PRs #129 #130 #131, (4) update monthly activity issue #123. Key: push_to_pull_request_branch needs incremental commits, not rebased."
+  "notes": "2026-04-30T01: safeoutputs MCP tools STILL unavailable (cannot push branches or create PRs/comments). Branch 'repo-assist/eng-windows-strict-warnings-2026-04-30' prepared locally with build_parallel.ps1 fix (add -Wall -Wextra -Wpedantic -fno-builtin), patch saved to memory. PENDING ACTIONS (next run): (1) push windows-strict-warnings branch + create PR, (2) close duplicate PRs #141 #150 #151 (comment asking maintainer), (3) consider bundling Dependabot PRs #129 #130 #131, (4) update monthly activity issue #123. Note: since safeoutputs tools have been unavailable for 2 consecutive runs, this should be investigated by workflow maintainers."
 }
