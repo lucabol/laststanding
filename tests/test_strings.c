@@ -1927,6 +1927,73 @@ void test_linebuf(void) {
     TEST_SECTION_PASS("l_linebuf_read");
 }
 
+void test_stpcpy_stpncpy_memccpy(void) {
+    TEST_FUNCTION("l_stpcpy / l_stpncpy / l_memccpy");
+
+    /* l_stpcpy: returns pointer to terminating '\0' */
+    {
+        char buf[32];
+        char *end = l_stpcpy(buf, "hello");
+        TEST_ASSERT(l_strcmp(buf, "hello") == 0, "stpcpy copies correctly");
+        TEST_ASSERT(end == buf + 5, "stpcpy returns pointer to terminating nul");
+        TEST_ASSERT(*end == '\0', "stpcpy nul at returned pointer");
+
+        /* Empty string */
+        char buf2[8];
+        char *end2 = l_stpcpy(buf2, "");
+        TEST_ASSERT(end2 == buf2, "stpcpy empty string returns pointer to dst[0]");
+        TEST_ASSERT(*end2 == '\0', "stpcpy empty: nul at returned pointer");
+
+        /* Chaining two copies */
+        char chain[32];
+        char *p = l_stpcpy(chain, "foo");
+        p = l_stpcpy(p, "bar");
+        TEST_ASSERT(l_strcmp(chain, "foobar") == 0, "stpcpy chaining builds concatenated string");
+    }
+
+    /* l_stpncpy: pads with '\0' up to n; returns dst+n */
+    {
+        char buf[16];
+        l_memset(buf, 0xFF, sizeof(buf));
+        char *end = l_stpncpy(buf, "hi", 8);
+        TEST_ASSERT(l_strcmp(buf, "hi") == 0, "stpncpy copies src");
+        TEST_ASSERT(end == buf + 8, "stpncpy returns dst+n");
+        /* Bytes after src length up to n must be zero */
+        int zeros_ok = 1;
+        for (int i = 2; i < 8; i++) if (buf[i] != '\0') zeros_ok = 0;
+        TEST_ASSERT(zeros_ok, "stpncpy zero-pads remaining bytes");
+
+        /* Truncation: n < strlen(src) */
+        char buf2[8];
+        l_memset(buf2, 0xFF, sizeof(buf2));
+        l_stpncpy(buf2, "hello", 3);
+        TEST_ASSERT(buf2[0]=='h' && buf2[1]=='e' && buf2[2]=='l', "stpncpy truncates at n");
+    }
+
+    /* l_memccpy: copy up to n bytes, stop after c */
+    {
+        char dst[16];
+        l_memset(dst, 0, sizeof(dst));
+        /* Copy "hello\0..." stopping after 'l' (first occurrence) */
+        void *ret = l_memccpy(dst, "hello", 'l', 10);
+        TEST_ASSERT(dst[0]=='h' && dst[1]=='e' && dst[2]=='l', "memccpy copies up to and including c");
+        TEST_ASSERT(ret == (void *)(dst + 3), "memccpy returns pointer past c in dst");
+
+        /* c not found: copies n bytes, returns NULL */
+        char dst2[8];
+        void *ret2 = l_memccpy(dst2, "hello", 'z', 5);
+        TEST_ASSERT(ret2 == (void *)0, "memccpy returns NULL when c not found");
+        TEST_ASSERT(l_memcmp(dst2, "hello", 5) == 0, "memccpy copies all n bytes when c absent");
+
+        /* n == 0: returns NULL immediately */
+        char dst3[4];
+        void *ret3 = l_memccpy(dst3, "abc", 'a', 0);
+        TEST_ASSERT(ret3 == (void *)0, "memccpy n=0 returns NULL");
+    }
+
+    TEST_SECTION_PASS("l_stpcpy / l_stpncpy / l_memccpy");
+}
+
 void test_printf_family(void) {
     TEST_FUNCTION("l_printf / l_fprintf / l_vprintf / l_vfprintf");
     /* Test via l_snprintf and l_vsnprintf since printf is a thin wrapper */
@@ -2002,6 +2069,7 @@ int main(int argc, char *argv[]) {
     test_printf_family();
     test_strstr_aligned();
     test_linebuf();
+    test_stpcpy_stpncpy_memccpy();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");
