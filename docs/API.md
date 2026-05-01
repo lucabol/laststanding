@@ -29,6 +29,9 @@ has no `-` column equivalent — consult [COMPAT.md](COMPAT.md) for WASI stubs).
 | `l_strncpy` | Copies up to n characters from src to dst, padding with nulls | All |
 | `l_strcat` | Appends src string to dst, returns dst | All |
 | `l_strncat` | Appends at most n characters of src to dst, always null-terminates, returns dst | All |
+| `l_stpcpy` | Copies src to dst; returns pointer to the terminating '\0' in dst | All |
+| `l_stpncpy` | Copies up to n chars from src to dst, pads with '\0'; returns dst+n | All |
+| `l_memccpy` | Copies at most n bytes from src to dst, stopping after c; returns pointer past c in dst, or NULL | All |
 | `l_strchr` | Returns pointer to first occurrence of c in s, or NULL | All |
 | `l_strrchr` | Returns pointer to last occurrence of c in s, or NULL | All |
 | `l_strstr` | Returns pointer to first occurrence of s2 in s1, or NULL | All |

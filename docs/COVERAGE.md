@@ -14,6 +14,9 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_strncpy` | ✅ | test_strings.c |
 | `l_strcat` | ✅ | test_strings.c, test.c |
 | `l_strncat` | ✅ | test_strings.c |
+| `l_stpcpy` | ✅ | test_strings.c |
+| `l_stpncpy` | ✅ | test_strings.c |
+| `l_memccpy` | ✅ | test_strings.c |
 | `l_strchr` | ✅ | test_fs.c, test_strings.c |
 | `l_strrchr` | ✅ | test_strings.c |
 | `l_strstr` | ✅ | test_fs.c, test_strings.c, test.c |
@@ -287,6 +290,6 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_socket_recvfrom_addr` | — | |
 | `l_socket_unix_connect` | — | |
 
-**Coverage: 244 / 249 functions referenced in tests** (98%)
+**Coverage: 247 / 252 functions referenced in tests** (98%)
 
 <!-- END COVERAGE MATRIX -->

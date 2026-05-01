@@ -21,6 +21,9 @@ Legend:
 | `l_strncpy` | ✅ | ✅ | ✅ |
 | `l_strcat` | ✅ | ✅ | ✅ |
 | `l_strncat` | ✅ | ✅ | ✅ |
+| `l_stpcpy` | ✅ | ✅ | ✅ |
+| `l_stpncpy` | ✅ | ✅ | ✅ |
+| `l_memccpy` | ✅ | ✅ | ✅ |
 | `l_strchr` | ✅ | ✅ | ✅ |
 | `l_strrchr` | ✅ | ✅ | ✅ |
 | `l_strstr` | ✅ | ✅ | ✅ |
