@@ -61,6 +61,11 @@ has no `-` column equivalent — consult [COMPAT.md](COMPAT.md) for WASI stubs).
 | `l_tolower` | Converts c to lowercase; returns c unchanged if not an uppercase letter | All |
 | `l_isprint` | Returns non-zero if c is a printable ASCII character (0x20-0x7e) | All |
 | `l_isxdigit` | Returns non-zero if c is a hexadecimal digit (0-9, a-f, A-F) | All |
+| `l_isblank` | Returns non-zero if c is a blank character (space or tab) | All |
+| `l_iscntrl` | Returns non-zero if c is a control character (0x00-0x1F or 0x7F) | All |
+| `l_isgraph` | Returns non-zero if c is a printable non-space character (0x21-0x7E) | All |
+| `l_ispunct` | Returns non-zero if c is a printable non-space non-alphanumeric character | All |
+| `l_isascii` | Returns non-zero if c is a 7-bit ASCII character (0x00-0x7F) | All |
 | `l_abs` | Returns the absolute value of an integer | All |
 | `l_labs` | Returns the absolute value of a long | All |
 | `l_llabs` | Returns the absolute value of a long long | All |
