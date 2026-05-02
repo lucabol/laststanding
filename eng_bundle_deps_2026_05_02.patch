@@ -1,0 +1,141 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index cbba177..8e3a622 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -42,7 +42,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-windows
+           path: bin/ci_sizes.json
+@@ -59,7 +59,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-linux
+           path: bin/ci_sizes.json
+@@ -79,7 +79,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-arm
+           path: bin/ci_sizes.json
+@@ -99,7 +99,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-riscv
+           path: bin/ci_sizes.json
+@@ -122,7 +122,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-wasi
+           path: bin/ci_sizes.json
+@@ -134,7 +134,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Download all size artifacts
+-        uses: actions/download-artifact@v4
++        uses: actions/download-artifact@v8
+         with:
+           pattern: sizes-*
+           merge-multiple: false
+diff --git a/.github/workflows/squad-heartbeat.yml b/.github/workflows/squad-heartbeat.yml
+index e9fbc7c..00b32a1 100644
+--- a/.github/workflows/squad-heartbeat.yml
++++ b/.github/workflows/squad-heartbeat.yml
+@@ -52,7 +52,7 @@ jobs:
+ 
+       - name: Ralph — Apply triage decisions
+         if: steps.check-script.outputs.has_script == 'true' && hashFiles('triage-results.json') != ''
+-        uses: actions/github-script@v8
++        uses: actions/github-script@v9
+         with:
+           script: |
+             const fs = require('fs');
+@@ -104,7 +104,7 @@ jobs:
+       # Copilot auto-assign step (uses PAT if available)
+       - name: Ralph — Assign @copilot issues
+         if: success()
+-        uses: actions/github-script@v8
++        uses: actions/github-script@v9
+         with:
+           github-token: ${{ secrets.COPILOT_ASSIGN_TOKEN || secrets.GITHUB_TOKEN }}
+           script: |
+diff --git a/.github/workflows/squad-issue-assign.yml b/.github/workflows/squad-issue-assign.yml
+index 18bc56b..a31a59c 100644
+--- a/.github/workflows/squad-issue-assign.yml
++++ b/.github/workflows/squad-issue-assign.yml
+@@ -17,7 +17,7 @@ jobs:
+       - uses: actions/checkout@v6
+ 
+       - name: Identify assigned member and trigger work
+-        uses: actions/github-script@v8
++        uses: actions/github-script@v9
+         with:
+           script: |
+             const fs = require('fs');
+@@ -116,7 +116,7 @@ jobs:
+       # Separate step: assign @copilot using PAT (required for coding agent)
+       - name: Assign @copilot coding agent
+         if: github.event.label.name == 'squad:copilot'
+-        uses: actions/github-script@v8
++        uses: actions/github-script@v9
+         with:
+           github-token: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+           script: |
+diff --git a/.github/workflows/squad-label-enforce.yml b/.github/workflows/squad-label-enforce.yml
+index bb123fa..33d57e7 100644
+--- a/.github/workflows/squad-label-enforce.yml
++++ b/.github/workflows/squad-label-enforce.yml
+@@ -15,7 +15,7 @@ jobs:
+       - uses: actions/checkout@v6
+ 
+       - name: Enforce mutual exclusivity
+-        uses: actions/github-script@v8
++        uses: actions/github-script@v9
+         with:
+           script: |
+             const issue = context.payload.issue;
+diff --git a/.github/workflows/squad-triage.yml b/.github/workflows/squad-triage.yml
+index 2bbf638..c7c9424 100644
+--- a/.github/workflows/squad-triage.yml
++++ b/.github/workflows/squad-triage.yml
+@@ -16,7 +16,7 @@ jobs:
+       - uses: actions/checkout@v6
+ 
+       - name: Triage issue via Lead agent
+-        uses: actions/github-script@v8
++        uses: actions/github-script@v9
+         with:
+           script: |
+             const fs = require('fs');
+diff --git a/.github/workflows/sync-squad-labels.yml b/.github/workflows/sync-squad-labels.yml
+index abba77f..59943e4 100644
+--- a/.github/workflows/sync-squad-labels.yml
++++ b/.github/workflows/sync-squad-labels.yml
+@@ -18,7 +18,7 @@ jobs:
+       - uses: actions/checkout@v6
+ 
+       - name: Parse roster and sync labels
+-        uses: actions/github-script@v8
++        uses: actions/github-script@v9
+         with:
+           script: |
+             const fs = require('fs');
