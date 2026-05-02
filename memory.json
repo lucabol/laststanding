@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-05-01T13:30:00Z",
-  "run_id": "25215930395",
+  "last_run": "2026-05-02T01:29:00Z",
+  "run_id": "25240343450",
   "monthly_summary_issue": null,
   "monthly_summary_april_issue": 123,
   "comments_made": [124, 125, 153],
@@ -8,5 +8,19 @@
   "duplicate_prs_to_close": [141, 150, 151],
   "dependabot_prs": [129, 130, 131],
   "issue_cursor": 1,
-  "notes": "RECURRING ISSUE: MCP servers 'github' and 'safeoutputs' are blocked by workflow policy (firewall). Safe-output tools cannot be called. Code for ctype functions (l_isblank/l_iscntrl/l_isgraph/l_ispunct/l_isascii) saved as feat_ctype_extensions.patch. May monthly issue not yet created. Issue #123 (April monthly) still open. Next run: apply patch from feat_ctype_extensions.patch to create the PR, create May monthly issue, close #123. Latest open RA PR is #162."
+  "pending_prs": [
+    {
+      "branch": "repo-assist/improve-missing-ctype-functions-34a3ec11cc29c9c6",
+      "title": "[Repo Assist] improve: add l_isblank, l_iscntrl, l_isgraph, l_ispunct, l_isascii",
+      "ci_status": "PASS (Linux gcc+clang, 1548 assertions)",
+      "task": "5 (Coding Improvements)"
+    },
+    {
+      "branch": "repo-assist/improve-stpcpy-memccpy-2026-05-01-d2a12aa-1f649aa3be86f423",
+      "title": "[Repo Assist] improve: add l_stpcpy, l_stpncpy, l_memccpy",
+      "ci_status": "PASS (Linux gcc+clang, 1528 assertions)",
+      "task": "5 (Coding Improvements)"
+    }
+  ],
+  "notes": "RECURRING ISSUE: MCP servers 'github' and 'safeoutputs' are blocked by workflow policy (firewall). Safe-output tools cannot be called. Run 25240343450 (2026-05-02): Tasks 5+9 selected. Both feature branches fully CI-verified (PASS). PRs could NOT be created due to safeoutputs being unavailable. Branches exist on origin and are ready to PR. May monthly issue not yet created. Issue #123 (April monthly) still open. Latest open RA PR is #162."
 }
