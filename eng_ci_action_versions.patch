@@ -1,0 +1,80 @@
+From 1b8fbeda532f1b3e0c55b2cd96a028ef7e694db8 Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Sun, 3 May 2026 13:31:59 +0000
+Subject: [PATCH] =?UTF-8?q?eng:=20upgrade=20upload-artifact=20v4=E2=86=92v?=
+ =?UTF-8?q?7=20and=20download-artifact=20v4=E2=86=92v8=20in=20ci.yml?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+These versions are already used by the pinned lock-file workflows
+(daily-repo-status.lock.yml and repo-assist.lock.yml). Bringing
+ci.yml in line removes the stale Dependabot alerts for v4 and is
+consistent across all workflow files.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ .github/workflows/ci.yml | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index cbba177..8e3a622 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -42,7 +42,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-windows
+           path: bin/ci_sizes.json
+@@ -59,7 +59,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-linux
+           path: bin/ci_sizes.json
+@@ -79,7 +79,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-arm
+           path: bin/ci_sizes.json
+@@ -99,7 +99,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-riscv
+           path: bin/ci_sizes.json
+@@ -122,7 +122,7 @@ jobs:
+ 
+       - name: Upload size data
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: sizes-wasi
+           path: bin/ci_sizes.json
+@@ -134,7 +134,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Download all size artifacts
+-        uses: actions/download-artifact@v4
++        uses: actions/download-artifact@v8
+         with:
+           pattern: sizes-*
+           merge-multiple: false
+-- 
+2.53.0
+
