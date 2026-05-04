@@ -1,0 +1,74 @@
+From 3565f6c970fc2c85dfa9671bf90d8363fb03691a Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Mon, 4 May 2026 13:40:07 +0000
+Subject: [PATCH] fix: correct %z/%t length modifiers for Windows-64 (size_t >
+ sizeof(long))
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+On Windows-64 sizeof(long)==4 but sizeof(size_t)==8.  The previous
+code set is_long=1 for %%z/%%t, causing va_arg to read only 4 bytes
+for a size_t/ptrdiff_t argument passed as 8 bytes — reading garbage
+for values > UINT32_MAX.
+
+Fix: use is_ll=1 when sizeof(size_t) > sizeof(unsigned long), and
+is_long=1 only when size_t fits in unsigned long but not unsigned int.
+
+Linux-64: sizeof(size_t)=8, sizeof(long)=8 → is_long=1 (unchanged)
+Windows-64: sizeof(size_t)=8, sizeof(long)=4 → is_ll=1   (fixed)
+32-bit all: sizeof(size_t)=4, sizeof(int)=4  → is_long=0  (unchanged)
+
+Add two new test cases that catch the Windows-64 regression:
+  - %%zu with a value > UINT32_MAX (guarded by sizeof(size_t)>=8)
+  - %%td with a ptrdiff_t value (basic smoke)
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ l_os.h               |  6 +++++-
+ tests/test_strings.c | 12 ++++++++++++
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/l_os.h b/l_os.h
+index 2bf6ed7..0f951e6 100644
+--- a/l_os.h
++++ b/l_os.h
+@@ -3355,7 +3355,11 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
+         } else if (*fmt == 'h') {
+             fmt++; if (*fmt == 'h') fmt++;
+         } else if (*fmt == 'z' || *fmt == 't') {
+-            is_long = (sizeof(size_t) > sizeof(int)); fmt++;
++            /* On Windows-64, sizeof(long)==4 but sizeof(size_t)==8; we need
++             * is_ll in that case so va_arg reads 8 bytes. */
++            is_ll   = (sizeof(size_t) > sizeof(unsigned long));
++            is_long = (!is_ll && sizeof(size_t) > sizeof(unsigned int));
++            fmt++;
+         }
+ 
+         char spec = *fmt++;
+diff --git a/tests/test_strings.c b/tests/test_strings.c
+index 90cb943..04cde4c 100644
+--- a/tests/test_strings.c
++++ b/tests/test_strings.c
+@@ -1334,6 +1334,18 @@ void test_snprintf(void) {
+     l_snprintf(buf, sizeof(buf), "%zu", (size_t)0);
+     TEST_ASSERT(l_strcmp(buf, "0") == 0, "%zu zero");
+ 
++    /* %zu with value that exceeds 32 bits (catches Windows-64 is_ll vs is_long bug) */
++    if (sizeof(size_t) >= 8) {
++        l_snprintf(buf, sizeof(buf), "%zu", (size_t)4294967296ULL);
++        TEST_ASSERT(l_strcmp(buf, "4294967296") == 0, "%zu > UINT32_MAX");
++    }
++
++    /* %td ptrdiff_t */
++    l_snprintf(buf, sizeof(buf), "%td", (ptrdiff_t)42);
++    TEST_ASSERT(l_strcmp(buf, "42") == 0, "%td basic");
++    l_snprintf(buf, sizeof(buf), "%td", (ptrdiff_t)-1);
++    TEST_ASSERT(l_strcmp(buf, "-1") == 0, "%td negative");
++
+     /* %s with precision — must NOT call strlen past end of buffer (safety) */
+     {
+         /* non-null-terminated buffer of exactly 5 bytes: "hello" */
+-- 
+2.53.0
+

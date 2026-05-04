@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-05-03T13:32:00Z",
-  "run_id": "25280370726",
+  "last_run": "2026-05-04T13:28:00Z",
+  "run_id": "25321709311",
   "monthly_summary_issue": 164,
   "monthly_summary_april_issue": 123,
   "comments_made": [124, 125, 153],
@@ -20,11 +20,11 @@
   },
   "pending_prs": [
     {
-      "branch": "repo-assist/eng-ci-action-versions-2026-05-03-d2a12aa",
-      "title": "[Repo Assist] eng: upgrade upload-artifact v4→v7 and download-artifact v4→v8 in ci.yml",
-      "ci_status": "NO CODE CHANGES - workflow YAML version pins only, matches lock file versions",
-      "task": "4 (Engineering Investments)",
-      "patch_file": "eng_ci_action_versions.patch"
+      "branch": "repo-assist/fix-vsnprintf-size-t-windows-2026-05-04-d2a12aa",
+      "title": "[Repo Assist] fix: correct %z/%t length modifiers for Windows-64 in l_vsnprintf",
+      "ci_status": "PASS (Linux gcc+clang, 1516 assertions)",
+      "task": "3 (Issue Investigation and Fix)",
+      "patch_file": null
     },
     {
       "branch": "repo-assist/improve-missing-ctype-functions-34a3ec11cc29c9c6",
@@ -41,5 +41,5 @@
       "pr_number": 162
     }
   ],
-  "notes": "RECURRING ISSUE: safeoutputs MCP tools NOT available as callable functions. AWF_ONE_SHOT_TOKENS isolates GITHUB_TOKEN/GH_TOKEN. Run 25280370726 (2026-05-03): Tasks 6+4 selected. Task 4: Created branch repo-assist/eng-ci-action-versions-2026-05-03-d2a12aa with upload-artifact@v4→v7 and download-artifact@v4→v8 in ci.yml. Saved as eng_ci_action_versions.patch. Cannot push/create PR. Task 6: Verified conflict status of all RA branches - 9 branches have conflicts with main. Of these: eng-snprintf, feat-rename-access, feat-strnlen-memrchr, improve-memmem-memcpy-perf, perf-memmove-strstr, perf-memrchr-word-at-a-time, fix-test-support-header are ALL SUPERSEDED (functionality already in main). fix-strtoul-negative-sign superseded by fix-strtoul-overflow-neg-clean (PR still open). Monthly summary issue #164 exists, cannot update without safeoutputs tools."
+  "notes": "RECURRING ISSUE: safeoutputs MCP tools NOT available as callable functions. AWF_ONE_SHOT_TOKENS isolates GITHUB_TOKEN/GH_TOKEN. Run 25321709311 (2026-05-04): Tasks 3+2 selected. Task 3: Created branch repo-assist/fix-vsnprintf-size-t-windows-2026-05-04-d2a12aa with fix for %z/%t Windows-64 bug (is_long vs is_ll). Tests pass (1516 assertions). Cannot push/create PR due to safeoutputs tool unavailability. Task 2: No non-automated issues to comment on. All open issues are RA PRs or automated status reports. No maintainer comments on any RA PRs to respond to. Monthly summary issue #164 needs update but safeoutputs unavailable."
 }
