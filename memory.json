@@ -1,6 +1,6 @@
 {
-  "last_run": "2026-05-04T13:28:00Z",
-  "run_id": "25321709311",
+  "last_run": "2026-05-05T01:29:00Z",
+  "run_id": "25352941804",
   "monthly_summary_issue": 164,
   "monthly_summary_april_issue": 123,
   "comments_made": [124, 125, 153],
@@ -16,15 +16,26 @@
     "perf-memmove-strstr-20260326": "memmove word-at-a-time and strstr first-byte already in main",
     "perf-memrchr-word-at-a-time-2026-04-05": "word-at-a-time memrchr already in main",
     "fix-test-support-header-2026-04-02": "build_parallel.ps1 improvements and .gitignore fix already in main",
-    "fix-strtoul-negative-sign-2026-04-08": "superseded by fix-strtoul-overflow-neg-2026-04-30-clean"
+    "fix-strtoul-negative-sign-2026-04-08": "superseded by fix-strtoul-overflow-neg-2026-04-30-clean",
+    "perf-strspn-lookup-2026-04-08": "strspn bitmap already in main (#116)",
+    "ci-apt-cache-2026-04-29": "already merged into main"
   },
   "pending_prs": [
     {
-      "branch": "repo-assist/fix-vsnprintf-size-t-windows-2026-05-04-d2a12aa",
+      "branch": "repo-assist/fix-vsnprintf-size-t-windows-2026-05-05-d2a12aa",
       "title": "[Repo Assist] fix: correct %z/%t length modifiers for Windows-64 in l_vsnprintf",
-      "ci_status": "PASS (Linux gcc+clang, 1516 assertions)",
-      "task": "3 (Issue Investigation and Fix)",
-      "patch_file": null
+      "ci_status": "PASS (Linux gcc, all tests pass)",
+      "task": "6 (Maintain Repo Assist PRs) + 3 (Issue Fix)",
+      "patch_file": "fix_vsnprintf_size_t_windows_v2.patch",
+      "description": "Fixes %z/%t reading 4 bytes instead of 8 on Windows-64. Bug: is_long=1 but long is 4 bytes on Win64. Fix: is_ll=1 when sizeof(size_t)>sizeof(unsigned long)."
+    },
+    {
+      "branch": "repo-assist/perf-strncpy-word-at-a-time-2026-05-05-d2a12aa",
+      "title": "[Repo Assist] perf: word-at-a-time l_strncpy via l_strnlen + l_memcpy + l_memset",
+      "ci_status": "PASS (Linux gcc, all tests pass)",
+      "task": "8 (Performance Improvements)",
+      "patch_file": "perf_strncpy_word_at_a_time.patch",
+      "description": "Move l_strncpy impl after l_strnlen+l_memcpy+l_memset so it can use word-at-a-time helpers. Old impl was 2x byte loops; new uses word-at-a-time for both copy and zero-fill."
     },
     {
       "branch": "repo-assist/improve-missing-ctype-functions-34a3ec11cc29c9c6",
@@ -41,5 +52,5 @@
       "pr_number": 162
     }
   ],
-  "notes": "RECURRING ISSUE: safeoutputs MCP tools NOT available as callable functions. AWF_ONE_SHOT_TOKENS isolates GITHUB_TOKEN/GH_TOKEN. Run 25321709311 (2026-05-04): Tasks 3+2 selected. Task 3: Created branch repo-assist/fix-vsnprintf-size-t-windows-2026-05-04-d2a12aa with fix for %z/%t Windows-64 bug (is_long vs is_ll). Tests pass (1516 assertions). Cannot push/create PR due to safeoutputs tool unavailability. Task 2: No non-automated issues to comment on. All open issues are RA PRs or automated status reports. No maintainer comments on any RA PRs to respond to. Monthly summary issue #164 needs update but safeoutputs unavailable."
+  "notes": "RECURRING ISSUE: safeoutputs MCP tools NOT available as callable functions. AWF_ONE_SHOT_TOKENS isolates GITHUB_TOKEN/GH_TOKEN. Run 25352941804 (2026-05-05): Tasks 8+6 selected. Task 6: Recreated fix-vsnprintf-size-t-windows branch (lost from run 25321709311). Task 8: Created perf-strncpy-word-at-a-time branch. Both branches committed locally, patches saved to repo-memory. Cannot push/create PRs due to safeoutputs tool unavailability. Monthly summary issue #164 needs update but same issue. NEXT RUN: Apply patches from fix_vsnprintf_size_t_windows_v2.patch and perf_strncpy_word_at_a_time.patch, push branches, create PRs."
 }

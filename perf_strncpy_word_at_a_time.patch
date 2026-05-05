@@ -1,0 +1,81 @@
+From a53582234a70c5d939566e117f40bf8600ce934f Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Tue, 5 May 2026 01:39:58 +0000
+Subject: [PATCH] perf: word-at-a-time l_strncpy via l_strnlen + l_memcpy +
+ l_memset
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The previous l_strncpy had two byte-by-byte loops:
+  1. copy src bytes (byte at a time)
+  2. zero-fill remaining bytes (byte at a time)
+
+For a typical strncpy(dst, src, 4096) where strlen(src)==10 this meant
+~4086 individual byte stores for the zero-fill alone.
+
+Fix: move the implementation below l_strnlen, l_memcpy, and l_memset
+(which all use word-at-a-time techniques), and delegate to them:
+  - l_strnlen  — word-at-a-time NUL scan capped at n
+  - l_memcpy   — word-at-a-time bulk copy
+  - l_memset   — word-at-a-time zero-fill
+
+A placeholder comment replaces the old inline body at the original
+position (consistent with how the repository handles l_strncpy's
+forward declaration).
+
+All existing l_strncpy tests pass unchanged.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ l_os.h | 27 ++++++++++++++++-----------
+ 1 file changed, 16 insertions(+), 11 deletions(-)
+
+diff --git a/l_os.h b/l_os.h
+index 2bf6ed7..d1a3ca2 100644
+--- a/l_os.h
++++ b/l_os.h
+@@ -2013,17 +2013,8 @@ static inline char *l_strcat(char *dst, const char *src)
+     return ret;
+ }
+ 
+-static inline char *l_strncpy(char *dst, const char *src, size_t n)
+-{
+-    char *ret = dst;
+-    size_t i;
+-
+-    for (i = 0; i < n && src[i] != '\0'; i++)
+-        dst[i] = src[i];
+-    for (; i < n; i++)
+-        dst[i] = '\0';
+-    return ret;
+-}
++/* l_strncpy implementation is deferred below l_strnlen, l_memcpy, and
++ * l_memset so it can delegate to the word-at-a-time helpers. */
+ 
+ static inline char *l_strncat(char *dst, const char *src, size_t n)
+ {
+@@ -3140,6 +3131,20 @@ static inline size_t l_strnlen(const char *s, size_t maxlen)
+     return end ? (size_t)(end - s) : maxlen;
+ }
+ 
++/* Optimised l_strncpy: delegates to word-at-a-time l_strnlen, l_memcpy and
++ * l_memset instead of two byte-by-byte loops.  For strncpy(dst,src,4096)
++ * where strlen(src)==10 this replaces ~4086 byte stores with a single
++ * word-at-a-time l_memset call. */
++static inline char *l_strncpy(char *dst, const char *src, size_t n)
++{
++    if (n == 0) return dst;
++    size_t srclen = l_strnlen(src, n); /* word-at-a-time scan, capped at n */
++    l_memcpy(dst, src, srclen);        /* word-at-a-time copy */
++    if (srclen < n)
++        l_memset(dst + srclen, 0, n - srclen); /* word-at-a-time zero-fill */
++    return dst;
++}
++
+ static inline void *l_memmem(const void *haystack, size_t haystacklen,
+                       const void *needle,   size_t needlelen)
+ {
+-- 
+2.53.0
+
