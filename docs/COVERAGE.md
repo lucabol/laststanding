@@ -9,15 +9,15 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 |----------|--------|-----------|
 | **String functions** | | |
 | `l_wcslen` | ✅ | test_strings.c |
-| `l_strlen` | ✅ | test.c, test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c |
-| `l_strcpy` | ✅ | test.c, test_strings.c |
+| `l_strlen` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
+| `l_strcpy` | ✅ | test_strings.c, test.c |
 | `l_strncpy` | ✅ | test_strings.c |
-| `l_strcat` | ✅ | test.c, test_strings.c |
+| `l_strcat` | ✅ | test_strings.c, test.c |
 | `l_strncat` | ✅ | test_strings.c |
 | `l_strchr` | ✅ | test_fs.c, test_strings.c |
 | `l_strrchr` | ✅ | test_strings.c |
-| `l_strstr` | ✅ | test.c, test_fs.c, test_strings.c |
-| `l_strcmp` | ✅ | test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c |
+| `l_strstr` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_strcmp` | ✅ | test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
 | `l_strncmp` | ✅ | test_strings.c |
 | `l_strcasecmp` | ✅ | test_strings.c |
 | `l_strncasecmp` | ✅ | test_fs.c, test_strings.c |
@@ -50,7 +50,7 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_labs` | ✅ | test_strings.c |
 | `l_llabs` | ✅ | test.c |
 | `l_atol` | ✅ | test_strings.c |
-| `l_atoi` | ✅ | test.c, test_strings.c |
+| `l_atoi` | ✅ | test_strings.c, test.c |
 | `l_strtoul` | ✅ | test_strings.c |
 | `l_strtol` | ✅ | test_strings.c |
 | `l_strtoull` | ✅ | test_strings.c |
@@ -82,8 +82,8 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_itoa` | ✅ | test_strings.c |
 | **Memory functions** | | |
 | `l_memmove` | ✅ | test_strings.c |
-| `l_memset` | ✅ | font_test.c, test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_tt.c, test_utils.c |
-| `l_memcmp` | ✅ | test.c, test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_utils.c |
+| `l_memset` | ✅ | font_test.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_tt.c, test_utils.c, test.c |
+| `l_memcmp` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_utils.c, test.c |
 | `l_memcpy` | ✅ | test_strings.c, test_utils.c |
 | `l_memchr` | ✅ | test_strings.c |
 | `l_memrchr` | ✅ | test_strings.c |
@@ -104,30 +104,30 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_vprintf` | ✅ | test_strings.c |
 | `l_fprintf` | ✅ | test_strings.c |
 | **System functions** | | |
-| `l_exit` | ✅ | test.c, test_fs.c |
-| `l_open` | ✅ | test.c, test_fs.c |
-| `l_close` | ✅ | test.c, test_fs.c, test_strings.c |
-| `l_read` | ✅ | test.c, test_fs.c, test_strings.c |
-| `l_write` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_exit` | ✅ | test_fs.c, test.c |
+| `l_open` | ✅ | test_fs.c, test.c |
+| `l_close` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_read` | ✅ | test_fs.c, test_strings.c, test.c |
+| `l_write` | ✅ | test_fs.c, test_strings.c, test.c |
 | `l_read_line` | ✅ | test.c |
 | `l_linebuf_init` | ✅ | test_strings.c |
 | `l_linebuf_read` | ✅ | test_strings.c |
 | `l_time` | ✅ | test_utils.c |
-| `l_puts` | ✅ | test.c, test_fs.c |
+| `l_puts` | ✅ | test_fs.c, test.c |
 | `l_exitif` | ✅ | test_fs.c |
-| `l_getenv` | ✅ | gfx_test.c, test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_svg.c, test_term_gfx.c, test_tls.c, test_tls_live.c, test_utils.c |
-| `l_getenv_init` | ✅ | gfx_test.c, test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_svg.c, test_term_gfx.c, test_tls.c, test_tls_live.c, test_utils.c |
+| `l_getenv` | ✅ | gfx_test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_svg.c, test_term_gfx.c, test_tls_live.c, test_tls.c, test_utils.c, test.c |
+| `l_getenv_init` | ✅ | gfx_test.c, test_clipboard.c, test_fs.c, test_img.c, test_net.c, test_strings.c, test_svg.c, test_term_gfx.c, test_tls_live.c, test_tls.c, test_utils.c, test.c |
 | `l_env_start` | ✅ | test_fs.c |
 | `l_env_next` | ✅ | test_fs.c |
 | `l_env_end` | ✅ | test_fs.c |
 | `l_find_executable` | ✅ | test.c |
 | **Option parsing (single-threaded; state in static variables)** | | |
-| `l_getopt` | ✅ | test.c, test_utils.c |
+| `l_getopt` | ✅ | test_utils.c, test.c |
 | `l_getopt_ctx_init` | ✅ | test_utils.c |
 | `l_getopt_ctx` | ✅ | test_utils.c |
 | **Convenience file openers** | | |
-| `l_open_read` | ✅ | test.c, test_fs.c |
-| `l_open_write` | ✅ | test.c, test_fs.c |
+| `l_open_read` | ✅ | test_fs.c, test.c |
+| `l_open_write` | ✅ | test_fs.c, test.c |
 | `l_open_readwrite` | ✅ | test_fs.c |
 | `l_open_append` | ✅ | test_fs.c |
 | `l_open_trunc` | ✅ | test_fs.c |
@@ -145,10 +145,10 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_ansi_color` | ✅ | test_term_gfx.c, test_utils.c |
 | `l_ansi_color_rgb` | ✅ | test_term_gfx.c |
 | **File system functions (cross-platform)** | | |
-| `l_unlink` | ✅ | test.c, test_fs.c |
+| `l_unlink` | ✅ | test_fs.c, test.c |
 | `l_rmdir` | ✅ | test_fs.c |
 | `l_rename` | ✅ | test_fs.c |
-| `l_access` | ✅ | test.c, test_fs.c |
+| `l_access` | ✅ | test_fs.c, test.c |
 | `l_chmod` | ✅ | test_fs.c |
 | `l_symlink` | ✅ | test_fs.c |
 | `l_readlink` | ✅ | test_fs.c |
@@ -177,8 +177,8 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_buf_printf` | ✅ | test_utils.c |
 | `l_buf_clear` | ✅ | test_utils.c |
 | `l_buf_free` | ✅ | test_utils.c |
-| **L_Str â€” fat string (pointer + length) function declarations** | | |
-| `l_str` | ✅ | test.c, test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c |
+| **L_Str — fat string (pointer + length) function declarations** | | |
+| `l_str` | ✅ | test_clipboard.c, test_fs.c, test_net.c, test_strings.c, test_term_gfx.c, test_utils.c, test.c |
 | `l_str_from` | ✅ | test_utils.c |
 | `l_str_null` | ✅ | test_utils.c |
 | `l_str_eq` | ✅ | test_utils.c |
@@ -240,7 +240,7 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_base64_decode` | ✅ | test_utils.c |
 | `l_getcwd` | ✅ | test_fs.c |
 | `l_chdir` | ✅ | test_fs.c |
-| `l_pipe` | ✅ | test.c, test_fs.c, test_strings.c |
+| `l_pipe` | ✅ | test_fs.c, test_strings.c, test.c |
 | `l_dup` | ✅ | test.c |
 | `l_dup2` | ✅ | test.c |
 | `l_getpid` | ✅ | test.c |

@@ -184,7 +184,7 @@ has no `-` column equivalent — consult [COMPAT.md](COMPAT.md) for WASI stubs).
 | **Arena function declarations** | | |
 | `l_arena_init` | Allocate an arena of `size` bytes via mmap. On failure, base=NULL. | All |
 | `l_arena_alloc` | Bump-allocate n bytes (8-byte aligned). Returns NULL if arena is full. | All |
-| `l_arena_reset` | Reset used to 0. Memory is NOT freed â€” arena can be reused. | All |
+| `l_arena_reset` | Reset used to 0. Memory is NOT freed — arena can be reused. | All |
 | `l_arena_free` | Free the backing memory. Sets base=NULL. | All |
 | **Buffer function declarations** | | |
 | `l_buf_init` | Zero-initialize a buffer. | All |
@@ -192,7 +192,7 @@ has no `-` column equivalent — consult [COMPAT.md](COMPAT.md) for WASI stubs).
 | `l_buf_printf` | Formatted append using l_vsnprintf. Returns bytes written or -1. | All |
 | `l_buf_clear` | Set len=0 (keep allocated memory). | All |
 | `l_buf_free` | Free backing memory and zero the struct. | All |
-| **L_Str â€” fat string (pointer + length) function declarations** | | |
+| **L_Str — fat string (pointer + length) function declarations** | | |
 | `l_str` | Wrap a C string (computes strlen). | All |
 | `l_str_from` | Wrap pointer+length. | All |
 | `l_str_null` | Return null string {NULL, 0}. | All |
