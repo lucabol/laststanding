@@ -42,7 +42,7 @@ jobs:
 
       - name: Upload size data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sizes-windows
           path: bin/ci_sizes.json
@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload size data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sizes-linux
           path: bin/ci_sizes.json
@@ -79,7 +79,7 @@ jobs:
 
       - name: Upload size data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sizes-arm
           path: bin/ci_sizes.json
@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload size data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sizes-riscv
           path: bin/ci_sizes.json
@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload size data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sizes-wasi
           path: bin/ci_sizes.json
