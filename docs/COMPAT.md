@@ -53,6 +53,11 @@ Legend:
 | `l_tolower` | ✅ | ✅ | ✅ |
 | `l_isprint` | ✅ | ✅ | ✅ |
 | `l_isxdigit` | ✅ | ✅ | ✅ |
+| `l_isblank` | ✅ | ✅ | ✅ |
+| `l_iscntrl` | ✅ | ✅ | ✅ |
+| `l_isgraph` | ✅ | ✅ | ✅ |
+| `l_ispunct` | ✅ | ✅ | ✅ |
+| `l_isascii` | ✅ | ✅ | ✅ |
 | `l_abs` | ✅ | ✅ | ✅ |
 | `l_labs` | ✅ | ✅ | ✅ |
 | `l_llabs` | ✅ | ✅ | ✅ |

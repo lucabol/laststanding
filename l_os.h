@@ -580,6 +580,16 @@ static inline int l_tolower(int c);
 static inline int l_isprint(int c);
 /// Returns non-zero if c is a hexadecimal digit (0-9, a-f, A-F)
 static inline int l_isxdigit(int c);
+/// Returns non-zero if c is a blank character (space or tab)
+static inline int l_isblank(int c);
+/// Returns non-zero if c is a control character (0x00-0x1F or 0x7F)
+static inline int l_iscntrl(int c);
+/// Returns non-zero if c is a printable non-space character (0x21-0x7E)
+static inline int l_isgraph(int c);
+/// Returns non-zero if c is a printable non-space non-alphanumeric character
+static inline int l_ispunct(int c);
+/// Returns non-zero if c is a 7-bit ASCII character (0x00-0x7F)
+static inline int l_isascii(int c);
 /// Returns the absolute value of an integer
 static inline int l_abs(int x);
 /// Returns the absolute value of a long
@@ -1451,6 +1461,11 @@ int WINAPI mainCRTStartup(void)
 #  define tolower l_tolower
 #  define isprint l_isprint
 #  define isxdigit l_isxdigit
+#  define isblank  l_isblank
+#  define iscntrl  l_iscntrl
+#  define isgraph  l_isgraph
+#  define ispunct  l_ispunct
+#  define isascii  l_isascii
 #  define abs l_abs
 #  define labs l_labs
 #  define llabs l_llabs
@@ -1630,6 +1645,10 @@ static inline void l_set_errno_from_ret(long ret) {
 // Character classification (platform-independent)
 static inline int l_isprint(int c) { return c >= 0x20 && c <= 0x7e; }
 static inline int l_isxdigit(int c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); }
+static inline int l_isblank(int c)  { return c == ' ' || c == '\t'; }
+static inline int l_iscntrl(int c)  { return (unsigned int)c < 0x20u || c == 0x7f; }
+static inline int l_isgraph(int c)  { return c >= 0x21 && c <= 0x7e; }
+static inline int l_isascii(int c)  { return (unsigned int)c <= 0x7fu; }
 
 // Absolute value (platform-independent)
 static inline int l_abs(int x) { return x < 0 ? -x : x; }
@@ -2209,6 +2228,8 @@ static inline int l_isalnum(int c)
 {
     return l_isalpha(c) || l_isdigit(c);
 }
+
+static inline int l_ispunct(int c) { return l_isgraph(c) && !l_isalnum(c); }
 
 static inline int l_isupper(int c)
 {

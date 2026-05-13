@@ -1683,6 +1683,57 @@ void test_isprint_isxdigit(void) {
     TEST_SECTION_PASS("l_isprint/l_isxdigit");
 }
 
+void test_ctype_extended(void) {
+    TEST_FUNCTION("l_isblank/l_iscntrl/l_isgraph/l_ispunct/l_isascii");
+
+    // l_isblank: space and tab only
+    TEST_ASSERT(l_isblank(' ') != 0,  "space is blank");
+    TEST_ASSERT(l_isblank('\t') != 0, "tab is blank");
+    TEST_ASSERT(l_isblank('\n') == 0, "newline not blank");
+    TEST_ASSERT(l_isblank('a') == 0,  "letter not blank");
+    TEST_ASSERT(l_isblank(0) == 0,    "NUL not blank");
+
+    // l_iscntrl: 0x00-0x1F and 0x7F
+    TEST_ASSERT(l_iscntrl(0x00) != 0, "NUL is control");
+    TEST_ASSERT(l_iscntrl(0x1f) != 0, "US is control");
+    TEST_ASSERT(l_iscntrl('\n') != 0, "newline is control");
+    TEST_ASSERT(l_iscntrl('\t') != 0, "tab is control");
+    TEST_ASSERT(l_iscntrl(0x7f) != 0, "DEL is control");
+    TEST_ASSERT(l_iscntrl(' ') == 0,  "space not control");
+    TEST_ASSERT(l_iscntrl('A') == 0,  "A not control");
+    TEST_ASSERT(l_iscntrl(0x7e) == 0, "tilde not control");
+
+    // l_isgraph: 0x21-0x7E (printable, not space)
+    TEST_ASSERT(l_isgraph('!') != 0,  "! is graph");
+    TEST_ASSERT(l_isgraph('A') != 0,  "A is graph");
+    TEST_ASSERT(l_isgraph('~') != 0,  "tilde is graph");
+    TEST_ASSERT(l_isgraph(' ') == 0,  "space not graph");
+    TEST_ASSERT(l_isgraph('\n') == 0, "newline not graph");
+    TEST_ASSERT(l_isgraph(0x7f) == 0, "DEL not graph");
+    TEST_ASSERT(l_isgraph(0x00) == 0, "NUL not graph");
+
+    // l_ispunct: printable non-space non-alphanumeric
+    TEST_ASSERT(l_ispunct('!') != 0,  "! is punct");
+    TEST_ASSERT(l_ispunct('.') != 0,  ". is punct");
+    TEST_ASSERT(l_ispunct('@') != 0,  "@ is punct");
+    TEST_ASSERT(l_ispunct('{') != 0,  "{ is punct");
+    TEST_ASSERT(l_ispunct('~') != 0,  "~ is punct");
+    TEST_ASSERT(l_ispunct('a') == 0,  "letter not punct");
+    TEST_ASSERT(l_ispunct('Z') == 0,  "uppercase not punct");
+    TEST_ASSERT(l_ispunct('5') == 0,  "digit not punct");
+    TEST_ASSERT(l_ispunct(' ') == 0,  "space not punct");
+    TEST_ASSERT(l_ispunct('\n') == 0, "newline not punct");
+
+    // l_isascii: 0x00-0x7F
+    TEST_ASSERT(l_isascii(0x00) != 0, "NUL is ASCII");
+    TEST_ASSERT(l_isascii('A') != 0,  "A is ASCII");
+    TEST_ASSERT(l_isascii(0x7f) != 0, "DEL is ASCII");
+    TEST_ASSERT(l_isascii(0x80) == 0, "0x80 not ASCII");
+    TEST_ASSERT(l_isascii(0xff) == 0, "0xff not ASCII");
+
+    TEST_SECTION_PASS("l_isblank/l_iscntrl/l_isgraph/l_ispunct/l_isascii");
+}
+
 void test_rand_srand(void) {
     TEST_FUNCTION("l_rand/l_srand");
     l_srand(42);
@@ -1996,6 +2047,7 @@ int main(int argc, char *argv[]) {
     test_basename_dirname();
     test_min_max_clamp_abs();
     test_isprint_isxdigit();
+    test_ctype_extended();
     test_rand_srand();
     test_qsort_bsearch();
     test_bin2hex_hex2bin();

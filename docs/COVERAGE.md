@@ -46,6 +46,11 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_tolower` | ✅ | test_strings.c |
 | `l_isprint` | ✅ | test_strings.c |
 | `l_isxdigit` | ✅ | test_strings.c |
+| `l_isblank` | ✅ | test_strings.c |
+| `l_iscntrl` | ✅ | test_strings.c |
+| `l_isgraph` | ✅ | test_strings.c |
+| `l_ispunct` | ✅ | test_strings.c |
+| `l_isascii` | ✅ | test_strings.c |
 | `l_abs` | ✅ | test_strings.c |
 | `l_labs` | ✅ | test_strings.c |
 | `l_llabs` | ✅ | test.c |
@@ -287,6 +292,6 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_socket_recvfrom_addr` | — | |
 | `l_socket_unix_connect` | — | |
 
-**Coverage: 244 / 249 functions referenced in tests** (98%)
+**Coverage: 249 / 254 functions referenced in tests** (98%)
 
 <!-- END COVERAGE MATRIX -->
