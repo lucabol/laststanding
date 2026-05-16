@@ -747,6 +747,14 @@ void test_strtod_atof(void) {
     TEST_ASSERT(l_atof("Infinity") > DBL_MAX, "atof 'Infinity' is infinity");
     TEST_ASSERT(l_atof("NaN") != l_atof("NaN"), "atof 'NaN' is NaN");
 
+    /* Very long exponent must not overflow int (UB) — should clamp gracefully */
+    {
+        double huge = l_atof("1e999999999999999");
+        TEST_ASSERT(huge > 0.0 && huge <= DBL_MAX, "atof '1e999999999999999' -> large positive (no UB)");
+        double tiny = l_atof("1e-999999999999999");
+        TEST_ASSERT(tiny > 0.0 && tiny < 1.0, "atof '1e-999999999999999' -> small positive (no UB)");
+    }
+
     TEST_SECTION_PASS("l_strtod / l_atof");
 }
 
@@ -800,6 +808,14 @@ void test_strtof(void) {
     TEST_ASSERT(l_strtof("-inf", (char **)0) < -3.4e38f, "strtof '-inf' is neg infinity");
     float fnan = l_strtof("nan", (char **)0);
     TEST_ASSERT(fnan != fnan, "strtof 'nan' is NaN");
+
+    /* Very long exponent must not overflow int (UB) — should clamp gracefully */
+    {
+        float huge_f = l_strtof("1e999999999999999", (char **)0);
+        TEST_ASSERT(huge_f > 0.0f && huge_f <= 3.4028235e38f, "strtof '1e999999999999999' -> large positive (no UB)");
+        float tiny_f = l_strtof("1e-999999999999999", (char **)0);
+        TEST_ASSERT(tiny_f > 0.0f && tiny_f < 1.0f, "strtof '1e-999999999999999' -> small positive (no UB)");
+    }
 
     TEST_SECTION_PASS("l_strtof");
 }
