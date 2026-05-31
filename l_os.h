@@ -865,6 +865,8 @@ static inline int l_buf_push(L_Buf *b, const void *src, size_t n);
 #ifdef L_WITHSNPRINTF
 static inline int l_buf_printf(L_Buf *b, const char *fmt, ...);
 #endif
+/// Append a single character. Returns 0 on success, -1 on failure.
+static inline int l_buf_push_char(L_Buf *b, char c);
 /// Set len=0 (keep allocated memory).
 static inline void l_buf_clear(L_Buf *b);
 /// Free backing memory and zero the struct.
@@ -8733,6 +8735,10 @@ static inline void l_buf_free(L_Buf *b) {
     b->cap = 0;
 }
 
+static inline int l_buf_push_char(L_Buf *b, char c) {
+    return l_buf_push(b, &c, 1);
+}
+
 // ---------------------------------------------------------------------------
 // L_Str — fat string definitions
 // ---------------------------------------------------------------------------
@@ -8922,6 +8928,7 @@ static inline L_Str l_str_lower(L_Arena *a, L_Str s) {
 
 static inline L_Str l_str_replace(L_Arena *a, L_Str s, L_Str find, L_Str repl) {
     if (find.len == 0) return l_str_dup(a, s);
+    if (find.len > s.len) return l_str_dup(a, s);
     // First pass: count occurrences to compute result size
     size_t count = 0;
     size_t pos = 0;
