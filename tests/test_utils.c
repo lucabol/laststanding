@@ -573,6 +573,86 @@ void test_gmtime_strftime(void) {
     TEST_ASSERT(len4 > 0, "strftime 1e9 returns positive length");
     TEST_ASSERT(l_strcmp(buf, "2001-09-09 01:46:40") == 0, "strftime 1e9 full datetime");
 
+    // %y - 2-digit year
+    l_strftime(buf, sizeof(buf), "%y", &t0);
+    TEST_ASSERT(l_strcmp(buf, "70") == 0, "strftime %y epoch is 70");
+    l_strftime(buf, sizeof(buf), "%y", &t1);
+    TEST_ASSERT(l_strcmp(buf, "01") == 0, "strftime %y 2001 is 01");
+
+    // %e - space-padded day
+    l_strftime(buf, sizeof(buf), "%e", &t0);
+    TEST_ASSERT(buf[0]==' ' && buf[1]=='1', "strftime %e day 1 is space-padded");
+    l_strftime(buf, sizeof(buf), "%e", &t1);
+    TEST_ASSERT(l_strcmp(buf, " 9") == 0, "strftime %e day 9 is ' 9'");
+
+    // %A - full weekday
+    l_strftime(buf, sizeof(buf), "%A", &t0);
+    TEST_ASSERT(l_strcmp(buf, "Thursday") == 0, "strftime %A epoch is Thursday");
+    l_strftime(buf, sizeof(buf), "%A", &t1);
+    TEST_ASSERT(l_strcmp(buf, "Sunday") == 0, "strftime %A 1e9 is Sunday");
+
+    // %B - full month name
+    l_strftime(buf, sizeof(buf), "%B", &t0);
+    TEST_ASSERT(l_strcmp(buf, "January") == 0, "strftime %B epoch is January");
+    l_strftime(buf, sizeof(buf), "%B", &t1);
+    TEST_ASSERT(l_strcmp(buf, "September") == 0, "strftime %B 1e9 is September");
+
+    // %b - abbreviated month
+    l_strftime(buf, sizeof(buf), "%b", &t1);
+    TEST_ASSERT(l_strcmp(buf, "Sep") == 0, "strftime %b 1e9 is Sep");
+
+    // %I - 12-hour clock; %p - AM/PM
+    l_strftime(buf, sizeof(buf), "%I%p", &t1);  // 01:46 -> 01AM
+    TEST_ASSERT(l_strcmp(buf, "01AM") == 0, "strftime %I%p 01:46 is 01AM");
+    // Midnight (hour=0): 12AM
+    L_Tm tmid = t0;  /* hour=0 */
+    l_strftime(buf, sizeof(buf), "%I%p", &tmid);
+    TEST_ASSERT(l_strcmp(buf, "12AM") == 0, "strftime %I%p midnight is 12AM");
+
+    // %j - day of year
+    l_strftime(buf, sizeof(buf), "%j", &t0);
+    TEST_ASSERT(l_strcmp(buf, "001") == 0, "strftime %j epoch is 001");
+    l_strftime(buf, sizeof(buf), "%j", &t1);
+    TEST_ASSERT(l_strcmp(buf, "252") == 0, "strftime %j 2001-09-09 is 252");
+
+    // %u - weekday 1(Mon)..7(Sun)
+    l_strftime(buf, sizeof(buf), "%u", &t0);   /* Thursday=4 */
+    TEST_ASSERT(buf[0]=='4', "strftime %u Thursday is 4");
+    l_strftime(buf, sizeof(buf), "%u", &t1);   /* Sunday=7 */
+    TEST_ASSERT(buf[0]=='7', "strftime %u Sunday is 7");
+
+    // %w - weekday 0(Sun)..6(Sat)
+    l_strftime(buf, sizeof(buf), "%w", &t0);   /* Thursday=4 */
+    TEST_ASSERT(buf[0]=='4', "strftime %w Thursday is 4");
+    l_strftime(buf, sizeof(buf), "%w", &t1);   /* Sunday=0 */
+    TEST_ASSERT(buf[0]=='0', "strftime %w Sunday is 0");
+
+    // %F - ISO 8601 date (%Y-%m-%d)
+    l_strftime(buf, sizeof(buf), "%F", &t1);
+    TEST_ASSERT(l_strcmp(buf, "2001-09-09") == 0, "strftime %F 1e9 is 2001-09-09");
+
+    // %T - time (%H:%M:%S)
+    l_strftime(buf, sizeof(buf), "%T", &t1);
+    TEST_ASSERT(l_strcmp(buf, "01:46:40") == 0, "strftime %T 1e9 is 01:46:40");
+
+    // %R - time (%H:%M)
+    l_strftime(buf, sizeof(buf), "%R", &t1);
+    TEST_ASSERT(l_strcmp(buf, "01:46") == 0, "strftime %R 1e9 is 01:46");
+
+    // %D - date (%m/%d/%y)
+    l_strftime(buf, sizeof(buf), "%D", &t1);
+    TEST_ASSERT(l_strcmp(buf, "09/09/01") == 0, "strftime %D 1e9 is 09/09/01");
+
+    // %n and %t
+    l_strftime(buf, sizeof(buf), "%n", &t0);
+    TEST_ASSERT(buf[0]=='\n', "strftime %n is newline");
+    l_strftime(buf, sizeof(buf), "%t", &t0);
+    TEST_ASSERT(buf[0]=='\t', "strftime %t is tab");
+
+    // %% - literal percent
+    l_strftime(buf, sizeof(buf), "%%", &t0);
+    TEST_ASSERT(buf[0]=='%', "strftime %% is literal percent");
+
     TEST_SECTION_PASS("l_gmtime / l_strftime");
 }
 
