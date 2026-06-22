@@ -516,6 +516,12 @@ static inline char *l_strncpy(char *dst, const char *src, size_t n);
 static inline char *l_strcat(char *dst, const char *src);
 /// Appends at most n characters of src to dst, always null-terminates, returns dst
 static inline char *l_strncat(char *dst, const char *src, size_t n);
+/// Copies src to dst; returns pointer to the terminating '\0' in dst
+static inline char *l_stpcpy(char *dst, const char *src);
+/// Copies up to n chars from src to dst, pads with '\0'; returns dst+n
+static inline char *l_stpncpy(char *dst, const char *src, size_t n);
+/// Copies at most n bytes from src to dst, stopping after c; returns pointer past c in dst, or NULL
+static inline void *l_memccpy(void *dst, const void *src, int c, size_t n);
 /// Returns pointer to first occurrence of c in s, or NULL
 static inline char *l_strchr(const char *s, int c);
 /// Returns pointer to last occurrence of c in s, or NULL
@@ -1429,6 +1435,9 @@ int WINAPI mainCRTStartup(void)
 #  define strncpy l_strncpy
 #  define strcat l_strcat
 #  define strncat l_strncat
+#  define stpcpy l_stpcpy
+#  define stpncpy l_stpncpy
+#  define memccpy l_memccpy
 #  define strcasecmp l_strcasecmp
 #  define strncasecmp l_strncasecmp
 #  define strspn l_strspn
@@ -2035,6 +2044,32 @@ static inline char *l_strncat(char *dst, const char *src, size_t n)
         *dst++ = *src++;
     *dst = '\0';
     return ret;
+}
+
+static inline char *l_stpcpy(char *dst, const char *src)
+{
+    while ((*dst = *src) != '\0') { dst++; src++; }
+    return dst;
+}
+
+static inline char *l_stpncpy(char *dst, const char *src, size_t n)
+{
+    char *end = dst + n;
+    while (dst < end && *src) *dst++ = *src++;
+    while (dst < end) *dst++ = '\0';
+    return end;
+}
+
+static inline void *l_memccpy(void *dst, const void *src, int c, size_t n)
+{
+    unsigned char *d = (unsigned char *)dst;
+    const unsigned char *s = (const unsigned char *)src;
+    unsigned char uc = (unsigned char)c;
+    while (n--) {
+        *d = *s++;
+        if (*d++ == uc) return d;
+    }
+    return (void *)0;
 }
 
 static inline char *l_strchr(const char *s, int c)
