@@ -1232,6 +1232,38 @@ void test_base64(void) {
     TEST_SECTION_PASS("l_base64_encode / l_base64_decode");
 }
 
+void test_crc32(void) {
+    TEST_FUNCTION("l_crc32 / l_crc32_update");
+
+    /* RFC 3720 / ISO-HDLC standard check value: CRC-32 of "123456789" == 0xCBF43926 */
+    TEST_ASSERT(l_crc32("123456789", 9) == 0xCBF43926u, "crc32 check value 0xCBF43926");
+
+    /* Empty input must yield 0x00000000 */
+    TEST_ASSERT(l_crc32("", 0) == 0x00000000u, "crc32 empty == 0");
+
+    /* "abc" */
+    TEST_ASSERT(l_crc32("abc", 3) == 0x352441C2u, "crc32 'abc'");
+
+    /* "The quick brown fox jumps over the lazy dog" */
+    TEST_ASSERT(l_crc32("The quick brown fox jumps over the lazy dog", 43) == 0x414FA339u,
+                "crc32 quick-brown-fox");
+
+    /* Incremental: feeding "123456789" in two chunks must match single-shot */
+    {
+        unsigned int crc = l_crc32_update(0u, "1234", 4);
+        crc = l_crc32_update(crc, "56789", 5);
+        TEST_ASSERT(crc == 0xCBF43926u, "crc32 incremental matches single-shot");
+    }
+
+    /* Single byte 0x00 */
+    {
+        unsigned char zero = 0x00u;
+        TEST_ASSERT(l_crc32(&zero, 1) == 0xD202EF8Du, "crc32 single zero byte");
+    }
+
+    TEST_SECTION_PASS("l_crc32 / l_crc32_update");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     test_qsort_large_element();
@@ -1263,6 +1295,7 @@ int main(int argc, char *argv[]) {
     test_rand_ctx();
     test_getopt_ctx();
     test_base64();
+    test_crc32();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");
