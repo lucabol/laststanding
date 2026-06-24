@@ -3381,9 +3381,29 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
             int slen = (prec >= 0) ? (int)l_strnlen(sv, (size_t)prec)
                                    : (int)l_strlen(sv);
             int pad = width - slen; if (pad < 0) pad = 0;
-            if (!flag_minus) for (int i = 0; i < pad; i++) L_SNPRINTF_EMIT(' ');
-            for (int i = 0; i < slen; i++) L_SNPRINTF_EMIT(sv[i]);
-            if ( flag_minus) for (int i = 0; i < pad; i++) L_SNPRINTF_EMIT(' ');
+            /* Bulk helpers: avail = bytes writable before the reserved NUL slot.
+             * n==0 guard prevents size_t underflow on (n-1). */
+#define L_SNPRINTF_AVAIL() \
+    ((n > 0 && pos + 1u < n) ? (n - 1u - pos) : (size_t)0)
+            if (!flag_minus) {
+                size_t av = L_SNPRINTF_AVAIL();
+                size_t cp = (size_t)pad < av ? (size_t)pad : av;
+                if (cp) l_memset(buf + pos, ' ', cp);
+                pos += (size_t)pad; total += pad;
+            }
+            {
+                size_t av = L_SNPRINTF_AVAIL();
+                size_t cp = (size_t)slen < av ? (size_t)slen : av;
+                if (cp) l_memcpy(buf + pos, sv, cp);
+                pos += (size_t)slen; total += slen;
+            }
+            if (flag_minus) {
+                size_t av = L_SNPRINTF_AVAIL();
+                size_t cp = (size_t)pad < av ? (size_t)pad : av;
+                if (cp) l_memset(buf + pos, ' ', cp);
+                pos += (size_t)pad; total += pad;
+            }
+#undef L_SNPRINTF_AVAIL
             continue;
         }
 
