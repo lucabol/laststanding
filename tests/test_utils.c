@@ -1232,6 +1232,43 @@ void test_base64(void) {
     TEST_SECTION_PASS("l_base64_encode / l_base64_decode");
 }
 
+void test_getrandom(void) {
+    TEST_FUNCTION("l_getrandom");
+
+    /* Basic: fill a small buffer — must succeed and return 0 */
+    unsigned char buf[32];
+    l_memset(buf, 0, sizeof(buf));
+    int ret = l_getrandom(buf, sizeof(buf));
+    TEST_ASSERT(ret == 0, "l_getrandom returns 0 on success");
+
+    /* Output is not all-zeroes (astronomically unlikely with a CSPRNG) */
+    int all_zero = 1;
+    int i;
+    for (i = 0; i < (int)sizeof(buf); i++) {
+        if (buf[i] != 0) { all_zero = 0; break; }
+    }
+    TEST_ASSERT(!all_zero, "l_getrandom fills buffer with non-zero bytes");
+
+    /* Two successive calls produce different output */
+    unsigned char buf2[32];
+    l_memset(buf2, 0, sizeof(buf2));
+    ret = l_getrandom(buf2, sizeof(buf2));
+    TEST_ASSERT(ret == 0, "second l_getrandom call succeeds");
+    TEST_ASSERT(l_memcmp(buf, buf2, sizeof(buf)) != 0,
+                "successive l_getrandom calls produce distinct output");
+
+    /* Single-byte request */
+    unsigned char single = 0;
+    ret = l_getrandom(&single, 1);
+    TEST_ASSERT(ret == 0, "l_getrandom with 1-byte buffer succeeds");
+
+    /* Zero-byte request — must not crash and must return 0 */
+    ret = l_getrandom(buf, 0);
+    TEST_ASSERT(ret == 0, "l_getrandom with 0 bytes returns 0");
+
+    TEST_SECTION_PASS("l_getrandom");
+}
+
 int main(int argc, char *argv[]) {
     l_getenv_init(argc, argv);
     test_qsort_large_element();
@@ -1263,6 +1300,7 @@ int main(int argc, char *argv[]) {
     test_rand_ctx();
     test_getopt_ctx();
     test_base64();
+    test_getrandom();
 
     l_test_print_summary(passed_count, test_count);
     puts("PASS\n");
