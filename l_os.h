@@ -3425,15 +3425,18 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
             if (prec < 0) prec = 6;
             if (prec == 0 && lspec == 'g') prec = 1;
 
-            /* sign */
+            /* sign: determine sign character for +/space flags */
             int dneg = 0;
             if (dval < 0.0) { dneg = 1; dval = -dval; }
+            char dsign = dneg ? '-' : (flag_plus ? '+' : (flag_space ? ' ' : 0));
 
             /* NaN */
             if (dval != dval) {
                 const char *ns = upper_f ? "NAN" : "nan";
-                int fpad = width - 3; if (fpad < 0) fpad = 0;
+                int fcont_nan = (dsign ? 1 : 0) + 3;
+                int fpad = width - fcont_nan; if (fpad < 0) fpad = 0;
                 if (!flag_minus) for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
+                if (dsign) L_SNPRINTF_EMIT(dsign);
                 L_SNPRINTF_EMIT(ns[0]); L_SNPRINTF_EMIT(ns[1]); L_SNPRINTF_EMIT(ns[2]);
                 if (flag_minus) for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
                 continue;
@@ -3442,11 +3445,11 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
             /* Inf: any finite double <= DBL_MAX, so > DBL_MAX means infinity */
             if (dval > DBL_MAX) {
                 const char *is2 = upper_f ? "INF" : "inf";
-                int fcont = (dneg ? 1 : 0) + 3;
+                int fcont = (dsign ? 1 : 0) + 3;
                 int fpad = width - fcont; if (fpad < 0) fpad = 0;
                 char fpc = (!flag_minus && flag_zero) ? '0' : ' ';
                 if (!flag_minus && fpc == ' ') for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
-                if (dneg) L_SNPRINTF_EMIT('-');
+                if (dsign) L_SNPRINTF_EMIT(dsign);
                 if (!flag_minus && fpc == '0') for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT('0');
                 L_SNPRINTF_EMIT(is2[0]); L_SNPRINTF_EMIT(is2[1]); L_SNPRINTF_EMIT(is2[2]);
                 if (flag_minus) for (int i = 0; i < fpad; i++) L_SNPRINTF_EMIT(' ');
@@ -3478,11 +3481,11 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
             char fbuf[64];
             int flen = l__fmt_double(fbuf, (int)sizeof(fbuf), dval,
                                      use_e_fmt, fprec, strip_z, upper_f);
-            int fcont2 = (dneg ? 1 : 0) + flen;
+            int fcont2 = (dsign ? 1 : 0) + flen;
             int fpad2 = width - fcont2; if (fpad2 < 0) fpad2 = 0;
             char fpc2 = (!flag_minus && flag_zero) ? '0' : ' ';
             if (!flag_minus && fpc2 == ' ') for (int i = 0; i < fpad2; i++) L_SNPRINTF_EMIT(' ');
-            if (dneg) L_SNPRINTF_EMIT('-');
+            if (dsign) L_SNPRINTF_EMIT(dsign);
             if (!flag_minus && fpc2 == '0') for (int i = 0; i < fpad2; i++) L_SNPRINTF_EMIT('0');
             for (int i = 0; i < flen; i++) L_SNPRINTF_EMIT(fbuf[i]);
             if (flag_minus) for (int i = 0; i < fpad2; i++) L_SNPRINTF_EMIT(' ');
