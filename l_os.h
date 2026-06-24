@@ -3328,12 +3328,13 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
         }
         fmt++;
 
-        int flag_minus = 0, flag_zero = 0, flag_plus = 0, flag_space = 0;
+        int flag_minus = 0, flag_zero = 0, flag_plus = 0, flag_space = 0, flag_hash = 0;
         for (;;) {
             if      (*fmt == '-') { flag_minus = 1; fmt++; }
             else if (*fmt == '0') { flag_zero  = 1; fmt++; }
             else if (*fmt == '+') { flag_plus  = 1; fmt++; }
             else if (*fmt == ' ') { flag_space = 1; fmt++; }
+            else if (*fmt == '#') { flag_hash  = 1; fmt++; }
             else break;
         }
 
@@ -3387,7 +3388,7 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
             continue;
         }
 
-        /* Numeric specifiers: d i u x X p */
+        /* Numeric specifiers: d i u o x X p */
         unsigned long long uval = 0;
         int neg = 0, base = 10, upper = 0, is_ptr = 0;
 
@@ -3405,6 +3406,11 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
                 uval = (unsigned long long)sv;
             }
         } else if (spec == 'u') {
+            if (is_ll)        uval = va_arg(ap, unsigned long long);
+            else if (is_long) uval = va_arg(ap, unsigned long);
+            else               uval = (unsigned int)va_arg(ap, unsigned int);
+        } else if (spec == 'o') {
+            base = 8;
             if (is_ll)        uval = va_arg(ap, unsigned long long);
             else if (is_long) uval = va_arg(ap, unsigned long);
             else               uval = (unsigned int)va_arg(ap, unsigned int);
@@ -3509,7 +3515,7 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
             }
         }
 
-        /* prefix: "-", "+", " ", or "0x" for pointers */
+        /* prefix: "-", "+", " ", "0x"/"0X" for pointers/hex, "0" for octal */
         const char *prefix = ""; int preflen = 0;
         if (neg)                   { prefix = "-";  preflen = 1; }
         else if (flag_plus  && (spec == 'd' || spec == 'i'))
@@ -3517,6 +3523,9 @@ static inline int l_vsnprintf(char *buf, size_t n, const char *fmt, va_list ap)
         else if (flag_space && (spec == 'd' || spec == 'i'))
                                    { prefix = " ";  preflen = 1; }
         if (is_ptr)                { prefix = "0x"; preflen = 2; }
+        else if (flag_hash && spec == 'x' && uval != 0) { prefix = "0x"; preflen = 2; }
+        else if (flag_hash && spec == 'X' && uval != 0) { prefix = "0X"; preflen = 2; }
+        else if (flag_hash && spec == 'o' && uval != 0) { prefix = "0";  preflen = 1; }
 
         /* precision zero-padding (separate from flag_zero) */
         int prec_pad = (prec > nlen) ? prec - nlen : 0;
