@@ -236,6 +236,7 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_sha256_update` | ✅ | test_utils.c |
 | `l_sha256_final` | ✅ | test_utils.c |
 | `l_sha256` | ✅ | test_utils.c |
+| `l_hmac_sha256` | ✅ | test_utils.c |
 | `l_base64_encode` | ✅ | test_utils.c |
 | `l_base64_decode` | ✅ | test_utils.c |
 | `l_getcwd` | ✅ | test_fs.c |
@@ -287,6 +288,6 @@ Generated — run `.\gen-docs.ps1` from the repository root to update.
 | `l_socket_recvfrom_addr` | — | |
 | `l_socket_unix_connect` | — | |
 
-**Coverage: 244 / 249 functions referenced in tests** (98%)
+**Coverage: 245 / 250 functions referenced in tests** (98%)
 
 <!-- END COVERAGE MATRIX -->

@@ -243,6 +243,7 @@ Legend:
 | `l_sha256_update` | ✅ | ✅ | ✅ |
 | `l_sha256_final` | ✅ | ✅ | ✅ |
 | `l_sha256` | ✅ | ✅ | ✅ |
+| `l_hmac_sha256` | ✅ | ✅ | ✅ |
 | `l_base64_encode` | ✅ | ✅ | ✅ |
 | `l_base64_decode` | ✅ | ✅ | ✅ |
 | `l_getcwd` | ✅ | ✅ | ✅ |

@@ -995,6 +995,8 @@ static inline void l_sha256_update(L_Sha256 *ctx, const void *data, size_t len);
 static inline void l_sha256_final(L_Sha256 *ctx, unsigned char hash[32]);
 /// One-shot SHA-256.
 static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]);
+/// One-shot HMAC-SHA256. Authenticates `datalen` bytes using `keylen`-byte key; writes 32-byte tag.
+static inline void l_hmac_sha256(const void *key, size_t keylen, const void *data, size_t datalen, unsigned char hash[32]);
 
 /// Encode `len` bytes from `data` into standard Base64. Writes at most `outsz` bytes (including NUL)
 /// to `out`. Returns the number of characters written (excluding NUL), or -1 if `outsz` is too small.
@@ -9433,6 +9435,37 @@ static inline void l_sha256(const void *data, size_t len, unsigned char hash[32]
     L_Sha256 ctx;
     l_sha256_init(&ctx);
     l_sha256_update(&ctx, data, len);
+    l_sha256_final(&ctx, hash);
+}
+
+static inline void l_hmac_sha256(const void *key, size_t keylen,
+                                  const void *data, size_t datalen,
+                                  unsigned char hash[32]) {
+    unsigned char k[64];
+    /* Keys longer than the block size are pre-hashed. */
+    if (keylen > 64) {
+        l_sha256(key, keylen, k);
+        l_memset(k + 32, 0, 32);
+    } else {
+        l_memcpy(k, key, keylen);
+        if (keylen < 64) l_memset(k + keylen, 0, 64 - keylen);
+    }
+    unsigned char ipad[64], opad[64];
+    for (int i = 0; i < 64; i++) {
+        ipad[i] = k[i] ^ 0x36u;
+        opad[i] = k[i] ^ 0x5cu;
+    }
+    /* Inner hash: H(ipad || message) */
+    unsigned char inner[32];
+    L_Sha256 ctx;
+    l_sha256_init(&ctx);
+    l_sha256_update(&ctx, ipad, 64);
+    l_sha256_update(&ctx, data, datalen);
+    l_sha256_final(&ctx, inner);
+    /* Outer hash: H(opad || inner) */
+    l_sha256_init(&ctx);
+    l_sha256_update(&ctx, opad, 64);
+    l_sha256_update(&ctx, inner, 32);
     l_sha256_final(&ctx, hash);
 }
 

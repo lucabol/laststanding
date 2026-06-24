@@ -744,6 +744,59 @@ void test_sha256(void) {
     TEST_SECTION_PASS("L_Sha256");
 }
 
+void test_hmac_sha256(void) {
+    TEST_FUNCTION("l_hmac_sha256");
+
+    unsigned char mac[32];
+
+    /* RFC 4231 Test Case 1
+     * Key  = 20 x 0x0b
+     * Data = "Hi There"
+     * Expected = b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7 */
+    unsigned char key1[20];
+    l_memset(key1, 0x0b, 20);
+    l_hmac_sha256(key1, 20, "Hi There", 8, mac);
+    TEST_ASSERT(mac[0]  == 0xb0, "hmac-sha256 tc1 byte 0");
+    TEST_ASSERT(mac[1]  == 0x34, "hmac-sha256 tc1 byte 1");
+    TEST_ASSERT(mac[2]  == 0x4c, "hmac-sha256 tc1 byte 2");
+    TEST_ASSERT(mac[3]  == 0x61, "hmac-sha256 tc1 byte 3");
+    TEST_ASSERT(mac[28] == 0x2e, "hmac-sha256 tc1 byte 28");
+    TEST_ASSERT(mac[29] == 0x32, "hmac-sha256 tc1 byte 29");
+    TEST_ASSERT(mac[30] == 0xcf, "hmac-sha256 tc1 byte 30");
+    TEST_ASSERT(mac[31] == 0xf7, "hmac-sha256 tc1 byte 31");
+
+    /* RFC 4231 Test Case 2
+     * Key  = "Jefe"
+     * Data = "what do ya want for nothing?"
+     * Expected = 5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843 */
+    l_hmac_sha256("Jefe", 4, "what do ya want for nothing?", 28, mac);
+    TEST_ASSERT(mac[0]  == 0x5b, "hmac-sha256 tc2 byte 0");
+    TEST_ASSERT(mac[1]  == 0xdc, "hmac-sha256 tc2 byte 1");
+    TEST_ASSERT(mac[2]  == 0xc1, "hmac-sha256 tc2 byte 2");
+    TEST_ASSERT(mac[3]  == 0x46, "hmac-sha256 tc2 byte 3");
+    TEST_ASSERT(mac[28] == 0x64, "hmac-sha256 tc2 byte 28");
+    TEST_ASSERT(mac[29] == 0xec, "hmac-sha256 tc2 byte 29");
+    TEST_ASSERT(mac[30] == 0x38, "hmac-sha256 tc2 byte 30");
+    TEST_ASSERT(mac[31] == 0x43, "hmac-sha256 tc2 byte 31");
+
+    /* Test Case 5 from RFC 4231: key longer than block size (131 bytes = 0xaa * 131)
+     * Data = "Test Using Larger Than Block-Size Key - Hash Key First"
+     * Expected = 60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54 */
+    unsigned char key5[131];
+    l_memset(key5, 0xaa, 131);
+    l_hmac_sha256(key5, 131, "Test Using Larger Than Block-Size Key - Hash Key First", 54, mac);
+    TEST_ASSERT(mac[0]  == 0x60, "hmac-sha256 tc5 byte 0");
+    TEST_ASSERT(mac[1]  == 0xe4, "hmac-sha256 tc5 byte 1");
+    TEST_ASSERT(mac[2]  == 0x31, "hmac-sha256 tc5 byte 2");
+    TEST_ASSERT(mac[3]  == 0x59, "hmac-sha256 tc5 byte 3");
+    TEST_ASSERT(mac[28] == 0x0e, "hmac-sha256 tc5 byte 28");
+    TEST_ASSERT(mac[29] == 0xe3, "hmac-sha256 tc5 byte 29");
+    TEST_ASSERT(mac[30] == 0x7f, "hmac-sha256 tc5 byte 30");
+    TEST_ASSERT(mac[31] == 0x54, "hmac-sha256 tc5 byte 31");
+
+    TEST_SECTION_PASS("l_hmac_sha256");
+}
+
 void test_math(void) {
     TEST_FUNCTION("l_fabs");
     TEST_ASSERT(l_fabs(-3.14) == 3.14, "fabs(-3.14) == 3.14");
@@ -1253,6 +1306,7 @@ int main(int argc, char *argv[]) {
     test_localtime();
     test_fnmatch();
     test_sha256();
+    test_hmac_sha256();
     test_math();
     test_math_extended();
     test_mktime();

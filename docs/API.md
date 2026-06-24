@@ -251,6 +251,7 @@ has no `-` column equivalent — consult [COMPAT.md](COMPAT.md) for WASI stubs).
 | `l_sha256_update` | Feed data into SHA-256. | All |
 | `l_sha256_final` | Finalize and produce 32-byte hash. | All |
 | `l_sha256` | One-shot SHA-256. | All |
+| `l_hmac_sha256` | One-shot HMAC-SHA256. Authenticates `datalen` bytes using `keylen`-byte key; writes 32-byte tag. | All |
 | `l_base64_encode` | Encode `len` bytes from `data` into standard Base64. Writes at most `outsz` bytes (including NUL) | All |
 | `l_base64_decode` | Decode Base64 text of length `inlen` into `out`. Returns decoded byte count, or -1 on invalid input | All |
 | `l_getcwd` | Gets the current working directory into buf (up to size bytes). Returns buf on success, NULL on error. | All |
