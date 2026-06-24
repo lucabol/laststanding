@@ -2006,11 +2006,8 @@ static inline char *l_strcpy(char *dst, const char *src)
 
 static inline char *l_strcat(char *dst, const char *src)
 {
-    char *ret = dst;
-
-    dst += l_strlen(dst); /* word-at-a-time scan to end */
-    while ((*dst++ = *src++));
-    return ret;
+    l_strcpy(dst + l_strlen(dst), src); /* word-at-a-time scan + copy */
+    return dst;
 }
 
 static inline char *l_strncpy(char *dst, const char *src, size_t n)
@@ -2027,14 +2024,11 @@ static inline char *l_strncpy(char *dst, const char *src, size_t n)
 
 static inline char *l_strncat(char *dst, const char *src, size_t n)
 {
-    char *ret = dst;
-
-    while (*dst)
-        dst++;
+    char *d = dst + l_strlen(dst); /* word-at-a-time scan to end */
     while (n-- && *src)
-        *dst++ = *src++;
-    *dst = '\0';
-    return ret;
+        *d++ = *src++;
+    *d = '\0';
+    return dst;
 }
 
 static inline char *l_strchr(const char *s, int c)
